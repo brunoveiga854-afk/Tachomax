@@ -1,19 +1,18 @@
 /**
  * TachoMax — Notificações Push
- * Alertas de pausa obrigatória, amplitude e fim de serviço
+ * Compatível com expo-notifications 0.31+ (Expo SDK 53)
  */
 
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 
-// IDs fixos para cancelar/reprogramar sem duplicar
 export const NOTIF_IDS = {
   PAUSA_ALERTA: 'tachomax-pausa-alerta',
   PAUSA_OBRIGATORIA: 'tachomax-pausa-obrigatoria',
   AMPLITUDE_ALERTA: 'tachomax-amplitude-alerta',
+  RAPPEL_SAISIE: 'tachomax-rappel-saisie',
 }
 
-// Configuração do comportamento das notificações
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -22,10 +21,6 @@ Notifications.setNotificationHandler({
   }),
 })
 
-/**
- * Pede permissão ao utilizador para enviar notificações.
- * Retorna true se concedida.
- */
 export async function pedirPermissaoNotificacoes(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('tachomax', {
@@ -35,41 +30,37 @@ export async function pedirPermissaoNotificacoes(): Promise<boolean> {
       sound: 'default',
     })
   }
-
   const { status: existente } = await Notifications.getPermissionsAsync()
   if (existente === 'granted') return true
-
   const { status } = await Notifications.requestPermissionsAsync()
   return status === 'granted'
 }
 
-/**
- * Agenda alerta de pausa em X segundos a partir de agora.
- * Cancela qualquer alerta anterior do mesmo tipo.
- */
 export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<void> {
-  // Cancelar alertas anteriores
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSA_ALERTA).catch(() => {})
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSA_OBRIGATORIA).catch(() => {})
 
-  if (segundosAteAlerta <= 0) return
+  if (segundosAteAlerta <= 60) return
 
-  // Alerta de aviso (30 min antes)
   const alertaAviso = segundosAteAlerta - 30 * 60
-  if (alertaAviso > 0) {
+  if (alertaAviso > 60) {
     await Notifications.scheduleNotificationAsync({
       identifier: NOTIF_IDS.PAUSA_ALERTA,
       content: {
         title: '⚠️ TachoMax — Pause dans 30 min',
-        body: 'Tu approches de 4h30 de conduite continue. Prépare-toi à t\'arrêter.',
+        body: 'Il te reste 30 min de conduite continue. Prépare-toi à t\'arrêter.',
         sound: 'default',
         data: { type: 'pausa_aviso' },
+        ...(Platform.OS === 'android' ? { channelId: 'tachomax' } : {}),
       },
-      trigger: { seconds: alertaAviso, channelId: 'tachomax' },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: alertaAviso,
+        repeats: false,
+      },
     })
   }
 
-  // Alerta de pausa obrigatória
   await Notifications.scheduleNotificationAsync({
     identifier: NOTIF_IDS.PAUSA_OBRIGATORIA,
     content: {
@@ -77,18 +68,20 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
       body: '4h30 de conduite atteintes ! Tu dois t\'arrêter 45 minutes minimum.',
       sound: 'default',
       data: { type: 'pausa_obrigatoria' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachomax' } : {}),
     },
-    trigger: { seconds: segundosAteAlerta, channelId: 'tachomax' },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: segundosAteAlerta,
+      repeats: false,
+    },
   })
 }
 
-/**
- * Agenda alerta de amplitude em X segundos a partir de agora.
- */
 export async function agendarAlertaAmplitude(segundosAteAlerta: number): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.AMPLITUDE_ALERTA).catch(() => {})
 
-  if (segundosAteAlerta <= 0) return
+  if (segundosAteAlerta <= 60) return
 
   await Notifications.scheduleNotificationAsync({
     identifier: NOTIF_IDS.AMPLITUDE_ALERTA,
@@ -97,19 +90,43 @@ export async function agendarAlertaAmplitude(segundosAteAlerta: number): Promise
       body: 'Tu as atteint la durée maximale de ta journée de travail.',
       sound: 'default',
       data: { type: 'amplitude_max' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachomax' } : {}),
     },
-    trigger: { seconds: segundosAteAlerta, channelId: 'tachomax' },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: segundosAteAlerta,
+      repeats: false,
+    },
   })
 }
 
-/**
- * Cancela todos os alertas agendados pelo TachoMax.
- * Chamar ao terminar o serviço ou ao pausar.
- */
 export async function cancelarTodosAlertas(): Promise<void> {
-  await Promise.all(
-    Object.values(NOTIF_IDS).map(id =>
-      Notifications.cancelScheduledNotificationAsync(id).catch(() => {})
-    )
-  )
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync()
+    await Notifications.dismissAllNotificationsAsync()
+  } catch {}
+}
+
+export async function agendarRappelSaisie(hora = 20, minuto = 0): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: NOTIF_IDS.RAPPEL_SAISIE,
+    content: {
+      title: '📋 TachoMax — Saisie du jour',
+      body: 'N\'oublie pas d\'enregistrer ta journée de travail !',
+      sound: 'default',
+      data: { type: 'rappel_saisie' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachomax' } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: hora,
+      minute: minuto,
+    },
+  })
+}
+
+export async function cancelarRappelSaisie(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
 }

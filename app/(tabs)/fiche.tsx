@@ -1193,11 +1193,11 @@ export default function MonSalaireScreen() {
             <Text style={st.calcularSub}>Combien tu vas recevoir ce mois</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
               <View style={{
-                backgroundColor: precisaoActual >= 80 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 60 ? 'rgba(243,156,18,0.3)' : 'rgba(255,255,255,0.15)',
+          backgroundColor: precisaoActual >= 94 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 85 ? 'rgba(100,180,50,0.3)' : precisaoActual >= 79 ? 'rgba(243,156,18,0.3)' : 'rgba(231,76,60,0.3)',
                 borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
               }}>
                 <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>
-                  {precisaoActual >= 80 ? '✅' : precisaoActual >= 60 ? '⚡' : '📊'} {precisaoActual}% de précision
+                  {precisaoActual >= 94 ? '✅' : precisaoActual >= 85 ? '🟢' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
                 </Text>
               </View>
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>

@@ -241,18 +241,20 @@ const st = StyleSheet.create({
   trialDays: { fontSize: 72, fontWeight: '800', color: '#f5a623', lineHeight: 80 },
   trialLabel: { fontSize: 18, fontWeight: '700', color: '#eef0f5', marginBottom: 4 },
   trialSub: { fontSize: 13, color: '#6b7394' },
-  trialFeatures: { backgroundColor: '#181c27', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#2a3045', gap: 10, marginBottom: 16 },
-  trialFeatureText: { fontSize: 13, color: '#c4c9d8', fontWeight: '500' },
-  trialPrix: { alignItems: 'center', marginBottom: 24 },
-  trialPrixText: { fontSize: 12, color: '#6b7394' },
-  trialPrixVal: { fontSize: 22, fontWeight: '800', color: '#eef0f5' },
-  trialPrixSub: { fontSize: 11, color: '#6b7394' },
+  trialFeatures: { backgroundColor: '#181c27', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#2a3045', marginBottom: 20, gap: 10 },
+  trialFeatureText: { fontSize: 14, color: '#c4c9d8', fontWeight: '500' },
 
-  // Botões
-  btnNext: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center' },
-  btnNextText: { fontSize: 16, fontWeight: '800', color: 'white', letterSpacing: 2 },
-  btnStart: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center' },
-  btnStartText: { fontSize: 16, fontWeight: '800', color: 'white', letterSpacing: 1 },
+  // Prix
+  trialPrix: { alignItems: 'center', marginBottom: 24 },
+  trialPrixText: { fontSize: 13, color: '#6b7394', marginBottom: 4 },
+  trialPrixVal: { fontSize: 22, fontWeight: '800', color: '#eef0f5' },
+  trialPrixSub: { fontSize: 12, color: '#6b7394', marginTop: 4 },
+
+  // Buttons
+  btnNext: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 'auto' as any, marginBottom: 8 },
+  btnNextText: { fontSize: 15, fontWeight: '800', color: 'white', letterSpacing: 1 },
+  btnStart: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 'auto' as any, marginBottom: 8 },
+  btnStartText: { fontSize: 15, fontWeight: '800', color: 'white', letterSpacing: 1 },
 
   // Dots
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 24 },

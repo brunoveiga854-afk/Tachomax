@@ -6,7 +6,6 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
-
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
 // Valeurs par défaut convention transport français
@@ -41,6 +40,14 @@ type Padrao = {
   ptd: number; dej: number; din: number; nui: number
   // Valor por dia de férias/feriado aprendido das fiches
   valorDiaConges: number; valorDiaFerie: number
+  // Regras/limiares aprendidos dos boletins (opcionais)
+  regles?: { ptDejAte: number; dejMinAmp: number; dinerDe: number }
+  // Taxa salarial efectiva aprendida: netSal_real / horas_trabalhadas_mês_trabalho
+  // Captura automaticamente férias, feriados, prémios — tudo incluído
+  taxaHorariaNetaMedia: number
+  // Factor de correcção de frais: fraisBoletim_real / fraisCalc_app
+  // Aprende quando há discrepância entre o calculado e o recebido
+  fraisFactorReal: number
 }
 
 type DocumentoAnalysado = {
@@ -52,6 +59,8 @@ type CalcResult = {
   totalLiq: number; jours: number; hExtra25: number; hExtra50: number
   mesReceber: string; diaReceber: number; diaFrais: number
   empresa: string; precisao: number; mesAberto: boolean
+  mesFraisLabel: string  // ex: "Avril 2026"
+  salConfirmado?: boolean  // true quando o utilizador confirmou o valor real
 }
 
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
@@ -90,17 +99,20 @@ function calcFraisHorario(
   const start = pT(inicio)
   const end = pT(fim)
 
-  // Pt.D: entrada ≤ 06:00 OU dia após découché OU próprio découché
-  const ptd = (start !== null && start <= 6.0) || prevDec || isDec ? 1 : 0
+  // Regras aprendidas (com defaults da convenção colectiva transport)
+  const regles = p.regles || { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
+
+  // Pt.D: entrada ≤ limite aprendido OU dia após découché OU próprio découché
+  const ptd = (start !== null && start <= regles.ptDejAte) || prevDec || isDec ? 1 : 0
 
   // Amplitude sem pausa (para frais a pausa não conta)
   const amp = start !== null && end !== null ? end - start : 0
 
-  // Déjeuner: amplitude ≥ 6h01 OU découché
-  const dej = amp >= 6.017 || isDec ? 1 : 0
+  // Déjeuner: amplitude ≥ mínimo aprendido OU découché
+  const dej = amp >= regles.dejMinAmp || isDec ? 1 : 0
 
-  // Dîner: saída ≥ 21:15 OU découché
-  const din = (end !== null && end >= 21.25) || isDec ? 1 : 0
+  // Dîner: saída ≥ hora aprendida OU découché
+  const din = (end !== null && end >= regles.dinerDe) || isDec ? 1 : 0
 
   // Nuit: só découché
   const nui = isDec ? 1 : 0
@@ -159,6 +171,65 @@ function calcFraisMesPorHorarios(
   return { total, ptd, dej, din, nui }
 }
 
+// ── VALIDAR HLAG COM TOTAIS CONFIRMADOS ──────────────────────────────────────
+// Usa montantTotalRecu (confirmado pelo utilizador) para encontrar o hlag correcto.
+// É o método mais fiável porque usa dados reais em vez de estimativas de bruto.
+function validarHlagComTotais(
+  dados: MoisData[], hist: any[], base: Padrao
+): number {
+  const mesesConf = dados.filter(d => d.montantTotalRecu > 0)
+  if (mesesConf.length < 2 || hist.length === 0) return base.hlag
+
+  const erros: Record<number, number[]> = { 1: [], 2: [], 3: [] }
+
+  for (const m of mesesConf) {
+    for (let lag = 1; lag <= 3; lag++) {
+      let mH = m.moisIndex - lag, aH = m.annee
+      while (mH < 0) { mH += 12; aH-- }
+
+      const diasMes = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const me = parseInt(parts[1]) - 1
+        const an = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        return me === mH && an === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+      })
+      if (diasMes.length === 0) continue
+
+      const totalSeg = diasMes.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+      const totalH = totalSeg / 3600
+      if (totalH < 1) continue
+
+      const extra = Math.max(0, totalH - base.hbase)
+      const brut = totalH <= base.hbase
+        ? totalH * base.hval
+        : base.hbase * base.hval + Math.min(extra, base.lim25) * base.h25 + Math.max(0, extra - base.lim25) * base.h50
+      const salLiq = brut * base.liquidRate
+
+      // Frais do mês correspondente (usa flag actual)
+      let mF = m.moisIndex - base.flag, aF = m.annee
+      while (mF < 0) { mF += 12; aF-- }
+      const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
+      const frais = fraisCalc.total > 0 ? fraisCalc.total : (m.fraisBoletim || 0)
+
+      const totalEstimado = salLiq + frais
+      if (totalEstimado > 100) {
+        const errRel = Math.abs(totalEstimado - m.montantTotalRecu) / m.montantTotalRecu
+        erros[lag].push(errRel)
+      }
+    }
+  }
+
+  // Escolhe o lag com menor erro médio (exige ≥2 meses)
+  let melhorLag = base.hlag, melhorErr = Infinity
+  for (let lag = 1; lag <= 3; lag++) {
+    if (erros[lag].length < 2) continue
+    const med = erros[lag].reduce((a, b) => a + b, 0) / erros[lag].length
+    if (med < melhorErr) { melhorErr = med; melhorLag = lag }
+  }
+  return melhorLag
+}
+
 // ── ANALISAR PADRÃO V2 ────────────────────────────────────────────────────────
 
 function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padrao {
@@ -173,10 +244,12 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   if (diasFrais.length > 0)
     base.diaFrais = Math.round(diasFrais.reduce((a, b) => a + b, 0) / diasFrais.length)
 
-  // B. LiquidRate real
+  // B. LiquidRate real — prefere meses sem férias (bruto mais limpo)
   const comBruto = dados.filter(d => d.salairebrut > 0 && d.netPaye > 0)
   if (comBruto.length > 0) {
-    const taxa = comBruto.reduce((a, d) => a + d.netPaye / d.salairebrut, 0) / comBruto.length
+    const semFerias = comBruto.filter(d => (d.joursConges || 0) === 0 && (d.joursFeries || 0) === 0)
+    const fonte = semFerias.length >= 2 ? semFerias : comBruto
+    const taxa = fonte.reduce((a, d) => a + d.netPaye / d.salairebrut, 0) / fonte.length
     base.liquidRate = Math.round(taxa * 1000) / 1000
   }
 
@@ -272,20 +345,55 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     if (lagsTestados.length > 0) {
       const counts: Record<number, number> = {}
       lagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      base.hlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+      const melhorHlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+      const melhorCount = counts[melhorHlag] || 0
+      // Só muda hlag se: já é esse valor, OU ≥2 meses confirmam, OU ainda é o default de fábrica (nunca foi aprendido)
+      if (melhorHlag === base.hlag || melhorCount >= 2 || base.hlag === DEF_SAL.hlag) {
+        base.hlag = melhorHlag
+      }
     }
   }
 
   // F. Detectar flag automaticamente
-  if (dados.filter(d => d.fraisBoletim > 0).length >= 2 && hist.length > 0) {
+  // Método 1 (prioritário): matching directo synthèse↔fiche por valor — não depende do histórico
+  // Para cada fiche com frais, procura a synthèse com totalFrais mais próximo e calcula o lag
+  const fichasComFrais = dados.filter(d => (d.fraisBoletim > 0) || (d.remboursementFrais > 0))
+  const sintesesCom = dados.filter(d => d.fraisBoletim > 0)
+  const fichasComRefPaye = dados.filter(d => d.remboursementFrais > 0)
+
+  const flagsDiretos: number[] = []
+  // Cross-match: remboursementFrais da fiche vs fraisBoletim da synthèse
+  for (const fiche of fichasComRefPaye) {
+    const fraisRef = fiche.remboursementFrais
+    let melhorFlag = -1, melhorDiff = Infinity
+    for (const sint of sintesesCom) {
+      const diff = Math.abs(sint.fraisBoletim - fraisRef)
+      if (diff < melhorDiff && diff < fraisRef * 0.02) { // tolerância 2%
+        melhorDiff = diff
+        let lag = fiche.moisIndex - sint.moisIndex + (fiche.annee - sint.annee) * 12
+        if (lag > 0 && lag <= 3) melhorFlag = lag
+      }
+    }
+    if (melhorFlag > 0) flagsDiretos.push(melhorFlag)
+  }
+
+  if (flagsDiretos.length > 0) {
+    // Método directo funcionou — usa este resultado com alta confiança
+    const counts: Record<number, number> = {}
+    flagsDiretos.forEach(l => counts[l] = (counts[l] || 0) + 1)
+    base.flag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+  } else if (fichasComFrais.length >= 1 && hist.length > 0) {
+    // Método 2 (fallback): recalcular frais pelo histórico
     const flagsTestados: number[] = []
-    for (const fiche of dados.filter(d => d.fraisBoletim > 0)) {
+    for (const fiche of fichasComFrais) {
+      const fraisRef = fiche.fraisBoletim > 0 ? fiche.fraisBoletim : fiche.remboursementFrais
       let melhorFlag = 1, melhorDiff = Infinity
-      for (let flag = 1; flag <= 2; flag++) {
+      for (let flag = 1; flag <= 3; flag++) {
         let mF = fiche.moisIndex - flag, aF = fiche.annee
         while (mF < 0) { mF += 12; aF-- }
         const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
-        const diff = Math.abs(fraisCalc.total - fiche.fraisBoletim)
+        if (fraisCalc.total === 0) continue
+        const diff = Math.abs(fraisCalc.total - fraisRef)
         if (diff < melhorDiff) { melhorDiff = diff; melhorFlag = flag }
       }
       flagsTestados.push(melhorFlag)
@@ -293,7 +401,12 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     if (flagsTestados.length > 0) {
       const counts: Record<number, number> = {}
       flagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      base.flag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+      const melhorFlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+      const melhorCount = counts[melhorFlag] || 0
+      // Fallback: exige ≥2 meses para mudar flag (método directo já é fiável por si só)
+      if (melhorFlag === base.flag || melhorCount >= 2) {
+        base.flag = melhorFlag
+      }
     }
   }
 
@@ -324,6 +437,67 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       base.horasExtrasMedia = Math.round(aprendizagens.reduce((a, b) => a + b, 0) / aprendizagens.length * 10) / 10
   }
 
+  // H. Taxa horária neta efectiva — aprende de meses com salário confirmado
+  // netSal_real / horas_trabalho_mês = taxa que já inclui férias, feriados, prémios
+  const mesesComSalReal = dados.filter(d => d.netPaye > 0 && d.montantTotalRecu > 0)
+  if (mesesComSalReal.length >= 2 && hist.length > 0) {
+    const taxas: number[] = []
+    for (const m of mesesComSalReal) {
+      let mH = m.moisIndex - base.hlag, aH = m.annee
+      while (mH < 0) { mH += 12; aH-- }
+      const todosDiasMes = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const me = parseInt(parts[1]) - 1
+        const an = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        return me === mH && an === aH
+      })
+      const diasTrab = todosDiasMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
+      if (diasTrab.length === 0) continue
+      const totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+      const totalH = totalSeg / 3600
+      if (totalH < 10) continue
+      // Normalizar: subtrair pay de congés/fériés antes de dividir pelas horas
+      // Evita que meses com muitos congés inflacionem a taxa por hora
+      const nConges = todosDiasMes.filter((j: any) => ['FERIE', 'vac'].includes(j.type || '')).length
+      const nFeries = todosDiasMes.filter((j: any) => ['FER', 'FERIADO', 'hol'].includes(j.type || '')).length
+      const valCongeNet = (base.valorDiaConges > 0 ? base.valorDiaConges : (base.hbase / 22) * base.hval) * base.liquidRate
+      const valFerieNet = (base.valorDiaFerie > 0 ? base.valorDiaFerie : (base.hbase / 22) * base.hval) * base.liquidRate
+      const netNormalizado = m.netPaye - nConges * valCongeNet - nFeries * valFerieNet
+      if (netNormalizado < 100) continue // skip if result is unreasonable
+      taxas.push(netNormalizado / totalH)
+    }
+    if (taxas.length >= 2) {
+      base.taxaHorariaNetaMedia = Math.round(
+        taxas.reduce((a, b) => a + b, 0) / taxas.length * 100
+      ) / 100
+    }
+  }
+
+  // I. Factor de correcção de frais — aprende da diferença boletim vs cálculo
+  // Quando o utilizador carrega fiches com fraisBoletim real, aprendemos o ratio
+  const mesesComFraisBoletim = dados.filter(d => (d.fraisBoletim || 0) > 0)
+  if (mesesComFraisBoletim.length >= 2 && hist.length > 0) {
+    const ratios: number[] = []
+    for (const m of mesesComFraisBoletim) {
+      let mF = m.moisIndex - base.flag, aF = m.annee
+      while (mF < 0) { mF += 12; aF-- }
+      const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
+      if (fraisCalc.total > 50 && m.fraisBoletim > 50) {
+        ratios.push(m.fraisBoletim / fraisCalc.total)
+      }
+    }
+    if (ratios.length >= 2) {
+      // Remover outliers extremos (> 2x ou < 0.3x)
+      const filtered = ratios.filter(r => r > 0.3 && r < 2.0)
+      if (filtered.length >= 1) {
+        base.fraisFactorReal = Math.round(
+          filtered.reduce((a, b) => a + b, 0) / filtered.length * 1000
+        ) / 1000
+      }
+    }
+  }
+
   base.descoberto = dados.length >= 2
   base.confianca = calcularPrecisao(base, dados.length)
   return base
@@ -334,7 +508,7 @@ export default function MonSalaireScreen() {
   const [historique, setHistorique] = useState<MoisData[]>([])
   const [padrao, setPadrao] = useState<Padrao>({
     descoberto: false, diaSalario: 5, diaFrais: 10, defasagemFrais: 3, confianca: 0,
-    horasExtrasMedia: 0,
+    horasExtrasMedia: 0, taxaHorariaNetaMedia: 0, fraisFactorReal: 0,
     ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
     valorDiaConges: 0, valorDiaFerie: 0,
     ...DEF_SAL
@@ -367,6 +541,12 @@ export default function MonSalaireScreen() {
   const [showModalSucesso, setShowModalSucesso] = useState(false)
   const [modalSucessoMsg, setModalSucessoMsg] = useState('')
   const [showModalCancelar, setShowModalCancelar] = useState(false)
+  const [showModalFraisReel, setShowModalFraisReel] = useState(false)
+  const [showModalSalNet, setShowModalSalNet] = useState(false)
+  const [inputSalNet, setInputSalNet] = useState('')
+  const [inputFraisReel, setInputFraisReel] = useState('')
+  const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
+  const [inputMontantSalQ, setInputMontantSalQ] = useState('')
 
   const breathAnim = useRef(new Animated.Value(1)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -384,18 +564,36 @@ export default function MonSalaireScreen() {
 
   useEffect(() => { charger() }, [])
 
+  const [histCal, setHistCal] = useState<any[]>([])
+
   const charger = async () => {
     try {
       const data = await AsyncStorage.getItem('monSalaire_v2')
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
+      const cal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+      setHistCal(cal)
       if (data) {
         const hist = JSON.parse(data)
         setHistorique(hist)
-        const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
-        const p = pData
-          ? { ...padrao, ...JSON.parse(pData) }
-          : analisarPadraoV2(hist, histCal, padrao)
+        // Sempre re-analisa com o algoritmo actual para apanhar melhorias de detecção
+        let base = pData ? { ...padrao, ...JSON.parse(pData) } : { ...padrao }
+        // Salvaguarda: se hlag/flag ainda está no default de fábrica mas o método directo
+        // já provou o valor correcto numa sessão anterior, não regredir.
+        // (O guard ≥2 no analisarPadraoV2 trata disso — aqui só garantimos base limpa)
+        const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
+        if (fraisReglesRaw) base = { ...base, regles: JSON.parse(fraisReglesRaw) }
+        const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
+        if (fraisValsRaw) {
+          const fv = JSON.parse(fraisValsRaw)
+          base = { ...base, ptd: fv.ptDej || base.ptd, dej: fv.dej || base.dej, din: fv.diner || base.din, nui: fv.nuit || base.nui }
+        }
+        // Valida hlag com totais confirmados — mais fiável que detecção por bruto estimado
+        const hlagValidado = validarHlagComTotais(hist, cal, base)
+        if (hlagValidado !== base.hlag) base = { ...base, hlag: hlagValidado }
+
+        const p = analisarPadraoV2(hist, cal, base)
         setPadrao(p)
+        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
       }
     } catch (e) { console.log('Erro:', e) }
   }
@@ -436,7 +634,7 @@ export default function MonSalaireScreen() {
       const totalSeg = diasHoras.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
       let totalH = totalSeg / 3600
 
-      // Dias de férias e feriados no mês das horas
+      // Dias de férias, feriados e RC no mês das horas
       const diasConges = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
@@ -451,21 +649,31 @@ export default function MonSalaireScreen() {
         const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
         return m === mesHoras && a === anoHoras && ['FER', 'FERIADO', 'hol'].includes(j.type)
       })
+      const diasRC = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const m = parseInt(parts[1]) - 1
+        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        return m === mesHoras && a === anoHoras && j.type === 'RC'
+      })
 
       // Frais: pelos horários reais primeiro, fallback boletim
       const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
       const fichesFrais = historique.filter(f =>
         f.moisIndex === mesFrais && f.annee === anoFrais && f.fraisBoletim > 0
       )
-      const totalFrais = fraisHorario.total > 0
-        ? fraisHorario.total
-        : fichesFrais.length > 0 ? fichesFrais[0].fraisBoletim : 0
+      // Frais confirmado pelo utilizador tem prioridade sobre o cálculo automático
+      const totalFrais = fichesFrais.length > 0
+        ? fichesFrais[0].fraisBoletim
+        : fraisHorario.total > 0 ? fraisHorario.total : 0
 
       // Salário
       let salLiq = 0, salBrut = 0, hExtra25 = 0, hExtra50 = 0
 
+      // Procura fiche do mês de RECEBIMENTO (não de trabalho)
+      // ex: estimativa Maio → fiche Maio (se existir); se não existe → modo estimado
       const ficheReal = historique.find(f =>
-        f.moisIndex === mesHoras && f.annee === anoHoras && f.netPaye > 0
+        f.moisIndex === mesReceber && f.annee === anoReceber && f.netPaye > 0
       )
 
       if (ficheReal && ficheReal.netPaye > 0) {
@@ -474,21 +682,6 @@ export default function MonSalaireScreen() {
         salBrut = ficheReal.salairebrut || salLiq / p.liquidRate
       } else {
         // 📊 MODO ESTIMADO
-        // Valor das férias: usa valor aprendido ou fallback convenção
-        const valorCongesDia = p.valorDiaConges > 0
-          ? p.valorDiaConges
-          : (p.hbase / 22) * p.hval
-        const valorFeriesDia = p.valorDiaFerie > 0
-          ? p.valorDiaFerie
-          : (p.hbase / 22) * p.hval
-
-        const brutConges = diasConges.length * valorCongesDia
-        const brutFeries = diasFeries.length * valorFeriesDia
-
-        // horasExtrasMedia só como fallback se não temos valorDiaConges
-        const horasExtra = p.valorDiaConges > 0 ? 0 : (p.horasExtrasMedia || 0)
-        totalH = totalH + horasExtra
-
         if (totalH <= p.hbase) {
           salBrut = totalH * p.hval
         } else {
@@ -497,13 +690,44 @@ export default function MonSalaireScreen() {
           hExtra50 = Math.max(0, extra - p.lim25)
           salBrut = p.hbase * p.hval + hExtra25 * p.h25 + hExtra50 * p.h50
         }
-        salBrut += brutConges + brutFeries
-        salLiq = salBrut * p.liquidRate
+
+        if (p.taxaHorariaNetaMedia > 0) {
+          // ✅ MODO CALIBRADO: taxa limpa (só horas normais) + dias especiais explícitos
+          const valCongeNet = (p.valorDiaConges > 0 ? p.valorDiaConges : (p.hbase / 22) * p.hval) * p.liquidRate
+          const valFerieNet = (p.valorDiaFerie > 0 ? p.valorDiaFerie : (p.hbase / 22) * p.hval) * p.liquidRate
+          const valRCNet    = (p.hbase / 22) * p.hval * p.liquidRate
+          salLiq = Math.round(
+            totalH * p.taxaHorariaNetaMedia
+            + diasConges.length * valCongeNet
+            + diasFeries.length * valFerieNet
+            + diasRC.length    * valRCNet
+          )
+          salBrut = Math.round(salLiq / p.liquidRate)
+        } else {
+          // Fallback: fórmula clássica + férias do calendário
+          const valorCongesDia = p.valorDiaConges > 0
+            ? p.valorDiaConges : (p.hbase / 22) * p.hval
+          const valorFeriesDia = p.valorDiaFerie > 0
+            ? p.valorDiaFerie : (p.hbase / 22) * p.hval
+          salBrut += diasConges.length * valorCongesDia + diasFeries.length * valorFeriesDia
+          if (p.valorDiaConges === 0) totalH = totalH + (p.horasExtrasMedia || 0)
+          salLiq = salBrut * p.liquidRate
+        }
       }
 
       const totalLiq = salLiq + totalFrais
       const empresa = historique.length > 0 ? historique[0].entreprise : ''
-      const precisao = calcularPrecisao(p, historique.length)
+
+      // Precisão real: compara estimativas passadas vs valores confirmados
+      const mesesComReal = historique.filter(m => m.montantTotalRecu > 0)
+      const acertosReais = mesesComReal.map(m => {
+        const est = calcEstimativaMes(m)
+        if (est === 0 || m.montantTotalRecu === 0) return null
+        return 100 - Math.min(100, Math.abs(est - m.montantTotalRecu) / m.montantTotalRecu * 100)
+      }).filter(v => v !== null) as number[]
+      const precisao = acertosReais.length >= 2
+        ? Math.round(acertosReais.reduce((a, b) => a + b, 0) / acertosReais.length)
+        : calcularPrecisao(p, historique.length)
 
       setCalcResult({
         totalH, totalFrais, salBrut, salLiq, totalLiq,
@@ -513,11 +737,89 @@ export default function MonSalaireScreen() {
         diaReceber: p.diaSalario,
         diaFrais: p.diaFrais,
         empresa, precisao, mesAberto,
+        mesFraisLabel: `${MOIS_NOMS[mesFrais]} ${anoFrais}`,
       })
       animarContagem(Math.round(totalLiq), mesAberto)
     } catch (e) {
       mostrarErro('Erreur: ' + String(e))
     }
+  }
+
+  // ── Calcula estimativa da app para um mês passado ─────────────────────────
+  const calcEstimativaMes = (m: MoisData): number => {
+    if (!padrao.hlag) return 0
+    const p = padrao
+
+    // Mês de TRABALHO (moisIndex - hlag)
+    let mH = m.moisIndex - p.hlag, aH = m.annee
+    while (mH < 0) { mH += 12; aH-- }
+
+    // Todos os dias do mês de trabalho
+    const todosDoMes = histCal.filter((j: any) => {
+      const parts = j.date?.split('/')
+      if (!parts || parts.length < 2) return false
+      const mes = parseInt(parts[1]) - 1
+      const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+      return mes === mH && ano === aH
+    })
+    const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
+    if (diasTrab.length === 0) return 0
+
+    const totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+    const totalH   = totalSeg / 3600
+
+    // Dias especiais (congé, fériés, RC) — idêntico ao calcularSalario
+    const nConges = todosDoMes.filter((j: any) => ['FERIE', 'vac'].includes(j.type || '')).length
+    const nFeries = todosDoMes.filter((j: any) => ['FER', 'FERIADO', 'hol'].includes(j.type || '')).length
+    const nRC     = todosDoMes.filter((j: any) => j.type === 'RC').length
+
+    const valCongeNet = (p.valorDiaConges > 0 ? p.valorDiaConges : (p.hbase / 22) * p.hval) * p.liquidRate
+    const valFerieNet = (p.valorDiaFerie  > 0 ? p.valorDiaFerie  : (p.hbase / 22) * p.hval) * p.liquidRate
+    const valRCNet    = (p.hbase / 22) * p.hval * p.liquidRate
+
+    // Salário — MODO CALIBRADO com dias especiais explícitos
+    let salLiq: number
+    if (p.taxaHorariaNetaMedia > 0) {
+      salLiq = Math.round(
+        totalH * p.taxaHorariaNetaMedia
+        + nConges * valCongeNet
+        + nFeries * valFerieNet
+        + nRC     * valRCNet
+      )
+    } else {
+      const extra = Math.max(0, totalH - p.hbase)
+      const brut  = totalH <= p.hbase
+        ? totalH * p.hval
+        : p.hbase * p.hval + Math.min(extra, p.lim25) * p.h25 + Math.max(0, extra - p.lim25) * p.h50
+      salLiq = Math.round(
+        brut * p.liquidRate
+        + nConges * valCongeNet
+        + nFeries * valFerieNet
+        + nRC     * valRCNet
+      )
+    }
+
+    // Frais — mês (moisIndex - flag)
+    let mF = m.moisIndex - p.flag, aF = m.annee
+    while (mF < 0) { mF += 12; aF-- }
+
+    // 1ª prioridade: fraisBoletim confirmado para este mês de frais
+    const ficheComFrais = historique.find(f =>
+      f.moisIndex === mF && f.annee === aF && (f.fraisBoletim || 0) > 0
+    )
+    let totalFrais: number
+    if (ficheComFrais) {
+      totalFrais = ficheComFrais.fraisBoletim
+    } else {
+      // 2ª prioridade: cálculo do calendário × factor de correcção aprendido
+      const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, p)
+      const factor    = (p.fraisFactorReal || 0) > 0.1 ? p.fraisFactorReal : 1
+      totalFrais = fraisCalc.total > 0
+        ? Math.round(fraisCalc.total * factor)
+        : (m.fraisBoletim || 0)
+    }
+
+    return Math.round(salLiq + totalFrais)
   }
 
   const animarRespiracao = () => {
@@ -616,7 +918,7 @@ export default function MonSalaireScreen() {
         else content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } })
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
       }
-      content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0},...]` })
+      content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0,"regles":{"ptDejAte":null,"dejMinAmp":null,"dinerDe":null}},...]\n\nPour le champ "regles", extrait les critères d'attribution si explicitement mentionnés dans le document (sinon laisse null):\n- ptDejAte: heure limite de début de service pour avoir droit au petit déjeuner (nombre décimal, ex: 6.5 pour 06h30)\n- dejMinAmp: amplitude minimale en heures pour avoir droit au déjeuner (ex: 6.017 pour 6h01)\n- dinerDe: heure minimale de fin de service pour avoir droit au dîner (ex: 21.25 pour 21h15)` })
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -633,7 +935,6 @@ export default function MonSalaireScreen() {
             diner: d.dinerValeur || 23.94, nuit: d.nuitValeur || 23.94,
           }
           await AsyncStorage.setItem('frais_valores', JSON.stringify(fraisVals))
-          // Guardar imediatamente no padrão actual
           setPadrao(prev => ({
             ...prev,
             ptd: fraisVals.ptDej,
@@ -641,6 +942,21 @@ export default function MonSalaireScreen() {
             din: fraisVals.diner,
             nui: fraisVals.nuit,
           }))
+        }
+        // Aprender as regras/limiares se o boletim as mencionar explicitamente
+        if (d.regles) {
+          const reglesActuais = JSON.parse(await AsyncStorage.getItem('frais_regles') || '{}')
+          const valNum = (v: any, fallback: number) => {
+            const n = parseFloat(v)
+            // Só aceita se for número válido dentro de limites realistas
+            return !isNaN(n) && n > 0 && n < 24 ? n : fallback
+          }
+          const novasRegles = {
+            ptDejAte:  valNum(d.regles.ptDejAte,  reglesActuais.ptDejAte  ?? 6.0),
+            dejMinAmp: valNum(d.regles.dejMinAmp, reglesActuais.dejMinAmp ?? 6.017),
+            dinerDe:   valNum(d.regles.dinerDe,   reglesActuais.dinerDe   ?? 21.25),
+          }
+          await AsyncStorage.setItem('frais_regles', JSON.stringify(novasRegles))
         }
       }
       processarDocumentos(docs)
@@ -668,6 +984,10 @@ export default function MonSalaireScreen() {
     if (fiches.length === 0) return
     setRespostas([]); setPerguntaAtual(0); setInputValor('')
     setInputDiaSal(String(padrao.diaSalario)); setInputDiaFrais(String(padrao.diaFrais))
+    // Pré-preenche sal + frais da primeira fiche se a IA os extraiu
+    const pf = fiches[0]?.dados || fiches[0] as any
+    setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
+    setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
     setShowPerguntas(true)
   }
 
@@ -675,18 +995,29 @@ export default function MonSalaireScreen() {
     const fiches = documentosAnalisados.filter(d => d.tipo === 'fiche')
     const fraisDoc = documentosAnalisados.filter(d => d.tipo === 'frais')
     const fichaActual = fiches[perguntaAtual]
-    if (!inputValor || parseFloat(inputValor) <= 0) { setShowModalValorInvalido(true); return }
+    const sal = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
+    const fraisReel = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+    if (sal <= 0 && fraisReel <= 0) { setShowModalValorInvalido(true); return }
     const novaResposta = {
       fiche: fichaActual,
       frais: fraisDoc.find(f => f.moisIndex === fichaActual.moisIndex && f.annee === fichaActual.annee) || null,
-      montantTotal: parseFloat(inputValor),
+      montantTotal: sal + fraisReel,
+      montantSalReel: sal,
+      montantFraisReel: fraisReel,
       diaSalario: parseInt(inputDiaSal) || 5,
       diaFrais: parseInt(inputDiaFrais) || 10,
     }
     const novasRespostas = [...respostas, novaResposta]
-    setRespostas(novasRespostas); setInputValor('')
-    if (perguntaAtual < fiches.length - 1) setPerguntaAtual(perguntaAtual + 1)
-    else { await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([]) }
+    setRespostas(novasRespostas)
+    if (perguntaAtual < fiches.length - 1) {
+      // Pré-preenche sal + frais para a próxima fiche
+      const pf = fiches[perguntaAtual + 1]?.dados || fiches[perguntaAtual + 1] as any
+      setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
+      setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+      setPerguntaAtual(perguntaAtual + 1)
+    } else {
+      await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
+    }
   }
 
   const guardarTudo = async (resps: any[]) => {
@@ -699,9 +1030,12 @@ export default function MonSalaireScreen() {
       const novoDado: MoisData = {
         periode: periodeLabel, moisIndex: resp.fiche.moisIndex || 0,
         annee: resp.fiche.annee || new Date().getFullYear(), fichePages: 1,
-        netPaye: fiche.netPaye || 0, salairebrut: fiche.salairebrut || 0,
-        totalCotisations: fiche.totalCotisations || 0, remboursementFrais: fiche.remboursementFrais || 0,
-        fraisBoletim: frais?.totalFrais || 0, montantTotalRecu: resp.montantTotal,
+        netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : fiche.netPaye || 0,
+        salairebrut: fiche.salairebrut || 0,
+        totalCotisations: fiche.totalCotisations || 0,
+        remboursementFrais: resp.montantFraisReel > 0 ? resp.montantFraisReel : fiche.remboursementFrais || 0,
+        fraisBoletim: frais?.totalFrais > 0 ? frais.totalFrais : (resp.montantFraisReel > 0 ? resp.montantFraisReel : 0),
+        montantTotalRecu: resp.montantTotal,
         jourPaiement1: resp.diaSalario, jourPaiement2: resp.diaFrais,
         analysedAt: new Date().toISOString(), entreprise: fiche.entreprise || '', conducteur: fiche.conducteur || '',
         // Campos novos das fiches
@@ -722,11 +1056,17 @@ export default function MonSalaireScreen() {
     const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
     // Aplicar valores de frais dos boletins se existirem
     const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
+    const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     let padraoBase = { ...padrao }
     if (fraisValsRaw) {
       const fv = JSON.parse(fraisValsRaw)
       padraoBase = { ...padraoBase, ptd: fv.ptDej || padraoBase.ptd, dej: fv.dej || padraoBase.dej, din: fv.diner || padraoBase.din, nui: fv.nuit || padraoBase.nui }
     }
+    if (fraisReglesRaw) {
+      padraoBase = { ...padraoBase, regles: JSON.parse(fraisReglesRaw) }
+    }
+    const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
+    if (hlagValidado !== padraoBase.hlag) padraoBase = { ...padraoBase, hlag: hlagValidado }
     const novoPadrao = analisarPadraoV2(novoHist, histCal, padraoBase)
     setPadrao(novoPadrao)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
@@ -782,21 +1122,38 @@ export default function MonSalaireScreen() {
               </View>
             )}
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 14 }} />
-            <View style={{ width: '100%', gap: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>💰 Salaire net</Text>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 16, color: 'white', fontWeight: '800' }}>{fmtInt(calcResult.salLiq)}</Text>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.80)' }}>jour {calcResult.diaReceber}</Text>
+            {/* ── DOIS BLOCOS DE PAGAMENTO ── */}
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              {/* Salário — clicável para confirmar valor real */}
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.salConfirmado ? '#27ae60' : 'rgba(39,174,96,0.35)' }}
+                onPress={() => { setInputSalNet(calcResult.salLiq.toFixed(2)); setShowModalSalNet(true) }}
+              >
+                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
+                  💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
+                </Text>
+                <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
+                <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={{ backgroundColor: 'rgba(39,174,96,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaReceber}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{calcResult.mesReceber.split(' ')[0]}</Text>
                 </View>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>🍽️ Frais</Text>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 16, color: 'white', fontWeight: '800' }}>{fmtInt(calcResult.totalFrais)}</Text>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.80)' }}>jour {calcResult.diaFrais}</Text>
+              </TouchableOpacity>
+              {/* Frais */}
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: 'rgba(41,128,185,0.35)' }}
+                onPress={() => { setInputFraisReel(calcResult.totalFrais.toFixed(2)); setShowModalFraisReel(true) }}
+              >
+                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.6 }}>✏️</Text></Text>
+                <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
+                <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={{ backgroundColor: 'rgba(41,128,185,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaFrais}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{calcResult.mesFraisLabel}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </View>
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />
             <View style={{ width: '100%', gap: 4 }}>
@@ -863,41 +1220,149 @@ export default function MonSalaireScreen() {
           )}
         </TouchableOpacity>
 
-        {historique.length > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <Text style={[st.histTitle, { color: c.textLabel }]}>HISTORIQUE</Text>
-            {historique.slice().reverse().map((m, i) => (
-              <Swipeable key={i} renderRightActions={() => (
-                <TouchableOpacity
-                  style={{ backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 80, marginBottom: 8, borderRadius: 14, marginHorizontal: 4 }}
-                  onPress={async () => {
-                    const nova = historique.filter(h => h.periode !== m.periode)
-                    setHistorique(nova)
-                    await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
-                    const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
-                    const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
-                    setPadrao(novoPadrao)
-                    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
-                  }}
-                >
-                  <Text style={{ fontSize: 20 }}>🗑️</Text>
-                  <Text style={{ fontSize: 10, color: 'white', fontWeight: '700', marginTop: 2 }}>Supprimer</Text>
-                </TouchableOpacity>
-              )}>
-                <TouchableOpacity style={[st.histCard, { backgroundColor: c.card, borderColor: c.cardBorder }]} onPress={() => setModalDetail(m)}>
-                  <View style={st.histLeft}>
-                    <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
-                    <Text style={[st.histSub, { color: c.textSub }]}>Net {fmt(m.netPaye)} · Frais {fmt(m.fraisBoletim)}</Text>
-                  </View>
-                  <View style={st.histRight}>
-                    <Text style={[st.histMontant, { color: '#27ae60' }]}>{fmt(m.montantTotalRecu)}</Text>
-                    <Text style={[st.histSub, { color: c.textSub }]}>reçu</Text>
-                  </View>
-                </TouchableOpacity>
-              </Swipeable>
-            ))}
-          </View>
-        )}
+        {historique.length > 0 && (() => {
+          // Calcula precisão global apenas para meses com valor real confirmado
+          const mesesComReal = historique.filter(m => m.montantTotalRecu > 0)
+          const precisoes = mesesComReal.map(m => {
+            const est = calcEstimativaMes(m)
+            if (est === 0 || m.montantTotalRecu === 0) return null
+            return 100 - Math.min(100, Math.abs(est - m.montantTotalRecu) / m.montantTotalRecu * 100)
+          }).filter(v => v !== null) as number[]
+          const precisaoGlobal = precisoes.length > 0
+            ? Math.round(precisoes.reduce((a, b) => a + b, 0) / precisoes.length)
+            : null
+
+          return (
+            <View style={{ marginTop: 16 }}>
+              {/* ── BADGE GLOBAL DE PRECISÃO ── */}
+              {precisaoGlobal !== null && (() => {
+                  const pgColor = precisaoGlobal >= 95 ? '#27ae60' : precisaoGlobal >= 85 ? '#2ecc71' : precisaoGlobal >= 75 ? '#f5a623' : '#e74c3c'
+                  const pgBg   = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.15)' : precisaoGlobal >= 85 ? 'rgba(46,204,113,0.12)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.15)' : 'rgba(231,76,60,0.15)'
+                  const pgBdr  = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.4)'  : precisaoGlobal >= 85 ? 'rgba(46,204,113,0.35)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.4)'  : 'rgba(231,76,60,0.4)'
+                  return (
+                    <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: pgBdr }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <View>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1.2 }}>PRÉCISION DE L'APP</Text>
+                          <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>{mesesComReal.length} mois comparés · Estimé vs Réel</Text>
+                        </View>
+                        <View style={{ backgroundColor: pgBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: pgColor }}>
+                          <Text style={{ fontSize: 24, fontWeight: '900', color: pgColor }}>{precisaoGlobal}%</Text>
+                        </View>
+                      </View>
+                      {/* Barra de progresso até 100% */}
+                      <View style={{ height: 8, backgroundColor: themeSombre ? '#1f2436' : '#e8eaf2', borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+                        <View style={{ height: '100%', width: `${precisaoGlobal}%` as any, backgroundColor: pgColor, borderRadius: 4 }} />
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>0%</Text>
+                        <Text style={{ fontSize: 10, color: pgColor, fontWeight: '800' }}>
+                          {precisaoGlobal >= 95 ? '🎯 Excellent !' : precisaoGlobal >= 85 ? `${100 - precisaoGlobal}% para 100%` : `Objectif 100% — carrega mais fiches`}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>100%</Text>
+                      </View>
+                      {/* Alerta proactivo — o que faz subir a precisão */}
+                      {precisaoGlobal < 95 && (() => {
+                        const semFiche = historique.filter(h => !h.netPaye || h.netPaye === 0)
+                        const semReal  = historique.filter(h => !h.montantTotalRecu || h.montantTotalRecu === 0)
+                        if (semFiche.length > 0) return (
+                          <View style={{ marginTop: 10, backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)' }}>
+                            <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '700' }}>
+                              💡 Carrega a fiche de {semFiche[0].periode} → precisão sobe para ~{Math.min(99, precisaoGlobal + 8)}%
+                            </Text>
+                          </View>
+                        )
+                        if (semReal.length > 0) return (
+                          <View style={{ marginTop: 10, backgroundColor: 'rgba(41,128,185,0.08)', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: 'rgba(41,128,185,0.2)' }}>
+                            <Text style={{ fontSize: 11, color: '#2980b9', fontWeight: '700' }}>
+                              💡 Confirma o valor real de {semReal[0].periode} → app aprende e melhora automaticamente
+                            </Text>
+                          </View>
+                        )
+                        return null
+                      })()}
+                    </View>
+                  )
+                })()}
+
+              <Text style={[st.histTitle, { color: c.textLabel }]}>HISTORIQUE</Text>
+
+              {historique.slice().reverse().map((m, i) => {
+                const estimativa = calcEstimativaMes(m)
+                const temReal = m.montantTotalRecu > 0
+                const delta = temReal && estimativa > 0 ? m.montantTotalRecu - estimativa : null
+                const pctAcerto = delta !== null && estimativa > 0
+                  ? Math.round(100 - Math.abs(delta) / m.montantTotalRecu * 100)
+                  : null
+                const deltaColor = delta === null ? c.textSub : Math.abs(delta) <= 30 ? '#27ae60' : Math.abs(delta) <= 100 ? '#f5a623' : '#e74c3c'
+
+                return (
+                  <Swipeable key={i} renderRightActions={() => (
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 80, marginBottom: 8, borderRadius: 14, marginHorizontal: 4 }}
+                      onPress={async () => {
+                        const nova = historique.filter(h => h.periode !== m.periode)
+                        setHistorique(nova)
+                        await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
+                        const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+                        setPadrao(novoPadrao)
+                        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                      }}
+                    >
+                      <Text style={{ fontSize: 20 }}>🗑️</Text>
+                      <Text style={{ fontSize: 10, color: 'white', fontWeight: '700', marginTop: 2 }}>Supprimer</Text>
+                    </TouchableOpacity>
+                  )}>
+                    <TouchableOpacity style={[st.histCard, { backgroundColor: c.card, borderColor: c.cardBorder }]} onPress={() => setModalDetail(m)}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
+                        {/* Linha comparação */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          {estimativa > 0 && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>App</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                            </View>
+                          )}
+                          {estimativa > 0 && temReal && <Text style={{ fontSize: 10, color: c.cardBorder }}>→</Text>}
+                          {temReal && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 10, color: '#27ae60', fontWeight: '600' }}>Réel</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#27ae60' }}>{Math.round(m.montantTotalRecu).toLocaleString('fr-FR')}€</Text>
+                            </View>
+                          )}
+                          {delta !== null && (
+                            <View style={{ backgroundColor: Math.abs(delta) <= 30 ? 'rgba(39,174,96,0.12)' : Math.abs(delta) <= 100 ? 'rgba(245,166,35,0.12)' : 'rgba(231,76,60,0.12)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '800', color: deltaColor }}>
+                                {delta >= 0 ? '+' : ''}{Math.round(delta)}€
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      {pctAcerto !== null ? (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
+                          <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
+                        </View>
+                      ) : estimativa > 0 ? (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                          <Text style={{ fontSize: 9, color: c.textSub }}>estimé</Text>
+                        </View>
+                      ) : (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>{fmt(m.montantTotalRecu)}</Text>
+                          <Text style={[st.histSub, { color: c.textSub }]}>reçu</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </Swipeable>
+                )
+              })}
+            </View>
+          )
+        })()}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -1018,26 +1483,65 @@ export default function MonSalaireScreen() {
                 ) : (
                   <Text style={{ fontSize: 12, color: '#f39c12', textAlign: 'center', marginBottom: 16 }}>⚠️ Pas de boletim de frais pour ce mois</Text>
                 )}
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 8 }}>
-                  COMBIEN AS-TU REÇU EN TOUT EN {fichaActual.periode.toUpperCase()}? (€)
-                </Text>
-                <TextInput
-                  style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: '#f5a623', textAlign: 'center', marginBottom: 16 }}
-                  value={inputValor} onChangeText={setInputValor} keyboardType="decimal-pad"
-                  placeholder="ex: 3199.20" placeholderTextColor={c.textSub} autoFocus
-                />
-                {perguntaAtual === 0 && (
-                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>JOUR SALAIRE</Text>
-                      <TextInput style={{ backgroundColor: c.input, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={inputDiaSal} onChangeText={setInputDiaSal} keyboardType="number-pad" placeholder="5" placeholderTextColor={c.textSub} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>JOUR FRAIS</Text>
-                      <TextInput style={{ backgroundColor: c.input, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={inputDiaFrais} onChangeText={setInputDiaFrais} keyboardType="number-pad" placeholder="10" placeholderTextColor={c.textSub} />
-                    </View>
+                {/* ── SALAIRE + FRAIS LADO A LADO ── */}
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                  {/* Salaire NET — le 5 */}
+                  <View style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.08)', borderRadius: 14, padding: 12, borderWidth: 1.5, borderColor: 'rgba(39,174,96,0.35)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 0.8, marginBottom: 2 }}>💰 SALAIRE NET</Text>
+                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
+                      le {perguntaAtual === 0 ? (inputDiaSal || '5') : (inputDiaSal || padrao.diaSalario)}
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 20, fontWeight: '900', color: '#27ae60', borderWidth: 1, borderColor: 'rgba(39,174,96,0.4)', textAlign: 'center' }}
+                      value={inputMontantSalQ} onChangeText={setInputMontantSalQ}
+                      keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} autoFocus
+                    />
+                    {perguntaAtual === 0 && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700', marginBottom: 4 }}>JOUR REÇU</Text>
+                        <TextInput
+                          style={{ backgroundColor: c.input, borderRadius: 8, padding: 7, fontSize: 15, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: 'rgba(39,174,96,0.3)', textAlign: 'center' }}
+                          value={inputDiaSal} onChangeText={setInputDiaSal} keyboardType="number-pad" placeholder="5" placeholderTextColor={c.textSub}
+                        />
+                      </View>
+                    )}
                   </View>
-                )}
+
+                  {/* Frais — le 10 */}
+                  <View style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.08)', borderRadius: 14, padding: 12, borderWidth: 1.5, borderColor: 'rgba(41,128,185,0.35)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#2980b9', letterSpacing: 0.8, marginBottom: 2 }}>🍽️ FRAIS</Text>
+                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
+                      le {perguntaAtual === 0 ? (inputDiaFrais || '10') : (inputDiaFrais || padrao.diaFrais)}
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 20, fontWeight: '900', color: '#2980b9', borderWidth: 1, borderColor: 'rgba(41,128,185,0.4)', textAlign: 'center' }}
+                      value={inputMontantFraisQ} onChangeText={setInputMontantFraisQ}
+                      keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub}
+                    />
+                    {perguntaAtual === 0 && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700', marginBottom: 4 }}>JOUR REÇU</Text>
+                        <TextInput
+                          style={{ backgroundColor: c.input, borderRadius: 8, padding: 7, fontSize: 15, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)', textAlign: 'center' }}
+                          value={inputDiaFrais} onChangeText={setInputDiaFrais} keyboardType="number-pad" placeholder="10" placeholderTextColor={c.textSub}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Total automático */}
+                {(() => {
+                  const sal = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
+                  const fr  = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+                  const tot = sal + fr
+                  return tot > 0 ? (
+                    <View style={{ backgroundColor: 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(245,166,35,0.35)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700' }}>TOTAL REÇU</Text>
+                      <Text style={{ fontSize: 22, color: '#f5a623', fontWeight: '900' }}>{Math.round(tot).toLocaleString('fr-FR')}€</Text>
+                    </View>
+                  ) : null
+                })()}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
                     onPress={() => { if (perguntaAtual > 0) { setPerguntaAtual(perguntaAtual - 1); setRespostas(respostas.slice(0, -1)); setInputValor('') } else setShowModalCancelar(true) }}>
@@ -1055,8 +1559,8 @@ export default function MonSalaireScreen() {
 
       {/* MODAL DETALHE */}
       <Modal visible={!!modalDetail} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setModalDetail(null)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>📄 {modalDetail?.periode}</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>{modalDetail?.entreprise} · {modalDetail?.conducteur}</Text>
             <View style={{ gap: 12 }}>
@@ -1095,14 +1599,14 @@ export default function MonSalaireScreen() {
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Fermer</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* MODAL ESCOLHA */}
       <Modal visible={showEscolhaModal} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }} onPress={() => setShowEscolhaModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
             <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>📁 Charger les documents</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 24 }}>Quel type de documents veux-tu charger?</Text>
@@ -1123,6 +1627,156 @@ export default function MonSalaireScreen() {
             <TouchableOpacity style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowEscolhaModal(false)}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* MODAL FRAIS RÉELS */}
+      <Modal visible={showModalFraisReel} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#2980b9' }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>🍽️ Corriger les frais</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
+              Estimé depuis <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesFraisLabel}</Text>
+            </Text>
+            <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 18, lineHeight: 16 }}>
+              Si le mois est incorrect, entre le montant réel reçu.{'\n'}La prochaine estimation utilisera cette valeur.
+            </Text>
+            <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 8 }}>FRAIS RÉELS REÇUS (€)</Text>
+            <TextInput
+              style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 24, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: '#2980b9', textAlign: 'center', marginBottom: 20 }}
+              value={inputFraisReel}
+              onChangeText={setInputFraisReel}
+              keyboardType="decimal-pad"
+              placeholder="ex: 615.40"
+              placeholderTextColor={c.textSub}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalFraisReel(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 2, backgroundColor: '#2980b9', borderRadius: 12, padding: 14, alignItems: 'center' }}
+                onPress={async () => {
+                  const fraisReel = parseFloat(inputFraisReel.replace(',', '.')) || 0
+                  if (fraisReel > 0 && calcResult) {
+                    const novoTotal = calcResult.salLiq + fraisReel
+                    setCalcResult({ ...calcResult, totalFrais: fraisReel, totalLiq: novoTotal })
+                    setCountingVal(Math.round(novoTotal))
+
+                    // Guardar frais confirmado no histórico para persistir entre cálculos
+                    const agora = new Date()
+                    const [mesFraisLabel] = calcResult.mesFraisLabel.split(' ')
+                    const anoFrais = parseInt(calcResult.mesFraisLabel.split(' ')[1])
+                    const mesFraisIdx = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].indexOf(mesFraisLabel)
+                    const novoHist = [...historique]
+                    const idx = novoHist.findIndex(h => h.moisIndex === mesFraisIdx && h.annee === anoFrais)
+                    if (idx >= 0) {
+                      novoHist[idx] = { ...novoHist[idx], fraisBoletim: fraisReel, remboursementFrais: fraisReel }
+                    } else {
+                      novoHist.push({
+                        periode: calcResult.mesFraisLabel,
+                        moisIndex: mesFraisIdx, annee: anoFrais, fichePages: 0,
+                        netPaye: 0, salairebrut: 0, totalCotisations: 0,
+                        remboursementFrais: fraisReel, fraisBoletim: fraisReel,
+                        montantTotalRecu: 0, jourPaiement1: padrao.diaSalario,
+                        jourPaiement2: padrao.diaFrais, analysedAt: new Date().toISOString(),
+                        entreprise: calcResult.empresa || '', conducteur: '',
+                      })
+                    }
+                    novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
+                    setHistorique(novoHist)
+                    await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
+                  }
+                  setShowModalFraisReel(false)
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Appliquer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL SALAIRE NET RÉEL */}
+      <Modal visible={showModalSalNet} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#27ae60' }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Confirmer le salaire net</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
+              Estimé pour <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesReceber}</Text>
+            </Text>
+            <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 18, lineHeight: 16 }}>
+              Entre le net réel reçu sur ta fiche de paye.{'\n'}L'IA s'en souviendra pour améliorer les prochaines estimations.
+            </Text>
+            <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 8 }}>SALAIRE NET RÉEL REÇU (€)</Text>
+            <TextInput
+              style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 24, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: '#27ae60', textAlign: 'center', marginBottom: 20 }}
+              value={inputSalNet}
+              onChangeText={setInputSalNet}
+              keyboardType="decimal-pad"
+              placeholder="ex: 1842.50"
+              placeholderTextColor={c.textSub}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalSalNet(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 2, backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center' }}
+                onPress={async () => {
+                  const salReel = parseFloat(inputSalNet.replace(',', '.')) || 0
+                  if (salReel > 0 && calcResult) {
+                    const novoTotal = salReel + calcResult.totalFrais
+                    setCalcResult({ ...calcResult, salLiq: salReel, totalLiq: novoTotal, salConfirmado: true })
+                    setCountingVal(Math.round(novoTotal))
+
+                    // Guardar no histórico para aprendizagem da IA
+                    const agora = new Date()
+                    const mesIdx = agora.getMonth()
+                    const ano = agora.getFullYear()
+                    const periodeLabel = calcResult.mesReceber
+                    const novoHist = [...historique]
+                    const idx = novoHist.findIndex(h => h.periode === periodeLabel)
+                    if (idx >= 0) {
+                      novoHist[idx] = { ...novoHist[idx], netPaye: salReel, montantTotalRecu: novoTotal }
+                    } else {
+                      novoHist.push({
+                        periode: periodeLabel,
+                        moisIndex: mesIdx,
+                        annee: ano,
+                        fichePages: 0,
+                        netPaye: salReel,
+                        salairebrut: Math.round(salReel / padrao.liquidRate),
+                        totalCotisations: 0,
+                        remboursementFrais: calcResult.totalFrais,
+                        fraisBoletim: calcResult.totalFrais,
+                        montantTotalRecu: novoTotal,
+                        jourPaiement1: padrao.diaSalario,
+                        jourPaiement2: padrao.diaFrais,
+                        analysedAt: new Date().toISOString(),
+                        entreprise: calcResult.empresa || '',
+                        conducteur: '',
+                      })
+                    }
+                    novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
+                    setHistorique(novoHist)
+                    await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
+
+                    // Re-analisar padrão com o novo valor confirmado
+                    const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+                    const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
+                    setPadrao(novoPadrao)
+                    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                  }
+                  setShowModalSalNet(false)
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Confirmer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

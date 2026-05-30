@@ -1,0 +1,18 @@
+# Exclude heavy directories not needed for EAS build
+node_modules/
+.expo/
+.git/
+
+# Android build artifacts (EAS manages its own)
+android/build/
+android/.gradle/
+android/app/build/
+
+# Dev/test files
+**/*.test.ts
+**/*.test.tsx
+**/__tests__/
+
+# Backup/temp files
+**/*.backup.*
+**/tachomax_backup_*.json

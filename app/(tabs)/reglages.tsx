@@ -8,7 +8,7 @@ import * as Sharing from 'expo-sharing'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
-import { pedirPermissaoNotificacoes, cancelarTodosAlertas } from '../../src/notifications'
+import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 
 // Chaves a exportar/importar
 const BACKUP_KEYS = [
@@ -18,7 +18,6 @@ const BACKUP_KEYS = [
   'frais_valores',
   'sal_settings',
   'profil',
-  'modoTacho',
 ]
 
 export default function ReglagesScreen() {
@@ -36,6 +35,10 @@ export default function ReglagesScreen() {
   const [loadingImport, setLoadingImport] = useState(false)
   const [diasTrial, setDiasTrial] = useState<number | null>(null)
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
+  const [rappelAtivo, setRappelAtivo] = useState(true)
+  const [showPrivacy, setShowPrivacy] = useState(false)
+  const [modoDecrescente, setModoDecrescente] = useState(false)
+  const [mapApp, setMapApp] = useState<'google' | 'waze'>('google')
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -45,6 +48,16 @@ export default function ReglagesScreen() {
     getDataExpiracao().then(setDataExpiracao)
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
       if (v !== null) setNotifications(v === 'true')
+    })
+    AsyncStorage.getItem('rappel_saisie_ativo').then(v => {
+      const ativo = v !== 'false'
+      setRappelAtivo(ativo)
+    })
+    AsyncStorage.getItem('modoTacho').then(v => {
+      setModoDecrescente(v === 'decrescente')
+    })
+    AsyncStorage.getItem('mapApp').then(v => {
+      if (v === 'waze') setMapApp('waze')
     })
   }, [])
 
@@ -226,6 +239,19 @@ export default function ReglagesScreen() {
             <Switch value={themeSombre} onValueChange={toggleTheme} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
           </View>
           <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>⏱ Chrono décroissant</Text>
+            <Switch
+              value={modoDecrescente}
+              onValueChange={async (valor) => {
+                setModoDecrescente(valor)
+                await AsyncStorage.setItem('modoTacho', valor ? 'decrescente' : 'crescente')
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
+              thumbColor="white"
+            />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
           <Text style={[st.label, { color: c.textLabel, marginBottom: 10 }]}>{t.langue}</Text>
           <View style={st.langueRow}>
             <TouchableOpacity
@@ -239,6 +265,28 @@ export default function ReglagesScreen() {
               onPress={() => setLangue('pt')}
             >
               <Text style={[st.langueBtnText, { color: langue === 'pt' ? '#f5a623' : c.text }]}>🇵🇹 Português</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* NAVIGATION */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>🗺️ NAVIGATION</Text>
+          <Text style={[st.settingLabel, { color: c.text, marginBottom: 10 }]}>App de cartes pour la route</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', backgroundColor: mapApp === 'google' ? 'rgba(41,128,185,0.15)' : c.bg, borderWidth: 1.5, borderColor: mapApp === 'google' ? '#2980b9' : c.cardBorder }}
+              onPress={async () => { setMapApp('google'); await AsyncStorage.setItem('mapApp', 'google') }}
+            >
+              <Text style={{ fontSize: 22 }}>🗺️</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: mapApp === 'google' ? '#2980b9' : c.text, marginTop: 4 }}>Google Maps</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', backgroundColor: mapApp === 'waze' ? 'rgba(41,128,185,0.15)' : c.bg, borderWidth: 1.5, borderColor: mapApp === 'waze' ? '#2980b9' : c.cardBorder }}
+              onPress={async () => { setMapApp('waze'); await AsyncStorage.setItem('mapApp', 'waze') }}
+            >
+              <Text style={{ fontSize: 22 }}>🔵</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: mapApp === 'waze' ? '#2980b9' : c.text, marginTop: 4 }}>Waze</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -269,6 +317,28 @@ export default function ReglagesScreen() {
                 }
                 setNotifications(valor)
                 await AsyncStorage.setItem('notificacoes_ativas', String(valor))
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
+              thumbColor="white"
+            />
+          </View>
+
+          <View style={[st.settingRow, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[st.settingLabel, { color: c.text }]}>📋 Rappel de saisie</Text>
+              <Text style={[st.settingSub, { color: c.textSub }]}>Rappel quotidien à 20h si tu n'as pas enregistré ta journée</Text>
+            </View>
+            <Switch
+              value={rappelAtivo}
+              onValueChange={async (valor) => {
+                setRappelAtivo(valor)
+                await AsyncStorage.setItem('rappel_saisie_ativo', String(valor))
+                if (valor) {
+                  const ok = await pedirPermissaoNotificacoes()
+                  if (ok) await agendarRappelSaisie(20, 0)
+                } else {
+                  await cancelarRappelSaisie()
+                }
               }}
               trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
               thumbColor="white"
@@ -333,10 +403,10 @@ export default function ReglagesScreen() {
             <Text style={{ fontSize: 22 }}>📤</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>
-                {loadingExport ? 'Export en cours...' : 'Exporter mes données'}
+                {loadingExport ? 'Export en cours...' : '💾 Sauvegarder mes données'}
               </Text>
               <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
-                Historique · Fiches · Réglages → fichier .json
+                Pour changer de téléphone ou réinstaller l'app
               </Text>
             </View>
           </TouchableOpacity>
@@ -351,10 +421,10 @@ export default function ReglagesScreen() {
             <Text style={{ fontSize: 22 }}>📥</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#2980b9' }}>
-                {loadingImport ? 'Import en cours...' : 'Importer un backup'}
+                {loadingImport ? 'Import en cours...' : '📥 Restaurer depuis une sauvegarde'}
               </Text>
               <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
-                Restaure à partir d'un fichier .json exporté
+                Récupère tout ton historique et tes réglages
               </Text>
             </View>
           </TouchableOpacity>
@@ -380,9 +450,57 @@ export default function ReglagesScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[st.version, { color: c.version }]}>TachoMax v0.1 — Bruno Pereira Da Veiga</Text>
+        {/* LÉGAL */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>LÉGAL</Text>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 }}
+            onPress={() => setShowPrivacy(true)}
+          >
+            <Text style={[st.settingLabel, { color: c.text }]}>🔒 Politique de confidentialité</Text>
+            <Text style={{ color: c.textSub, fontSize: 16 }}>›</Text>
+          </TouchableOpacity>
+          <View style={{ height: 1, backgroundColor: c.cardBorder }} />
+          <View style={{ paddingVertical: 12 }}>
+            <Text style={[st.settingLabel, { color: c.text }]}>📦 Version</Text>
+            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoMax v1.0.0 — Bruno Pereira Da Veiga</Text>
+          </View>
+        </View>
+
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* MODAL PRIVACY POLICY */}
+      <Modal visible={showPrivacy} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder, maxHeight: '85%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text }}>🔒 Politique de confidentialité</Text>
+              <TouchableOpacity onPress={() => setShowPrivacy(false)}>
+                <Text style={{ fontSize: 22, color: c.textSub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {[
+                { titre: 'Données collectées', texte: 'TachoMax stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l\'app. Aucune donnée n\'est envoyée vers des serveurs externes.' },
+                { titre: 'Stockage local', texte: 'Toutes tes données sont conservées localement sur ton appareil via AsyncStorage. Elles ne quittent jamais ton téléphone sauf si tu utilises la fonction d\'export manuel.' },
+                { titre: 'Localisation GPS', texte: 'L\'accès à la localisation est utilisé uniquement pour calculer les kilomètres parcourus pendant ton service. Les coordonnées GPS ne sont jamais enregistrées ni transmises.' },
+                { titre: 'Intelligence artificielle', texte: 'La fonctionnalité de lecture de fiche de paie utilise l\'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n\'est conservée par TachoMax.' },
+                { titre: 'Notifications', texte: 'Les alertes (pause obligatoire, amplitude, rappel de saisie) sont gérées localement par ton appareil. Aucune notification n\'est envoyée depuis un serveur externe.' },
+                { titre: 'Pas de publicité', texte: 'TachoMax ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales.' },
+                { titre: 'Contact', texte: 'Pour toute question concernant tes données : brunoveiga854@gmail.com' },
+              ].map(item => (
+                <View key={item.titre} style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#f5a623', marginBottom: 4, letterSpacing: 0.5 }}>{item.titre.toUpperCase()}</Text>
+                  <Text style={{ fontSize: 13, color: c.textSub, lineHeight: 20 }}>{item.texte}</Text>
+                </View>
+              ))}
+              <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginTop: 8 }}>Dernière mise à jour : Mai 2025</Text>
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL CONFIRMAR IMPORT */}
       <Modal visible={showModalImport} transparent animationType="slide">

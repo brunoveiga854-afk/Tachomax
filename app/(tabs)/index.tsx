@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
 import React, { useEffect, useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, Linking, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
@@ -13,11 +13,15 @@ import {
   agendarAlertaPausa,
   agendarAlertaAmplitude,
   cancelarTodosAlertas,
+  cancelarRappelSaisie,
+  agendarRappelSaisie,
 } from '../../src/notifications'
 type Profil = 'CD' | 'MIXTE' | 'LD'
 const PAUSA_MAX = 4.5 * 3600
-const VELOCIDADE_MIN = 5
+const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOMAX_estado'
+const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
+const CONDUCAO_SEGUNDOS_OFF = 15 // consecutive stopped ticks before setEmConducao(false)
 
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
@@ -32,10 +36,10 @@ export default function AujourdhuiScreen() {
   const [segPausa, setSegPausa] = useState(0)
   const [segPausaTotal, setSegPausaTotal] = useState(0)
   const [kmDiarios, setKmDiarios] = useState(0)
-  const [modoTacho, setModoTacho] = useState<'crescente' | 'decrescente'>('decrescente')
   const [horaInicio, setHoraInicio] = useState('')
   const [dateInicio, setDateInicio] = useState<Date | null>(null)
   const [profil, setProfil] = useState<Profil>('MIXTE')
+  const [modoTacho, setModoTacho] = useState<'crescente' | 'decrescente'>('crescente')
   const [nomeConducteur, setNomeConducteur] = useState('Bruno')
   const [showProfil, setShowProfil] = useState(false)
   const [statsSemaine, setStatsSemaine] = useState({ heures: 0, decouche: 0, frais: 0, jours: 0 })
@@ -54,7 +58,26 @@ export default function AujourdhuiScreen() {
   const [summaryData, setSummaryData] = useState<{service: number; conduite: number; km: number; frais: number; semHeures: number; semFrais: number} | null>(null)
   const [showRecuperarHoraModal, setShowRecuperarHoraModal] = useState(false)
   const [recuperarHoraFim, setRecuperarHoraFim] = useState(new Date())
+  // Pausas CE 561/2006 — rastrear sequência 15+30
+  const [pausas, setPausas] = useState<{dur: number, inicio: number}[]>([])
+  const [showPausasModal, setShowPausasModal] = useState(false)
+  const pausaInicioRef = useRef<number>(0)
+
+  // GPS track
+  const [gpsTrack, setGpsTrack] = useState<{lat: number, lon: number, ts: number}[]>([])
+  const gpsTrackTimer = useRef<any>(null)
+  const [showKmModal, setShowKmModal] = useState(false)
+
+  // Aviso progressivo condução
+  const warnAnim = useRef(new Animated.Value(1)).current
+  const warnAnimRef = useRef<any>(null)
+
+  // IA correções
+  const [correcaoPickerDate, setCorrecaoPickerDate] = useState(new Date())
+
   const [showCalendario, setShowCalendario] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [showReglementation, setShowReglementation] = useState(false)
   const [diasHistorique, setDiasHistorique] = useState<any[]>([])
   const [showAddDia, setShowAddDia] = useState(false)
   const [addDiaStr, setAddDiaStr] = useState('')
@@ -140,6 +163,30 @@ export default function AujourdhuiScreen() {
     return velocidadeBuffer.current.reduce((a, b) => a + b, 0) / velocidadeBuffer.current.length
   }
 
+  // PONTO 7 — IA correction history
+  const guardarCorrecaoHistorico = async (tachomax: number, corrigido: number) => {
+    try {
+      const raw = await AsyncStorage.getItem('tachomax_correcoes')
+      const hist = raw ? JSON.parse(raw) : []
+      hist.push({ ts: Date.now(), tachomax, corrigido, diferenca: corrigido - tachomax, velocidade: velocidade })
+      await AsyncStorage.setItem('tachomax_correcoes', JSON.stringify(hist.slice(-50)))
+    } catch (e) {}
+  }
+
+  const getCorrecaoPrecisao = async (): Promise<string> => {
+    try {
+      const raw = await AsyncStorage.getItem('tachomax_correcoes')
+      if (!raw) return ''
+      const hist: any[] = JSON.parse(raw)
+      const ultimas = hist.slice(-5)
+      if (ultimas.length < 2) return ''
+      const desvios = ultimas.map(c => c.tachomax > 0 ? Math.abs(c.diferenca) / c.tachomax : 0)
+      const media = desvios.reduce((a, b) => a + b, 0) / desvios.length
+      const precisao = Math.max(0, Math.round((1 - media) * 100))
+      return `Précision actuelle : ${precisao}%`
+    } catch (e) { return '' }
+  }
+
   const guardarEstado = async (estado: any) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(estado))
@@ -152,6 +199,22 @@ export default function AujourdhuiScreen() {
       if (!data) return
       const estado = JSON.parse(data)
       if (!estado.enService) return
+
+      // Sessão de um dia diferente? Limpar — contadores de condução não transitam entre dias
+      if (estado.dateInicio) {
+        const savedDate = new Date(estado.dateInicio)
+        const today = new Date()
+        const isDifferentDay =
+          savedDate.getDate() !== today.getDate() ||
+          savedDate.getMonth() !== today.getMonth() ||
+          savedDate.getFullYear() !== today.getFullYear()
+        if (isDifferentDay) {
+          await AsyncStorage.removeItem(STORAGE_KEY)
+          await cancelarTodosAlertas()
+          return
+        }
+      }
+
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       setEnService(true)
@@ -182,8 +245,6 @@ export default function AujourdhuiScreen() {
   const carregarConfigs = async () => {
     const p = await AsyncStorage.getItem('profil')
     if (p) setProfil(p as Profil)
-    const mt = await AsyncStorage.getItem('modoTacho')
-    if (mt) setModoTacho(mt as 'crescente' | 'decrescente')
     // Load driver name: onboarding key takes priority, fallback to Mon Salaire
     const nomOnboarding = await AsyncStorage.getItem('conducteur_nom')
     if (nomOnboarding) {
@@ -203,11 +264,23 @@ export default function AujourdhuiScreen() {
   useEffect(() => {
     carregarConfigs()
     restaurarEstado()
+    carregarDiasMes()
+    // Limpar quaisquer notificações pendentes de sessões anteriores ao arrancar
+    cancelarTodosAlertas()
   }, [])
+
+  useEffect(() => {
+    carregarDiasMes()
+  }, [calMes, calAno])
 
   useFocusEffect(
     React.useCallback(() => {
       carregarStatsSemaine()
+      carregarDiasMes()
+      // Reler modoTacho sempre que o separador fica ativo (pode ter mudado nas Definições)
+      AsyncStorage.getItem('modoTacho').then(v => {
+        setModoTacho(v === 'decrescente' ? 'decrescente' : 'crescente')
+      })
     }, [])
   )
 
@@ -234,6 +307,21 @@ export default function AujourdhuiScreen() {
       ])
     ).start()
   }, [emConducao])
+
+  // PONTO 5 — aviso progressivo pausa obrigatória
+  const warnPhase = segConducao >= PAUSA_MAX ? 3 : segConducao >= 4 * 3600 + 15 * 60 ? 2 : segConducao >= 4 * 3600 + 10 * 60 ? 1 : 0
+  useEffect(() => {
+    if (warnAnimRef.current) { warnAnimRef.current.stop(); warnAnimRef.current = null }
+    if (warnPhase === 0) { warnAnim.setValue(1); return }
+    const dur = warnPhase === 1 ? 1200 : warnPhase === 2 ? 700 : 500
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(warnAnim, { toValue: 0.3, duration: dur, useNativeDriver: true }),
+      Animated.timing(warnAnim, { toValue: 1, duration: dur, useNativeDriver: true }),
+    ]))
+    warnAnimRef.current = loop
+    loop.start()
+    return () => { loop.stop() }
+  }, [warnPhase])
 
   useEffect(() => {
     if (!enService) return
@@ -268,14 +356,17 @@ export default function AujourdhuiScreen() {
           const agora = Date.now()
           const tempoBackground = Math.floor((agora - tsBackground.current) / 1000)
           tsBackground.current = null
+          // Amplitude always counts while in service — PONTO 6
+          setSegAmplitude(a => a + tempoBackground)
           if (!emPausa) {
             setSegServico(s => s + tempoBackground)
-            setSegAmplitude(a => a + tempoBackground)
             if (emConducao) setSegConducao(s => s + tempoBackground)
           } else {
             setSegPausa(p => p + tempoBackground)
             setSegPausaTotal(p => p + tempoBackground)
           }
+          // Re-check GPS subscription after returning from background — PONTO 1C
+          if (!locationSub.current) { iniciarGPS() }
         }
       }
       appState.current = nextState
@@ -294,13 +385,28 @@ export default function AujourdhuiScreen() {
       lundi.setHours(0, 0, 0, 0)
       const domingo = new Date(lundi)
       domingo.setDate(lundi.getDate() + 6)
-      const semaine = historique.filter((j: any) => {
-        const [d, m] = j.date.split('/').map(Number)
-        const dataJour = new Date(maintenant.getFullYear(), m - 1, d)
+      const semaineRaw = historique.filter((j: any) => {
+        const parts = j.date.split('/').map(Number)
+        const d = parts[0], m = parts[1]
+        const ano = parts.length >= 3
+          ? parts[2]
+          : (j.id ? new Date(parseInt(j.id)).getFullYear() : maintenant.getFullYear())
+        const dataJour = new Date(ano, m - 1, d)
         return dataJour >= lundi && dataJour <= domingo
       })
+      // Deduplicar por data — se houver 2 entradas para o mesmo dia, fica só a mais recente
+      const vistoPorData = new Map<string, any>()
+      for (const j of semaineRaw) {
+        const partes = j.date.split('/')
+        const chave = partes.length >= 3 ? j.date : `${j.date}/${maintenant.getFullYear()}`
+        const existente = vistoPorData.get(chave)
+        if (!existente || (j.id && existente.id && parseInt(j.id) > parseInt(existente.id))) {
+          vistoPorData.set(chave, j)
+        }
+      }
+      const semaine = Array.from(vistoPorData.values())
       setStatsSemaine({
-        heures: semaine.reduce((a: number, j: any) => a + (j.segServico || 0), 0),
+        heures: semaine.filter((j: any) => ['TRAB','DEC','work','dec'].includes(j.type || 'TRAB')).reduce((a: number, j: any) => a + (j.segServico || 0), 0),
         decouche: semaine.filter((j: any) => j.decouche).length,
         frais: semaine.reduce((a: number, j: any) => a + (j.frais || 0), 0),
         jours: semaine.filter((j: any) => j.type === 'TRAB' || j.type === 'DEC').length,
@@ -323,9 +429,10 @@ export default function AujourdhuiScreen() {
   }
 
 const calcularFraisAuto = async (debut: string, fin: string, servico: string, type: string) => {
-    // Dias sem serviço real não têm direito a frais
+    // Dias sem serviço real não têm direito a frais nem horas
     if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) {
       setAddFrais('0.00')
+      setAddServico('00h00')
       return
     }
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
@@ -413,12 +520,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setShowProfil(false)
   }
 
+  // Amplitude counts ALWAYS while in service (including during pauses) — PONTO 6
+  useEffect(() => {
+    if (!enService) return
+    const timer = setInterval(() => setSegAmplitude(a => a + 1), 1000)
+    return () => clearInterval(timer)
+  }, [enService])
+
+  // Service only counts when not in pause — PONTO 6
   useEffect(() => {
     if (!enService || emPausa) return
-    const timer = setInterval(() => {
-      setSegServico(s => s + 1)
-      setSegAmplitude(a => a + 1)
-    }, 1000)
+    const timer = setInterval(() => setSegServico(s => s + 1), 1000)
     return () => clearInterval(timer)
   }, [enService, emPausa])
 
@@ -486,7 +598,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     Accelerometer.setUpdateInterval(500)
     accelSub.current = Accelerometer.addListener(({ x, y, z }) => {
       const magnitude = Math.sqrt(x * x + y * y + z * z)
-      accelMovimento.current = magnitude > 1.3
+      accelMovimento.current = magnitude > 1.05
     })
     return () => {
       if (accelSub.current) { accelSub.current.remove(); accelSub.current = null }
@@ -503,16 +615,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return () => clearInterval(timer)
   }, [enService])
 
+
   const iniciarGPS = async () => {
-    const { status: fg } = await Location.requestForegroundPermissionsAsync()
+    let { status: fg } = await Location.getForegroundPermissionsAsync()
+    if (fg !== 'granted') {
+      const req = await Location.requestForegroundPermissionsAsync()
+      fg = req.status
+    }
     if (fg !== 'granted') {
       Alert.alert(t.localisationNecessaire, t.localisationMsg, [{ text: t.ok }])
       return
     }
-    const { status: bg } = await Location.requestBackgroundPermissionsAsync()
-    if (bg !== 'granted') {
-      Alert.alert('Localização em fundo', 'Para registar condução com ecrã bloqueado, vai a Definições → TachoMax → Localização → Permitir sempre.', [{ text: 'OK' }])
-    } 
 
     locationSub.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 5 },
@@ -521,15 +634,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         setVelocidade(Math.round(vel))
         const velMedia = mediaVelocidade(vel)
         if (!emPausaRef.current) {
-    if (velMedia >= VELOCIDADE_MIN) {
-            conducaoSegundos.current += 1
-            paradoSegundosGps.current = 0
-            if (conducaoSegundos.current >= 5) setEmConducao(true)
-          } else {
-            paradoSegundosGps.current += 1
-            conducaoSegundos.current = 0
-            if (paradoSegundosGps.current >= 8) setEmConducao(false)
-          }
+          // PONTO 4 — higher thresholds + accelerometer cross-check
+          if (velMedia >= VELOCIDADE_MIN) {
+  conducaoSegundos.current += 1
+  paradoSegundosGps.current = 0
+  if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
+} else {
+  paradoSegundosGps.current += 1
+  conducaoSegundos.current = 0
+  if (paradoSegundosGps.current >= CONDUCAO_SEGUNDOS_OFF) setEmConducao(false)
+}
         } else {
           setEmConducao(false)
           conducaoSegundos.current = 0
@@ -537,14 +651,23 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         }
         ultimoGpsSinal.current = Date.now()
         setGpsOk(true)
-        if (vel >= VELOCIDADE_MIN && ultimaLocalizacao.current) {
+        if (vel >= VELOCIDADE_MIN && ultimaLocalizacao.current && !emPausaRef.current) {
           const dist = calcularDistancia(
             ultimaLocalizacao.current.lat, ultimaLocalizacao.current.lon,
             loc.coords.latitude, loc.coords.longitude
           )
-          if (dist > 0.01) setKmDiarios(k => Math.round((k + dist) * 10) / 10)
+          if (dist > 0.001) setKmDiarios(k => Math.round((k + dist) * 10) / 10)
         }
         ultimaLocalizacao.current = { lat: loc.coords.latitude, lon: loc.coords.longitude }
+        // PONTO 8 — record GPS waypoint every 30s while driving
+        if (!emPausaRef.current) {
+          const agora = Date.now()
+          if (!gpsTrackTimer.current) gpsTrackTimer.current = agora
+          if (agora - gpsTrackTimer.current >= 30000) {
+            gpsTrackTimer.current = agora
+            setGpsTrack(t => [...t.slice(-200), { lat: loc.coords.latitude, lon: loc.coords.longitude, ts: agora }])
+          }
+        }
       }
     )
   }
@@ -593,8 +716,7 @@ const pararGPS = async () => {
   }
 
   const countdown = Math.max(PAUSA_MAX - segConducao, 0)
-  const countup = segConducao
-  const timerPrincipal = modoTacho === 'decrescente' ? countdown : countup
+  const timerPrincipal = modoTacho === 'decrescente' ? countdown : segConducao
   const pctConducao = Math.min((segConducao / PAUSA_MAX) * 100, 100)
   const barColor = pctConducao > 90 ? '#e74c3c' : pctConducao > 70 ? '#f39c12' : '#27ae60'
   const maxSemaine = profil === 'CD' ? 52 * 3600 : 56 * 3600
@@ -604,11 +726,21 @@ const pararGPS = async () => {
   const servicoBarColor = pctServico > 90 ? '#e74c3c' : pctServico > 70 ? '#f39c12' : '#27ae60'
 
   const handleDemarrer = async () => {
+    // 1. Pré-limpar TUDO (incluindo notificações de builds anteriores) + permissões
+    await cancelarTodosAlertas()
+    const notifOk = await pedirPermissaoNotificacoes()
+    // Reagendar rappel de saisie que cancelAll apagou
+    const rappelAtivo = await AsyncStorage.getItem('rappel_saisie_ativo')
+    if (rappelAtivo !== 'false' && notifOk) await agendarRappelSaisie(20, 0)
+
+    // 2. Calcular hora e modo noturno
     const agora = new Date()
     const h = String(agora.getHours()).padStart(2, '0')
     const m = String(agora.getMinutes()).padStart(2, '0')
     const horaNum = agora.getHours()
     const isNuit = horaNum >= 22 || horaNum < 5
+
+    // 3. Atualizar todo o estado de uma vez (React 18 auto-batching)
     setModeNuit(isNuit)
     setHoraInicio(`${h}h${m}`)
     setDateInicio(agora)
@@ -617,6 +749,11 @@ const pararGPS = async () => {
     amplitudeAlertado.current = false
     setSegServico(0); setSegConducao(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0)
+    setPausas([])
+    setGpsTrack([])
+    gpsTrackTimer.current = null
+
+    // 4. Persistir estado e iniciar GPS
     await guardarEstado({
       enService: true, emPausa: false, emConducao: false, decouche, modeNuit: isNuit,
       segServico: 0, segConducao: 0, segAmplitude: 0, segPausa: 0,
@@ -625,19 +762,44 @@ const pararGPS = async () => {
       tsBackground: null,
     })
     await iniciarGPS()
-    // Notificações: pedir permissão e agendar alertas do dia
-    const notifOk = await pedirPermissaoNotificacoes()
+
+    // 5. Agendar notificações
     if (notifOk) {
       const maxAmplitude = isNuit ? 13 * 3600 : 15 * 3600
-      await agendarAlertaPausa(PAUSA_MAX)           // alerta de pausa aos 4h30
-      await agendarAlertaAmplitude(maxAmplitude)    // alerta de amplitude
+      await agendarAlertaPausa(PAUSA_MAX)
+      await agendarAlertaAmplitude(maxAmplitude)
     }
     if (isNuit) Alert.alert(t.modeNuitActive, t.modeNuitMsg)
   }
 
+  // CE 561/2006 — check if pause sequence (15+30 in order) is complete
+  const pausaSequenciaValida = (lista: {dur: number, inicio: number}[]): boolean => {
+    let found15 = false
+    for (const p of lista) {
+      if (!found15 && p.dur >= 15 * 60) { found15 = true; continue }
+      if (found15 && p.dur >= 30 * 60) return true
+    }
+    return false
+  }
+
+  const pausaTotalLista = (lista: {dur: number, inicio: number}[]): number =>
+    lista.reduce((a, p) => a + p.dur, 0)
+
   const handlePause = async () => {
     if (emPausa) {
-      const novoSegConducao = segPausa >= 45 * 60 ? 0 : segConducao
+      // Reprendre — finaliser la pause courante
+      const pausaAtual = { dur: segPausa, inicio: pausaInicioRef.current }
+      const novaListaPausas = [...pausas, pausaAtual]
+      setPausas(novaListaPausas)
+
+      // PONTO 3 — reset condução se sequência CE ou >= 45min
+      const sequenciaOk = pausaSequenciaValida(novaListaPausas)
+      const totalPausasAgora = pausaTotalLista(novaListaPausas)
+      const pausaUnica45 = segPausa >= 45 * 60
+      const deveResetar = sequenciaOk || pausaUnica45
+      const novoSegConducao = deveResetar ? 0 : segConducao
+      if (deveResetar) setPausas([]) // reset sequence tracking after valid break
+
       setSegConducao(novoSegConducao)
       setSegPausa(0)
       setEmPausa(false)
@@ -654,6 +816,8 @@ const pararGPS = async () => {
       const tempoRestante = Math.max(PAUSA_MAX - novoSegConducao, 0)
       if (tempoRestante > 0) await agendarAlertaPausa(tempoRestante)
     } else {
+      // Entrar em pausa — registar inicio
+      pausaInicioRef.current = Date.now()
       setEmConducao(false)
       setEmPausa(true)
       emPausaRef.current = true
@@ -685,14 +849,22 @@ const pararGPS = async () => {
     const horaFimNum = fim.getHours() * 60 + fim.getMinutes()
     const amplitudeMin = Math.floor(segAmplitude / 60)
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let regles = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
     try {
       const fvData = await AsyncStorage.getItem('frais_valores')
       if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      const reglesData = await AsyncStorage.getItem('frais_regles')
+      if (reglesData) regles = { ...regles, ...JSON.parse(reglesData) }
     } catch (e) {}
+    // Converter limiares decimais (6.5 = 06h30) para minutos
+    const safeNum = (v: any, d: number) => { const n = parseFloat(v); return !isNaN(n) && n > 0 && n < 24 ? n : d }
+    const ptDejAteMin = Math.round(safeNum(regles.ptDejAte, 6.0) * 60)
+    const dejMinAmpMin = Math.round(safeNum(regles.dejMinAmp, 6.017) * 60)
+    const dinerDeMin = Math.round(safeNum(regles.dinerDe, 21.25) * 60)
     let frais = 0
-    if (horaInicioNum <= 6 * 60 + 30 || decouche) frais += fv.ptDej
-    if (amplitudeMin >= 6 * 60 + 1) frais += fv.dej
-    if (horaFimNum >= 21 * 60 + 15 || decouche) frais += fv.diner
+    if (horaInicioNum <= ptDejAteMin || decouche) frais += fv.ptDej
+    if (amplitudeMin >= dejMinAmpMin || decouche) frais += fv.dej
+    if (horaFimNum >= dinerDeMin || decouche) frais += fv.diner
     if (decouche) frais += fv.nuit
     const novoDia = {
       id: Date.now().toString(), date, jour,
@@ -741,23 +913,32 @@ const pararGPS = async () => {
     const horaInicioNum = dateInicio ? dateInicio.getHours() * 60 + dateInicio.getMinutes() : 0
     const amplitudeMin = Math.floor(segAmplitude / 60)
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let regles2 = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
     try {
       const fvData = await AsyncStorage.getItem('frais_valores')
       if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      const reglesData2 = await AsyncStorage.getItem('frais_regles')
+      if (reglesData2) regles2 = { ...regles2, ...JSON.parse(reglesData2) }
     } catch (e) {}
+    const safeNum2 = (v: any, d: number) => { const n = parseFloat(v); return !isNaN(n) && n > 0 && n < 24 ? n : d }
+    const ptDejAteMin2 = Math.round(safeNum2(regles2.ptDejAte, 6.0) * 60)
+    const dejMinAmpMin2 = Math.round(safeNum2(regles2.dejMinAmp, 6.017) * 60)
+    const dinerDeMin2 = Math.round(safeNum2(regles2.dinerDe, 21.25) * 60)
     let snapFrais = 0
-    if (horaInicioNum <= 6 * 60 + 30 || comDecouche || decouche) snapFrais += fv.ptDej
-    if (amplitudeMin >= 6 * 60 + 1) snapFrais += fv.dej
-    if (horaFimNum >= 21 * 60 + 15 || comDecouche || decouche) snapFrais += fv.diner
+    if (horaInicioNum <= ptDejAteMin2 || comDecouche || decouche) snapFrais += fv.ptDej
+    if (amplitudeMin >= dejMinAmpMin2) snapFrais += fv.dej
+    if (horaFimNum >= dinerDeMin2 || comDecouche || decouche) snapFrais += fv.diner
     if (comDecouche || decouche) snapFrais += fv.nuit
 
     await guardarDia(fim)
     pararGPS()
     await cancelarTodosAlertas()
+    await cancelarRappelSaisie()
     await AsyncStorage.removeItem(STORAGE_KEY)
     setEnService(false); setEmPausa(false); setEmConducao(false); setModeNuit(false)
     setSegServico(0); setSegConducao(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0); setDecouche(false); setDateInicio(null)
+    setPausas([]); setGpsTrack([]); gpsTrackTimer.current = null
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     setShowPausaBandeau(false); setParadoSegundos(0)
@@ -769,11 +950,48 @@ const pararGPS = async () => {
       conduite: snapConduite,
       km: snapKm,
       frais: snapFrais,
-      semHeures: statsSemaine.heures + snapService / 3600,
+      semHeures: statsSemaine.heures + snapService,  // ambos em segundos
       semFrais: statsSemaine.frais + snapFrais,
     })
     setShowSummaryModal(true)
   }
+
+  const REGLES_DATA = [
+    { icon: '🚛', title: 'Conduite continue', desc: '4h30 max → pause de 45 min\nou fractionnée: 15 min + 30 min' },
+    { icon: '⏸', title: 'Pauses selon service', desc: '> 6h de service → 30 min de pause\n> 9h de service → 45 min de pause' },
+    { icon: '📅', title: 'Amplitude journalière', desc: '13h max (mode nuit)\n15h max (mode jour)\nService journalier: 12h max' },
+    { icon: '📆', title: 'Temps de service hebdo', desc: '52h/semaine · 56h max exceptionnel\n32 heures journalières max cumulées' },
+    { icon: '🌙', title: 'Découché', desc: 'Repos hors domicile\nPt. déjeuner + déjeuner + dîner + nuit\nautomatiquement comptés' },
+  ]
+
+  const accordeonReglementation = (
+    <View style={{ marginTop: 8 }}>
+      <TouchableOpacity
+        onPress={() => setShowReglementation(v => !v)}
+        style={{ borderRadius: 10, borderWidth: 1, borderColor: showReglementation ? 'rgba(41,128,185,0.4)' : 'rgba(41,128,185,0.2)', backgroundColor: showReglementation ? 'rgba(41,128,185,0.08)' : 'rgba(41,128,185,0.04)', paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        activeOpacity={0.7}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <Text style={{ fontSize: 14 }}>📋</Text>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: '#2980b9', letterSpacing: 0.5 }}>RÉGLEMENTATION TRANSPORT</Text>
+        </View>
+        <Text style={{ fontSize: 12, color: '#2980b9', fontWeight: '700' }}>{showReglementation ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      {showReglementation && (
+        <View style={{ marginTop: 4, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(41,128,185,0.2)', backgroundColor: 'rgba(41,128,185,0.05)', padding: 12, gap: 8 }}>
+          {REGLES_DATA.map((r, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 10, paddingBottom: i < REGLES_DATA.length - 1 ? 8 : 0, borderBottomWidth: i < REGLES_DATA.length - 1 ? 1 : 0, borderBottomColor: 'rgba(41,128,185,0.12)' }}>
+              <Text style={{ fontSize: 16, marginTop: 1 }}>{r.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#2980b9', letterSpacing: 0.3, marginBottom: 2 }}>{r.title.toUpperCase()}</Text>
+                <Text style={{ fontSize: 11, color: c.textSub, lineHeight: 16 }}>{r.desc}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  )
 
   const PROFILS = {
     CD:    { emoji: '🏠', label: 'Courte Distance', max: '52h/sem' },
@@ -783,7 +1001,22 @@ const pararGPS = async () => {
 
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true)
+              await carregarStatsSemaine()
+              await carregarDiasMes()
+              setRefreshing(false)
+            }}
+            colors={['#f5a623']}
+            tintColor={'#f5a623'}
+          />
+        }
+      >
 
         <View style={st.header}>
           <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>MAX</Text></Text>
@@ -799,7 +1032,30 @@ const pararGPS = async () => {
               <Text style={[st.greetingName, { color: c.text }]}>{t.bonjour} {nomeConducteur}</Text>
             </View>
 
-            <View style={st.btnCircularWrap}>
+            {/* ── WEEK SUMMARY CARD ── */}
+            <View style={[st.semCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+              <View style={st.semHeader}>
+                <Text style={[st.semTitle, { color: c.textLabel }]}>📊 SEMAINE EN COURS</Text>
+                <Text style={[st.semHours, { color: semaineColor }]}>{fmtHM(statsSemaine.heures)}<Text style={[st.semMax, { color: c.textSub }]}> / {profil === 'CD' ? '52h' : '56h'}</Text></Text>
+              </View>
+              <View style={[st.semBarBg, { backgroundColor: c.progressBg }]}>
+                <View style={[st.semBarFill, { width: `${pctSemaine}%` as any, backgroundColor: semaineColor }]} />
+              </View>
+              {statsSemaine.jours === 0 ? (
+                <Text style={[st.semEmpty, { color: c.textSub }]}>Aucun service cette semaine — bon repos! 😴</Text>
+              ) : (
+                <View style={st.semStats}>
+                  <Text style={[st.semStat, { color: c.textSub }]}>📅 {statsSemaine.jours} jours</Text>
+                  <Text style={[st.semStatSep, { color: c.cardBorder }]}>·</Text>
+                  <Text style={[st.semStat, { color: '#2980b9' }]}>🌙 {statsSemaine.decouche} nuit{statsSemaine.decouche > 1 ? 's' : ''}</Text>
+                  <Text style={[st.semStatSep, { color: c.cardBorder }]}>·</Text>
+                  <Text style={[st.semStat, { color: '#27ae60' }]}>💰 {statsSemaine.frais.toFixed(0)}€</Text>
+                </View>
+              )}
+            </View>
+
+            {/* ── DÉMARRER BUTTON ── */}
+            <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>
                 <TouchableOpacity style={st.btnCircular} onPress={handleDemarrer}>
                   <Text style={st.btnCircularIcon}>▶</Text>
@@ -808,55 +1064,162 @@ const pararGPS = async () => {
               </Animated.View>
             </View>
 
-            <TouchableOpacity activeOpacity={1} onLongPress={() => { carregarDiasMes(); setCalMes(new Date().getMonth()); setCalAno(new Date().getFullYear()); setShowCalendario(true) }} delayLongPress={300}>
-              <View style={[st.semCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-                <View style={st.semHeader}>
-                  <Text style={[st.semTitle, { color: c.textLabel }]}>📊 SEMAINE EN COURS</Text>
-                  <Text style={[st.semHours, { color: semaineColor }]}>{fmtHM(statsSemaine.heures)}<Text style={[st.semMax, { color: c.textSub }]}> / {profil === 'CD' ? '52h' : '56h'}</Text></Text>
-                </View>
-                <View style={[st.semBarBg, { backgroundColor: c.progressBg }]}>
-                  <View style={[st.semBarFill, { width: `${pctSemaine}%` as any, backgroundColor: semaineColor }]} />
-                </View>
-                {statsSemaine.jours === 0 ? (
-                  <Text style={[st.semEmpty, { color: c.textSub }]}>Aucun service cette semaine — bon repos! 😴</Text>
-                ) : (
-                  <View style={st.semStats}>
-                    <Text style={[st.semStat, { color: c.textSub }]}>📅 {statsSemaine.jours} jour{statsSemaine.jours > 1 ? 's' : ''}</Text>
-                    <Text style={[st.semStatSep, { color: c.cardBorder }]}>·</Text>
-                    <Text style={[st.semStat, { color: '#2980b9' }]}>🌙 {statsSemaine.decouche} découché{statsSemaine.decouche > 1 ? 's' : ''}</Text>
-                    <Text style={[st.semStatSep, { color: c.cardBorder }]}>·</Text>
-                    <Text style={[st.semStat, { color: '#27ae60' }]}>💰 {statsSemaine.frais.toFixed(0)}€</Text>
+            {/* ── INLINE CALENDAR ── */}
+            {(() => {
+              const agora = new Date()
+              const primeiroDia = new Date(calAno, calMes, 1)
+              const ultimoDia = new Date(calAno, calMes + 1, 0)
+              const offset = (primeiroDia.getDay() + 6) % 7
+              const totalCelulas = offset + ultimoDia.getDate()
+              const semanas = Math.ceil(totalCelulas / 7)
+              const hojeD = agora.getDate()
+              const hojeM = agora.getMonth()
+              const hojeA = agora.getFullYear()
+              const eMesAtual = calMes === hojeM && calAno === hojeA
+              return (
+                <View style={[st.semCard, { backgroundColor: c.card, borderColor: c.cardBorder, paddingBottom: 12 }]}>
+                  {/* Month navigation */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <TouchableOpacity onPress={() => navegarMes(-1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 16, color: c.text, fontWeight: '700' }}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: c.textLabel, letterSpacing: 1.5 }}>{MOIS_NOMS[calMes]} {calAno}</Text>
+                    <TouchableOpacity onPress={() => navegarMes(1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 16, color: c.text, fontWeight: '700' }}>→</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-              <Text style={{ fontSize: 14, color: '#f5a623', opacity: 0.5, textAlign: 'right', marginHorizontal: 20 }}>
-                Maintiens 2s · 📅 Calendrier
-              </Text>
-            </TouchableOpacity>
+                  {/* Day-of-week headers */}
+                  <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                    {['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map((d, i) => (
+                      <Text key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, fontWeight: '700', color: c.textSub }}>{d}</Text>
+                    ))}
+                  </View>
+                  {/* Calendar grid */}
+                  {Array.from({ length: semanas }).map((_, semIdx) => (
+                    <View key={semIdx} style={{ flexDirection: 'row', marginBottom: 3 }}>
+                      {Array.from({ length: 7 }).map((_, diaIdx) => {
+                        const numDia = semIdx * 7 + diaIdx - offset + 1
+                        if (numDia < 1 || numDia > ultimoDia.getDate()) return <View key={diaIdx} style={{ flex: 1 }} />
+                        const diaStr = `${String(numDia).padStart(2,'0')}/${String(calMes+1).padStart(2,'0')}`
+                        const registo = diasHistorique.find(j => {
+                          const parts = j.date.split('/')
+                          const dataStr = parts.length === 3 ? `${parts[0]}/${parts[1]}` : j.date
+                          return dataStr === diaStr && (parts.length < 3 || parseInt(parts[2]) === calAno)
+                        })
+                        const isHoje = eMesAtual && numDia === hojeD
+                        const isFuturo = calAno > hojeA || (calAno === hojeA && calMes > hojeM) || (eMesAtual && numDia > hojeD)
+                        let bgColor = 'transparent'
+                        let typeColor = ''
+                        let typeLabel = ''
+                        if (registo) {
+                          if (registo.type === 'DEC')    { bgColor = 'rgba(41,128,185,0.18)';  typeColor = '#2980b9'; typeLabel = 'DÉC.' }
+                          else if (registo.type === 'TRAB')  { bgColor = 'rgba(39,174,96,0.18)';   typeColor = '#27ae60'; typeLabel = 'TRAV.' }
+                          else if (registo.type === 'FERIE') { bgColor = 'rgba(155,89,182,0.18)'; typeColor = '#9b59b6'; typeLabel = 'CONGÉ' }
+                          else if (registo.type === 'FER')   { bgColor = 'rgba(243,156,18,0.18)';  typeColor = '#f39c12'; typeLabel = 'FÉRIÉ' }
+                          else if (registo.type === 'RC')    { bgColor = 'rgba(26,188,156,0.18)';  typeColor = '#1abc9c'; typeLabel = 'R.C.' }
+                          else if (registo.type === 'OFF')   { bgColor = 'rgba(107,115,148,0.15)'; typeColor = '#6b7394'; typeLabel = 'REPOS' }
+                        }
+                        return (
+                          <TouchableOpacity key={diaIdx} style={{ flex: 1, alignItems: 'center', opacity: isFuturo ? 0.3 : 1 }}
+                            onPress={() => {
+                              const diasSemana = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']
+                              const dataJour = new Date(calAno, calMes, numDia)
+                              const label = `${diasSemana[dataJour.getDay()]} ${numDia}/${String(calMes+1).padStart(2,'0')}/${calAno}`
+                              if (registo && !isFuturo) {
+                                const hh = Math.floor((registo.segServico || 0) / 3600)
+                                const mm = Math.floor(((registo.segServico || 0) % 3600) / 60)
+                                setAddDiaStr(diaStr)
+                                setAddDiaLabel(label)
+                                setAddDebut(registo.debut || '06h00')
+                                setAddFin(registo.fin || '14h00')
+                                setAddServico(`${String(hh).padStart(2,'0')}h${String(mm).padStart(2,'0')}`)
+                                setAddType(registo.type as any || 'TRAB')
+                                setAddFrais((registo.frais || 0).toFixed(2))
+                                setEditandoDiaId(registo.id)
+                                setShowAddDia(true)
+                              } else if (!isFuturo) {
+                                setAddDiaStr(diaStr)
+                                setAddDiaLabel(label)
+                                setAddDebut('06h00'); setAddFin('14h00'); setAddServico('08h00'); setAddType('TRAB')
+                                setAddFrais('0.00'); setEditandoDiaId(null)
+                                calcularFraisAuto('06h00', '14h00', '08h00', 'TRAB')
+                                setShowAddDia(true)
+                              }
+                            }}>
+                            <View style={{ width: 36, height: 40, borderRadius: 8, backgroundColor: bgColor, borderWidth: isHoje ? 2 : 0, borderColor: '#f5a623', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '800', color: isHoje ? '#f5a623' : (typeColor || c.textSub), lineHeight: 16 }}>{numDia}</Text>
+                              {typeLabel ? (
+                                <Text style={{ fontSize: 7, fontWeight: '700', color: isHoje && !typeLabel ? '#f5a623' : typeColor, letterSpacing: 0.3, lineHeight: 9 }}>{typeLabel}</Text>
+                              ) : isHoje ? (
+                                <Text style={{ fontSize: 7, fontWeight: '700', color: '#f5a623', letterSpacing: 0.3, lineHeight: 9 }}>AUJ.</Text>
+                              ) : null}
+                            </View>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  ))}
+                  {/* Legend */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, justifyContent: 'center' }}>
+                    {[
+                      { color: '#27ae60', label: 'TRAV.' },
+                      { color: '#2980b9', label: 'DÉC.' },
+                      { color: '#6b7394', label: 'REPOS' },
+                      { color: '#9b59b6', label: 'CONGÉ' },
+                      { color: '#1abc9c', label: 'R.C.' },
+                      { color: '#f39c12', label: 'FÉRIÉ' },
+                    ].map(item => (
+                      <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: item.color }} />
+                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700' }}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {/* Hint editar/adicionar */}
+                  <View style={{ marginTop: 10, paddingHorizontal: 4, paddingVertical: 7, backgroundColor: 'rgba(245,166,35,0.07)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 13 }}>👆</Text>
+                    <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', textAlign: 'center' }}>
+                      Appuie sur un jour passé pour l'ajouter ou le modifier
+                    </Text>
+                  </View>
+
+                  {/* Accordéon réglementation */}
+                  {accordeonReglementation}
+                </View>
+              )
+            })()}
 
           </Animated.View>
         ) : (
           <>
-            <View style={st.greeting}>
-              <Text style={[st.greetingSub, { color: c.textSub }]}>Démarré à {horaInicio}</Text>
-              <View style={st.conducaoStatus}>
+            {/* ── HEADER STATUS ROW ── */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <Animated.View style={[st.conducaoDot, { backgroundColor: emConducao ? '#27ae60' : emPausa ? '#f39c12' : '#8890aa', transform: [{ scale: emConducao ? pulsarDot : 1 }] }]} />
-                <Text style={[st.conducaoText, { color: emConducao ? '#27ae60' : emPausa ? '#f39c12' : '#8890aa' }]}>
-                  {emPausa ? t.enPause : emConducao ? `${t.enConduite} · ${velocidade} km/h` : t.enService}
+                <Text style={{ fontSize: 13, fontWeight: '800', color: emConducao ? '#27ae60' : emPausa ? '#f39c12' : '#8890aa', letterSpacing: 0.8 }}>
+                  {emPausa ? t.enPause.toUpperCase() : emConducao ? t.enConduite.toUpperCase() : t.enService.toUpperCase()}
                 </Text>
-                <Text style={st.modeEmoji}>{modeNuit ? '🌙' : '☀️'}</Text>
+                {emConducao && velocidade > 0 && (
+                  <View style={{ backgroundColor: 'rgba(39,174,96,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, color: '#27ae60', fontWeight: '700' }}>{velocidade} km/h</Text>
+                  </View>
+                )}
               </View>
-              {!gpsOk && (
-                <View style={[st.nuitBandeau, { backgroundColor: 'rgba(231,76,60,0.15)', borderColor: '#e74c3c' }]}>
-                  <Text style={[st.nuitBandeauText, { color: '#e74c3c' }]}>{t.gpsAlert}</Text>
-                </View>
-              )}
-              {modeNuit && (
-                <View style={st.nuitBandeau}>
-                  <Text style={st.nuitBandeauText}>{t.modeNuitBandeau}</Text>
-                </View>
-              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '600' }}>Démarré à {horaInicio}</Text>
+                <Text style={{ fontSize: 15 }}>{modeNuit ? '🌙' : '☀️'}</Text>
+              </View>
             </View>
+            {!gpsOk && (
+              <View style={[st.nuitBandeau, { backgroundColor: 'rgba(231,76,60,0.15)', borderColor: '#e74c3c', marginBottom: 6 }]}>
+                <Text style={[st.nuitBandeauText, { color: '#e74c3c' }]}>{t.gpsAlert}</Text>
+              </View>
+            )}
+            {modeNuit && (
+              <View style={[st.nuitBandeau, { marginBottom: 6 }]}>
+                <Text style={st.nuitBandeauText}>{t.modeNuitBandeau}</Text>
+              </View>
+            )}
 
             {showPausaBandeau && !emPausa && (
               <View style={[st.pausaBandeau, { backgroundColor: c.card, borderColor: '#f39c12' }]}>
@@ -872,75 +1235,135 @@ const pararGPS = async () => {
               </View>
             )}
 
-            <View style={[st.timerCard, { backgroundColor: c.timerBg, borderColor: c.cardBorder }, emPausa && st.timerCardPause, emConducao && st.timerCardConducao]}>
-              <View style={[st.accentBar, emPausa && { backgroundColor: '#f39c12' }, emConducao && { backgroundColor: '#27ae60' }]} />
+            {/* ── PONTO 5 — AVISO PROGRESSIVO CONDUÇÃO ── */}
+            {warnPhase >= 1 && emConducao && !emPausa && (
+              <Animated.View style={{ opacity: warnAnim, marginBottom: 6, backgroundColor: warnPhase === 3 ? 'rgba(231,76,60,0.18)' : warnPhase === 2 ? 'rgba(231,76,60,0.13)' : 'rgba(243,156,18,0.13)', borderRadius: 10, borderWidth: 1.5, borderColor: warnPhase >= 2 ? '#e74c3c' : '#f39c12', padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: warnPhase >= 2 ? '#e74c3c' : '#f39c12', textAlign: 'center' }}>
+                  {warnPhase === 3
+                    ? '🛑 PAUSE OBLIGATOIRE MAINTENANT !'
+                    : warnPhase === 2
+                      ? `⚠️ ${fmtHM(segConducao)} de conduite — pause imminente !`
+                      : `⚠️ 4h10 de conduite — pause dans 20 min`
+                  }
+                </Text>
+              </Animated.View>
+            )}
+
+            {/* ── TIMER CARD ── */}
+            <View style={[st.timerCard, { backgroundColor: c.timerBg, borderColor: c.cardBorder, overflow: 'hidden' }]}>
+              {/* Top accent bar — green service / orange pause / bright green driving */}
+              <View style={{ height: 4, backgroundColor: emPausa ? '#f39c12' : emConducao ? '#27ae60' : '#2980b9', borderRadius: 4, marginBottom: 14 }} />
+
               {!emPausa ? (
                 <>
-                  <Text style={[st.timerStatus, { color: c.textSub }, emConducao && { color: '#27ae60' }]}>
-                    {emConducao ? `🚛 ${t.enConduite}` : `● ${t.enService}`}
-                  </Text>
-                  <TouchableOpacity onPress={() => {
-                    const novo = modoTacho === 'decrescente' ? 'crescente' : 'decrescente'
-                    setModoTacho(novo)
-                    AsyncStorage.setItem('modoTacho', novo)
-                  }}>
-                    <Text style={[st.timerBig, { color: emConducao ? barColor : c.textSub }]}>{fmt(timerPrincipal)}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[st.timerLabel, { color: c.textSub }]}>
-                        {emConducao ? (modoTacho === 'decrescente' ? t.avantPause : '⬆ Temps de conduite') : t.attente}
-                      </Text>
-                      <View style={{ backgroundColor: c.progressBg, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700' }}>
-                          {modoTacho === 'decrescente' ? '↓ 04:30' : '↑ 00:00'}
-                        </Text>
+                  {/* Big timer — crescente (tempo de condução) */}
+                  <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                    <Text style={[st.timerBig, { color: emConducao ? barColor : c.text, fontSize: 52, letterSpacing: 2 }]}>{fmt(timerPrincipal)}</Text>
+                    <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 }}>
+                      {emConducao
+                        ? (modoTacho === 'decrescente' ? '↓ avant pause obligatoire' : '↑ temps de conduite')
+                        : 'EN ATTENTE'}
+                    </Text>
+                  </View>
+
+                  {/* Conduite progress bar (only when driving) */}
+                  {emConducao && (
+                    <View style={{ marginBottom: 10 }}>
+                      <View style={[st.pauseBarBg, { backgroundColor: c.servicoBox, marginBottom: 0 }]}>
+                        <View style={[st.pauseBarFill, { width: `${pctConducao}%` as any, backgroundColor: barColor }]} />
                       </View>
                     </View>
-                  </TouchableOpacity>
-                  {emConducao && (
-                    <View style={[st.pauseBarBg, { backgroundColor: c.servicoBox }]}>
-                      <View style={[st.pauseBarFill, { width: `${pctConducao}%` as any, backgroundColor: barColor }]} />
-                    </View>
                   )}
-                  <View style={[st.servicoBox, { backgroundColor: c.servicoBox }]}>
-                    <View style={[st.servicoFill, { width: `${pctServico}%` as any, backgroundColor: servicoBarColor, opacity: 0.15 }]} />
-                    <View style={st.servicoContent}>
-                      <Text style={[st.servicoLabel, { color: c.textSub }]}>⏱ {t.service}</Text>
-                      <Text style={[st.servicoVal, { color: c.text }]}>{fmt(segServico)}</Text>
+
+                  {/* Service row */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '700', letterSpacing: 0.4 }}>⏱ SERVICE</Text>
+                    <View style={{ flex: 1, height: 4, backgroundColor: c.progressBg, borderRadius: 4, marginHorizontal: 10 }}>
+                      <View style={{ height: 4, width: `${pctServico}%` as any, backgroundColor: servicoBarColor, borderRadius: 4 }} />
                     </View>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{fmt(segServico)}</Text>
                   </View>
-                  {segPausaTotal > 0 && (
-                    <Text style={{ fontSize: 13, color: segPausaTotal >= 45 * 60 ? '#27ae60' : '#f39c12', fontWeight: '700', marginTop: 6 }}>
-                      ⏸ {t.pausasHoje} {fmtHM(segPausaTotal)} {segPausaTotal >= 45 * 60 ? '✅' : ''}
-                    </Text>
+
+                  {/* Pauses & km row — PONTO 2 smart pause box */}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {segPausaTotal > 0 && (() => {
+                      // CE 561/2006 sequence analysis on committed pauses
+                      const toutesLes = [...pausas]
+                      // also count any ongoing pause that was committed
+                      let found15 = false; let found30After15 = false
+                      for (const p of toutesLes) {
+                        if (!found15 && p.dur >= 15 * 60) { found15 = true; continue }
+                        if (found15 && p.dur >= 30 * 60) { found30After15 = true; break }
+                      }
+                      const valid = found30After15 || (pausas.some(p => p.dur >= 45 * 60))
+                      const firstOk = found15 || pausas.some(p => p.dur >= 15 * 60)
+                      let label = ''
+                      let color = '#f39c12'
+                      let bg = 'rgba(243,156,18,0.12)'
+                      if (valid) { label = '45 ✓'; color = '#27ae60'; bg = 'rgba(39,174,96,0.12)' }
+                      else if (firstOk) { label = '15 ✓ + 30…'; color = '#f39c12'; bg = 'rgba(243,156,18,0.12)' }
+                      else { label = '15 min'; color = '#f39c12'; bg = 'rgba(243,156,18,0.12)' }
+                      return (
+                        <TouchableOpacity onPress={() => setShowPausasModal(true)} style={{ flex: 1, backgroundColor: bg, borderRadius: 8, padding: 8, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color }}>⏸ {label}</Text>
+                          <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 1 }}>pauses CE 561</Text>
+                        </TouchableOpacity>
+                      )
+                    })()}
+                    {kmDiarios > 0 && (
+                      <TouchableOpacity onPress={() => setShowKmModal(true)} style={{ flex: 1, backgroundColor: 'rgba(107,115,148,0.10)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: c.textSub }}>📍 {kmDiarios} km</Text>
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 1 }}>aujourd'hui · détail</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Pause alerts */}
+                  {countdown === 0 && emConducao && (
+                    <View style={{ backgroundColor: 'rgba(231,76,60,0.12)', borderRadius: 8, padding: 8, marginTop: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#e74c3c', textAlign: 'center' }}>⚠️ {t.pauseObligatoire}</Text>
+                    </View>
                   )}
-                  {kmDiarios > 0 && (
-                    <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', marginTop: 4 }}>
-                      📍 {kmDiarios} km aujourd'hui
-                    </Text>
-                  )}
-                  {countdown === 0 && emConducao && <Text style={st.pauseAlert}>⚠️ {t.pauseObligatoire}</Text>}
                   {countdown > 0 && countdown <= 30 * 60 && emConducao && (
-                    <Text style={[st.pauseAlert, { color: '#f39c12' }]}>⚠️ {t.pauseDans} {fmtHM(countdown)}</Text>
+                    <View style={{ backgroundColor: 'rgba(243,156,18,0.12)', borderRadius: 8, padding: 8, marginTop: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#f39c12', textAlign: 'center' }}>⚠️ {t.pauseDans} {fmtHM(countdown)}</Text>
+                    </View>
                   )}
                 </>
               ) : (
+                /* ── EN PAUSE ── */
                 <>
-                  <Text style={[st.timerStatus, { color: '#f39c12' }]}>⏸ {t.enPause}</Text>
-                  <Text style={[st.timerBig, { color: '#f39c12' }]}>{fmt(segPausa)}</Text>
-                  <Text style={[st.timerLabel, { color: '#f39c12', opacity: 0.8 }]}>{t.pauseEnCours}</Text>
-                  <View style={st.pauseDivider} />
-                  <Text style={[st.conducaoGelada, { color: c.conducaoGelada }]}>{fmt(segConducao)}</Text>
-                  <Text style={[st.timerLabel, { color: c.textSub }]}>{t.conduiteGelée}</Text>
-                  <View style={st.pauseDivider} />
-                  <Text style={[st.conducaoGelada, { color: c.conducaoGelada }]}>{fmt(segServico)}</Text>
-                  <Text style={[st.timerLabel, { color: c.textSub }]}>{t.serviceGele}</Text>
-                  <View style={st.pauseDivider} />
-                  <Text style={{ fontSize: 13, color: segPausaTotal >= 45 * 60 ? '#27ae60' : '#f39c12', fontWeight: '700', marginTop: 4 }}>
-                    ⏸ Pauses aujourd'hui: {fmtHM(segPausaTotal)} {segPausaTotal >= 45 * 60 ? '✅' : ''}
-                  </Text>
-                  {segPausa >= 45 * 60 && (
-                    <Text style={{ fontSize: 13, color: '#27ae60', fontWeight: '700', marginTop: 4 }}>{t.pauseValide}</Text>
-                  )}
+                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 52, fontWeight: '900', color: '#f39c12', letterSpacing: 2 }}>{fmt(segPausa)}</Text>
+                    <Text style={{ fontSize: 11, color: '#f39c12', fontWeight: '600', opacity: 0.8, marginTop: 2, letterSpacing: 0.5 }}>{t.pauseEnCours.toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                    <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.conducaoGelada }}>{fmt(segConducao)}</Text>
+                      <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>🚛 CONDUITE</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.conducaoGelada }}>{fmt(segServico)}</Text>
+                      <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>⏱ SERVICE</Text>
+                    </View>
+                  </View>
+                  {(() => {
+                    // CE 561/2006 status during pause
+                    const pausasAteAgora = [...pausas, { dur: segPausa, inicio: pausaInicioRef.current }]
+                    const seqValida = pausaSequenciaValida(pausasAteAgora)
+                    const pausaUnica = segPausa >= 45 * 60
+                    const first15ok = pausas.some(p => p.dur >= 15 * 60) || segPausa >= 15 * 60
+                    let ceLabel = ''; let ceColor = '#f39c12'; let ceBg = 'rgba(243,156,18,0.12)'
+                    if (seqValida || pausaUnica) { ceLabel = '45 ✓'; ceColor = '#27ae60'; ceBg = 'rgba(39,174,96,0.12)' }
+                    else if (first15ok) { ceLabel = '15 ✓ + 30…'; ceColor = '#f39c12'; ceBg = 'rgba(243,156,18,0.12)' }
+                    else { ceLabel = '15 min'; ceColor = '#f39c12'; ceBg = 'rgba(243,156,18,0.12)' }
+                    return (
+                      <TouchableOpacity onPress={() => setShowPausasModal(true)} style={{ backgroundColor: ceBg, borderRadius: 8, padding: 8, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: ceColor }}>⏸ {fmtHM(segPausaTotal)} · {ceLabel}</Text>
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>pauses CE 561/2006</Text>
+                      </TouchableOpacity>
+                    )
+                  })()}
                 </>
               )}
             </View>
@@ -951,60 +1374,82 @@ const pararGPS = async () => {
               </View>
             )}
 
-            <View style={[st.miniRow, { backgroundColor: c.miniRow, borderColor: c.cardBorder }]}>
-              <TouchableOpacity style={st.miniBox} onPress={() => showTooltip('conduite')}>
-                <Text style={st.miniIcon}>🚛</Text>
-                <Text style={[st.miniVal, { color: c.text }, emConducao && { color: '#27ae60' }]}>{fmtHM(segConducao)}</Text>
-                <Text style={[st.miniLabel, { color: c.textSub }]}>{t.conduite}</Text>
+            {/* ── METRIC BOXES ── */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <TouchableOpacity onPress={() => showTooltip('conduite')}
+                style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.25)' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 1, marginBottom: 4 }}>🚛 CONDUITE</Text>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: emConducao ? '#27ae60' : c.text }}>{fmtHM(segConducao)}</Text>
               </TouchableOpacity>
-              <View style={[st.miniDivider, { backgroundColor: c.cardBorder }]} />
-              <TouchableOpacity style={st.miniBox} onPress={() => showTooltip('service')}>
-                <Text style={st.miniIcon}>📊</Text>
-                <Text style={[st.miniVal, { color: c.text }]}>{fmtHM(segServico)}</Text>
-                <Text style={[st.miniLabel, { color: c.textSub }]}>{t.service}</Text>
+              <TouchableOpacity onPress={() => showTooltip('service')}
+                style={{ flex: 1, backgroundColor: 'rgba(243,156,18,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(243,156,18,0.25)' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#f39c12', letterSpacing: 1, marginBottom: 4 }}>⏱ SERVICE</Text>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: c.text }}>{fmtHM(segServico)}</Text>
               </TouchableOpacity>
-              <View style={[st.miniDivider, { backgroundColor: c.cardBorder }]} />
-              <TouchableOpacity style={st.miniBox} onPress={() => showTooltip('amplitude')}>
-                <Text style={st.miniIcon}>📏</Text>
-                <Text style={[st.miniVal, { color: '#2980b9' }]}>{fmtHM(segAmplitude)}</Text>
-                <Text style={[st.miniLabel, { color: c.textSub }]}>{t.amplitude}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={st.actionRow}>
-              <TouchableOpacity style={[st.btnPause, emPausa && st.btnReprendre]} onPress={handlePause}>
-                <Text style={st.btnPauseIcon}>{emPausa ? '▶' : '⏸'}</Text>
-                <Text style={[st.btnPauseLabel, emPausa && { color: '#27ae60', fontSize: 10 }]}>{emPausa ? t.reprendre : t.pause}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.btnStop} onPress={handleTerminer}>
-                <Text style={st.btnStopIcon}>⏹</Text>
-                <Text style={st.btnStopLabel}>{t.terminer}</Text>
+              <TouchableOpacity onPress={() => showTooltip('amplitude')}
+                style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.25)' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#2980b9', letterSpacing: 1, marginBottom: 4 }}>📏 AMPLITUDE</Text>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={st.limites}>
-              <Text style={[st.limitesTitle, { color: c.textLabel }]}>{t.limitesLegales} {modeNuit ? '🌙' : '☀️'}</Text>
+            {/* ── ACTION BUTTONS ── */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+              <TouchableOpacity onPress={handlePause}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  backgroundColor: emPausa ? 'rgba(39,174,96,0.10)' : 'rgba(243,156,18,0.08)',
+                  borderWidth: 1.5, borderColor: emPausa ? '#27ae60' : '#f39c12',
+                  borderRadius: 14, paddingVertical: 14 }}>
+                <Text style={{ fontSize: 16 }}>{emPausa ? '▶' : '⏸'}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: emPausa ? '#27ae60' : '#f39c12', letterSpacing: 0.5 }}>
+                  {emPausa ? t.reprendre.toUpperCase() : t.pause.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleTerminer}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  backgroundColor: 'rgba(192,57,43,0.10)',
+                  borderWidth: 1.5, borderColor: '#c0392b',
+                  borderRadius: 14, paddingVertical: 14 }}>
+                <Text style={{ fontSize: 16 }}>⏹</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#c0392b', letterSpacing: 0.5 }}>
+                  {t.terminer.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── LIMITES LÉGALES ── */}
+            <View style={[st.limites, { backgroundColor: c.card, borderColor: c.cardBorder, borderWidth: 1, borderRadius: 16, padding: 14 }]}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1.5, marginBottom: 12 }}>
+                LIMITES LÉGALES {modeNuit ? '🌙' : '☀️'}
+              </Text>
               {[
-                { label: t.conduiteAujourdhui, seg: segConducao, max: MAX_CONDUITE, maxLabel: '9h00' },
-                { label: t.serviceJournalier, seg: segServico, max: MAX_SERVICE, maxLabel: modeNuit ? '10h00' : '12h00' },
-                { label: t.amplitudeJournaliere, seg: segAmplitude, max: MAX_AMPLITUDE, maxLabel: modeNuit ? '13h00' : '15h00' },
-                { label: '🚛 Semaine en cours', seg: statsSemaine.heures, max: maxSemaine, maxLabel: profil === 'CD' ? '52h00' : '56h00' },
-              ].map(item => {
+                { label: t.conduiteAujourdhui,  seg: segConducao,        max: MAX_CONDUITE, maxLabel: '9h00',                             baseColor: '#27ae60' },
+                { label: t.serviceJournalier,   seg: segServico,         max: MAX_SERVICE,  maxLabel: modeNuit ? '10h00' : '12h00',        baseColor: '#f39c12' },
+                { label: t.amplitudeJournaliere, seg: segAmplitude,      max: MAX_AMPLITUDE, maxLabel: modeNuit ? '13h00' : '15h00',       baseColor: '#2980b9' },
+                { label: 'Semaine en cours',    seg: statsSemaine.heures, max: maxSemaine,  maxLabel: profil === 'CD' ? '52h00' : '56h00', baseColor: '#9b59b6' },
+              ].map((item, idx) => {
                 const pct = Math.min((item.seg / item.max) * 100, 100)
-                const color = pct > 90 ? '#e74c3c' : pct > 75 ? '#f39c12' : '#27ae60'
+                const barColor = pct > 90 ? '#e74c3c' : pct > 75 ? '#f39c12' : item.baseColor
+                const valColor = pct > 90 ? '#e74c3c' : pct > 75 ? '#f39c12' : c.text
                 return (
-                  <View key={item.label} style={st.limiteItem}>
-                    <View style={st.limiteRow}>
-                      <Text style={[st.limiteName, { color: c.textSub }]}>{item.label}</Text>
-                      <Text style={[st.limiteVal, { color }]}>{fmtHM(item.seg)} / {item.maxLabel}</Text>
+                  <View key={item.label} style={{ marginBottom: idx < 3 ? 12 : 0 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.baseColor }} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: c.textSub }}>{item.label}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: valColor }}>{fmtHM(item.seg)} / {item.maxLabel}</Text>
                     </View>
-                    <View style={[st.progressBg, { backgroundColor: c.progressBg }]}>
-                      <View style={[st.progressFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+                    <View style={{ height: 6, backgroundColor: c.progressBg, borderRadius: 3 }}>
+                      <View style={{ height: 6, width: `${pct}%` as any, backgroundColor: barColor, borderRadius: 3 }} />
                     </View>
                   </View>
                 )
               })}
             </View>
+
+            {/* Accordéon réglementation — visible en pause */}
+            {accordeonReglementation}
           </>
         )}
 
@@ -1061,14 +1506,15 @@ const pararGPS = async () => {
                     const isHoje = eMesAtual && numDia === hojeD
                     const isFuturo = calAno > hojeA || (calAno === hojeA && calMes > hojeM) || (eMesAtual && numDia > hojeD)
                     let bgColor = 'transparent'
-                    let emoji = ''
+                    let typeColor = ''
+                    let typeLabel = ''
                     if (registo) {
-                      if (registo.type === 'DEC') { bgColor = 'rgba(41,128,185,0.2)'; emoji = '🌙' }
-                      else if (registo.type === 'TRAB') { bgColor = 'rgba(39,174,96,0.2)'; emoji = '✅' }
-                      else if (registo.type === 'FERIE') { bgColor = 'rgba(155,89,182,0.2)'; emoji = '🏖️' }
-                      else if (registo.type === 'FER') { bgColor = 'rgba(243,156,18,0.2)'; emoji = '🎉' }
-                      else if (registo.type === 'RC') { bgColor = 'rgba(26,188,156,0.2)'; emoji = '🔄' }
-                      else if (registo.type === 'OFF') { bgColor = 'rgba(107,115,148,0.15)'; emoji = '❌' }
+                      if (registo.type === 'DEC')   { bgColor = 'rgba(41,128,185,0.18)';  typeColor = '#2980b9'; typeLabel = 'DÉC.' }
+                      else if (registo.type === 'TRAB') { bgColor = 'rgba(39,174,96,0.18)';   typeColor = '#27ae60'; typeLabel = 'TRAV.' }
+                      else if (registo.type === 'FERIE'){ bgColor = 'rgba(155,89,182,0.18)'; typeColor = '#9b59b6'; typeLabel = 'CONGÉ' }
+                      else if (registo.type === 'FER')  { bgColor = 'rgba(243,156,18,0.18)';  typeColor = '#f39c12'; typeLabel = 'FÉRIÉ' }
+                      else if (registo.type === 'RC')   { bgColor = 'rgba(26,188,156,0.18)';  typeColor = '#1abc9c'; typeLabel = 'R.C.' }
+                      else if (registo.type === 'OFF')  { bgColor = 'rgba(107,115,148,0.15)'; typeColor = '#6b7394'; typeLabel = 'REPOS' }
                     }
                     return (
                       <TouchableOpacity key={diaIdx} style={{ flex: 1, alignItems: 'center', opacity: isFuturo ? 0.3 : 1 }}
@@ -1102,15 +1548,13 @@ const pararGPS = async () => {
                           }
                         }}
                         disabled={isFuturo}>
-                        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: bgColor, borderWidth: isHoje ? 2 : (registo ? 1 : 0), borderColor: isHoje ? '#f5a623' : (registo ? bgColor.replace('0.2', '0.6').replace('0.15', '0.5') : 'transparent'), alignItems: 'center', justifyContent: 'center' }}>
-                         {emoji ? (
-  <>
-    <Text style={{ fontSize: 13 }}>{emoji}</Text>
-    <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>{numDia}</Text>
-  </>
-) : (
-  <Text style={{ fontSize: 12, fontWeight: isHoje ? '800' : '500', color: isHoje ? '#f5a623' : c.textSub }}>{numDia}</Text>
-)}
+                        <View style={{ width: 36, height: 40, borderRadius: 8, backgroundColor: bgColor, borderWidth: isHoje ? 2 : 0, borderColor: '#f5a623', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: isHoje ? '#f5a623' : (typeColor || c.textSub), lineHeight: 16 }}>{numDia}</Text>
+                          {typeLabel ? (
+                            <Text style={{ fontSize: 7, fontWeight: '700', color: isHoje && !typeLabel ? '#f5a623' : typeColor, letterSpacing: 0.3, lineHeight: 9 }}>{isHoje && !registo ? 'AUJ.' : typeLabel}</Text>
+                          ) : isHoje ? (
+                            <Text style={{ fontSize: 7, fontWeight: '700', color: '#f5a623', letterSpacing: 0.3, lineHeight: 9 }}>AUJ.</Text>
+                          ) : null}
                         </View>
                       </TouchableOpacity>
                     )
@@ -1120,11 +1564,18 @@ const pararGPS = async () => {
             })()}
             </View>{/* fim grelha altura fixa */}
 
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, justifyContent: 'center' }}>
-              {[{ emoji: '✅', label: 'Travail' }, { emoji: '🌙', label: 'Découché' }, { emoji: '🏖️', label: 'Congé' }, { emoji: '🎉', label: 'Férié' }, { emoji: '🔄', label: 'Repos C.' }, { emoji: '❌', label: 'Repos' }].map(item => (
-                <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={{ fontSize: 12 }}>{item.emoji}</Text>
-                  <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600' }}>{item.label}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12, justifyContent: 'center' }}>
+              {[
+                { color: '#27ae60', label: 'Travail' },
+                { color: '#2980b9', label: 'Découché' },
+                { color: '#9b59b6', label: 'Congé' },
+                { color: '#f39c12', label: 'Férié' },
+                { color: '#1abc9c', label: 'Repos C.' },
+                { color: '#6b7394', label: 'Repos' },
+              ].map(item => (
+                <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color }} />
+                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '600' }}>{item.label}</Text>
                 </View>
               ))}
             </View>
@@ -1138,8 +1589,8 @@ const pararGPS = async () => {
       )}
 
       <Modal visible={showAddDia} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => { setShowAddDia(false); setEditandoDiaId(null) }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>{editandoDiaId ? '✏️ Modifier le jour' : '➕ Ajouter un jour'}</Text>
             <Text style={{ fontSize: 14, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>{addDiaLabel}</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
@@ -1187,8 +1638,25 @@ const pararGPS = async () => {
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>{editandoDiaId ? '✅ Sauvegarder' : '✅ Enregistrer'}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+            {editandoDiaId && (
+              <TouchableOpacity
+                style={{ marginTop: 10, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(231,76,60,0.4)', backgroundColor: 'rgba(231,76,60,0.06)' }}
+                onPress={async () => {
+                  const existente = await AsyncStorage.getItem('historique')
+                  const lista = existente ? JSON.parse(existente) : []
+                  const nova = lista.filter((j: any) => j.id !== editandoDiaId)
+                  await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                  setDiasHistorique(nova)
+                  setEditandoDiaId(null)
+                  setShowAddDia(false)
+                  carregarStatsSemaine()
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#e74c3c' }}>🗑️ Supprimer ce jour</Text>
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <Modal visible={showTerminerModal} transparent animationType="slide">
@@ -1254,8 +1722,8 @@ const pararGPS = async () => {
             <TouchableOpacity style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e74c3c' }} onPress={() => {
               const h = Math.floor(segConducao / 3600)
               const m = Math.floor((segConducao % 3600) / 60)
-              setInputHoras(String(h))
-              setInputMinutos(String(m).padStart(2, '0'))
+              const d = new Date(); d.setHours(h, m, 0, 0)
+              setCorrecaoPickerDate(d)
               setShowCorrecao(false)
               setTimeout(() => setShowInputCorrecao(true), 300)
             }}>
@@ -1266,56 +1734,38 @@ const pararGPS = async () => {
       </Modal>
 
       <Modal visible={showInputCorrecao} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#e74c3c', width: '100%' }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' }}>✏️ Corriger la conduite</Text>
-              <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>Indique le temps réel affiché sur ton tacographe</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#e74c3c', width: '100%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' }}>✏️ Corriger la conduite</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 20 }}>Indique le temps réel affiché sur ton tacographe</Text>
 
-              {/* HH : MM picker */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1, marginBottom: 6 }}>HEURES</Text>
-                  <TextInput
-                    style={{ backgroundColor: c.bg, borderRadius: 14, borderWidth: 2, borderColor: '#e74c3c', width: 90, height: 72, fontSize: 36, fontWeight: '800', color: c.text, textAlign: 'center' }}
-                    value={inputHoras}
-                    onChangeText={v => { const n = v.replace(/[^0-9]/g, ''); if (parseInt(n) <= 9 || n === '') setInputHoras(n) }}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    autoFocus
-                  />
-                </View>
-                <Text style={{ fontSize: 36, fontWeight: '800', color: c.textSub, marginTop: 18 }}>:</Text>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1, marginBottom: 6 }}>MINUTES</Text>
-                  <TextInput
-                    style={{ backgroundColor: c.bg, borderRadius: 14, borderWidth: 2, borderColor: '#e74c3c', width: 90, height: 72, fontSize: 36, fontWeight: '800', color: c.text, textAlign: 'center' }}
-                    value={inputMinutos}
-                    onChangeText={v => { const n = v.replace(/[^0-9]/g, ''); if (parseInt(n) <= 59 || n === '') setInputMinutos(n) }}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }} onPress={() => {
-                const h = parseInt(inputHoras || '0')
-                const m = parseInt(inputMinutos || '0')
-                if (!isNaN(h) && !isNaN(m) && h >= 0 && h <= 9 && m >= 0 && m <= 59) {
-                  setSegConducao(h * 3600 + m * 60)
-                  setShowInputCorrecao(false)
-                } else {
-                  Alert.alert('Valeur invalide', 'Heures : 0–9 | Minutes : 0–59')
-                }
-              }}>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>✅ Confirmer la correction</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => setShowInputCorrecao(false)}>
-                <Text style={{ fontSize: 14, color: c.textSub }}>Annuler</Text>
-              </TouchableOpacity>
+            {/* PONTO 9 — DateTimePicker spinner */}
+            <View style={{ backgroundColor: c.bg, borderRadius: 14, borderWidth: 2, borderColor: '#e74c3c', marginBottom: 16, alignItems: 'center', overflow: 'hidden' }}>
+              <DateTimePicker
+                value={correcaoPickerDate}
+                mode="time"
+                display="spinner"
+                is24Hour={true}
+                onChange={(_, date) => { if (date) setCorrecaoPickerDate(date) }}
+                textColor={c.text}
+              />
             </View>
+
+            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }} onPress={async () => {
+              const h = correcaoPickerDate.getHours()
+              const m = correcaoPickerDate.getMinutes()
+              const novoVal = h * 3600 + m * 60
+              await guardarCorrecaoHistorico(segConducao, novoVal)
+              setSegConducao(novoVal)
+              setShowInputCorrecao(false)
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>✅ Confirmer la correction</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => setShowInputCorrecao(false)}>
+              <Text style={{ fontSize: 14, color: c.textSub }}>Annuler</Text>
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal visible={showProfil} transparent animationType="slide">
@@ -1383,27 +1833,35 @@ const pararGPS = async () => {
 
             {/* Stats grid */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 22 }}>⏱️</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#f5a623' }}>{summaryData ? fmtHM(summaryData.service) : '—'}</Text>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>SERVICE</Text>
+              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, overflow: 'hidden' }}>
+                <View style={{ height: 4, backgroundColor: '#f5a623' }} />
+                <View style={{ padding: 14, alignItems: 'center', gap: 2 }}>
+                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>SERVICE</Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#f5a623', letterSpacing: -1 }}>{summaryData ? fmtHM(summaryData.service) : '—'}</Text>
+                </View>
               </View>
-              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 22 }}>🚛</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#27ae60' }}>{summaryData ? fmtHM(summaryData.conduite) : '—'}</Text>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>CONDUITE</Text>
+              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, overflow: 'hidden' }}>
+                <View style={{ height: 4, backgroundColor: '#27ae60' }} />
+                <View style={{ padding: 14, alignItems: 'center', gap: 2 }}>
+                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>CONDUITE</Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#27ae60', letterSpacing: -1 }}>{summaryData ? fmtHM(summaryData.conduite) : '—'}</Text>
+                </View>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 22 }}>📍</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: c.text }}>{summaryData ? `${summaryData.km} km` : '—'}</Text>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>DISTANCE</Text>
+              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, overflow: 'hidden' }}>
+                <View style={{ height: 4, backgroundColor: '#2980b9' }} />
+                <View style={{ padding: 14, alignItems: 'center', gap: 2 }}>
+                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>DISTANCE</Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#2980b9', letterSpacing: -1 }}>{summaryData ? `${summaryData.km}` : '—'}<Text style={{ fontSize: 14 }}> km</Text></Text>
+                </View>
               </View>
-              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 22 }}>🧾</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#27ae60' }}>{summaryData ? `${summaryData.frais.toFixed(2)}€` : '—'}</Text>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>FRAIS</Text>
+              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, overflow: 'hidden' }}>
+                <View style={{ height: 4, backgroundColor: '#8e44ad' }} />
+                <View style={{ padding: 14, alignItems: 'center', gap: 2 }}>
+                  <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>FRAIS</Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#8e44ad', letterSpacing: -1 }}>{summaryData ? `${summaryData.frais.toFixed(0)}` : '—'}<Text style={{ fontSize: 14 }}>€</Text></Text>
+                </View>
               </View>
             </View>
 
@@ -1412,7 +1870,7 @@ const pararGPS = async () => {
               <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>CUMUL SEMAINE</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 14, color: c.textSub }}>Heures totales</Text>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{summaryData ? `${summaryData.semHeures.toFixed(1)}h` : '—'}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{summaryData ? fmtHM(summaryData.semHeures) : '—'}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
                 <Text style={{ fontSize: 14, color: c.textSub }}>Frais totaux</Text>
@@ -1425,6 +1883,99 @@ const pararGPS = async () => {
               onPress={() => setShowSummaryModal(false)}
             >
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Parfait !</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* PONTO 2 — MODAL DÉTAIL PAUSES CE 561/2006 */}
+      <Modal visible={showPausasModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#f39c12', width: '100%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>⏸ Pauses CE 561/2006</Text>
+            {pausas.length === 0 && segPausa === 0 ? (
+              <Text style={{ textAlign: 'center', color: c.textSub, fontSize: 13, marginBottom: 16 }}>Aucune pause enregistrée</Text>
+            ) : (
+              <View style={{ marginBottom: 16, gap: 8 }}>
+                {[...pausas, ...(segPausa > 0 ? [{ dur: segPausa, inicio: pausaInicioRef.current }] : [])].map((p, i) => {
+                  const min = Math.floor(p.dur / 60)
+                  const isValid15 = i === 0 && min >= 15
+                  const isValid30 = i > 0 && min >= 30 && pausas.slice(0, i).some(prev => Math.floor(prev.dur / 60) >= 15)
+                  const color = (isValid15 || isValid30 || min >= 45) ? '#27ae60' : '#f39c12'
+                  return (
+                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: `${color}18`, borderRadius: 8, padding: 10, borderLeftWidth: 3, borderLeftColor: color }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color }}>Pause {i + 1}{i === pausas.length && segPausa > 0 ? ' (en cours)' : ''}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color }}>{min}min</Text>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+            <View style={{ backgroundColor: c.bg, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center' }}>Total pauses : <Text style={{ fontWeight: '800', color: c.text }}>{fmtHM(segPausaTotal)}</Text></Text>
+            </View>
+            <TouchableOpacity style={{ backgroundColor: '#f39c12', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => setShowPausasModal(false)}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* PONTO 8 — MODAL KM DU JOUR */}
+      <Modal visible={showKmModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#2980b9', width: '100%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📍 Distance du jour</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>GPS tracking actif</Text>
+            <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 48, fontWeight: '800', color: '#2980b9' }}>{kmDiarios}</Text>
+              <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>KM PARCOURUS</Text>
+            </View>
+            <View style={{ backgroundColor: c.bg, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, color: c.textSub }}>Points GPS : <Text style={{ fontWeight: '800', color: c.text }}>{gpsTrack.length}</Text></Text>
+              {gpsTrack.length > 0 && (
+                <Text style={{ fontSize: 11, color: c.textSub, marginTop: 4 }}>
+                  De {new Date(gpsTrack[0].ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {new Date(gpsTrack[gpsTrack.length - 1].ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              )}
+            </View>
+            {gpsTrack.length >= 2 && (
+              <TouchableOpacity
+                style={{ backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={async () => {
+                  const appMaps = (await AsyncStorage.getItem('mapApp')) || 'google'
+                  // Amostrar até 20 pontos para não exceder o limite da URL
+                  const step = Math.max(1, Math.floor(gpsTrack.length / 20))
+                  const pontos = gpsTrack.filter((_, i) => i % step === 0)
+                  if (appMaps === 'waze') {
+                    // Waze: abre no primeiro ponto e navega até ao último
+                    const ultimo = gpsTrack[gpsTrack.length - 1]
+                    const url = `waze://?ll=${ultimo.lat},${ultimo.lon}&navigate=yes`
+                    const canOpen = await Linking.canOpenURL(url)
+                    if (canOpen) {
+                      Linking.openURL(url)
+                    } else {
+                      Linking.openURL(`https://www.waze.com/ul?ll=${ultimo.lat},${ultimo.lon}&navigate=yes`)
+                    }
+                  } else {
+                    // Google Maps: rota com waypoints
+                    const origem = `${pontos[0].lat},${pontos[0].lon}`
+                    const destino = `${pontos[pontos.length - 1].lat},${pontos[pontos.length - 1].lon}`
+                    const waypoints = pontos.slice(1, -1).map(p => `${p.lat},${p.lon}`).join('|')
+                    const url = waypoints.length > 0
+                      ? `https://www.google.com/maps/dir/${origem}/${waypoints}/${destino}`
+                      : `https://www.google.com/maps/dir/${origem}/${destino}`
+                    Linking.openURL(url)
+                  }
+                  setShowKmModal(false)
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>🗺️</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Ver rota</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={{ backgroundColor: c.bg, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowKmModal(false)}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>Fermer</Text>
             </TouchableOpacity>
           </View>
         </View>

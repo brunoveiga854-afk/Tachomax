@@ -1,9 +1,47 @@
 import { Tabs } from 'expo-router'
 import { useTheme } from '../../context/ThemeContext'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
+
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
+type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name']
+
+function TabIcon({
+  focused,
+  children,
+}: {
+  focused: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <View style={{
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: focused ? 'rgba(245,166,35,0.18)' : 'transparent',
+    }}>
+      {children}
+      {focused && (
+        <View style={{
+          position: 'absolute',
+          bottom: 4,
+          width: 16,
+          height: 3,
+          borderRadius: 2,
+          backgroundColor: '#f5a623',
+        }} />
+      )}
+    </View>
+  )
+}
 
 export default function TabsLayout() {
   const { themeSombre } = useTheme()
+
+  const activeColor = '#f5a623'
+  const inactiveColor = themeSombre ? '#3a4060' : '#b0b8d0'
 
   return (
     <Tabs
@@ -11,48 +49,68 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: themeSombre ? '#181c27' : '#ffffff',
-          borderTopColor: themeSombre ? '#2a3045' : '#d0d5e8',
           borderTopWidth: 0,
+          borderTopColor: themeSombre ? '#1e2438' : '#e8ecf5',
           height: 100,
           paddingBottom: 4,
           paddingTop: 2,
-          elevation: 0,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: themeSombre ? 0.4 : 0.08,
+          shadowRadius: 8,
         },
-        tabBarActiveTintColor: '#f5a623',
-        tabBarInactiveTintColor: themeSombre ? '#3a4060' : '#c0c5d8',
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
       }}
     >
       <Tabs.Screen name="index" options={{
         title: "Aujourd'hui",
         tabBarIcon: ({ focused }) => (
-          <View style={{ alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 18, backgroundColor: focused ? 'rgba(245,166,35,0.15)' : 'transparent' }}>
-            <Text style={{ fontSize: 22 }}>🚛</Text>
-          </View>
+          <TabIcon focused={focused}>
+            <MaterialCommunityIcons
+              name={'truck' as MCIName}
+              size={26}
+              color={focused ? activeColor : inactiveColor}
+            />
+          </TabIcon>
         ),
       }} />
       <Tabs.Screen name="historique" options={{
         title: 'Historique',
         tabBarIcon: ({ focused }) => (
-          <View style={{ alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 18, backgroundColor: focused ? 'rgba(245,166,35,0.15)' : 'transparent' }}>
-            <Text style={{ fontSize: 22 }}>🗂️</Text>
-          </View>
+          <TabIcon focused={focused}>
+            <Ionicons
+              name={(focused ? 'calendar' : 'calendar-outline') as IoniconsName}
+              size={24}
+              color={focused ? activeColor : inactiveColor}
+            />
+          </TabIcon>
         ),
       }} />
       <Tabs.Screen name="fiche" options={{
         title: 'Mon Salaire',
         tabBarIcon: ({ focused }) => (
-          <View style={{ alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 18, backgroundColor: focused ? 'rgba(245,166,35,0.15)' : 'transparent' }}>
-            <Text style={{ fontSize: 22 }}>💰</Text>
-          </View>
+          <TabIcon focused={focused}>
+            <Ionicons
+              name={(focused ? 'wallet' : 'wallet-outline') as IoniconsName}
+              size={24}
+              color={focused ? activeColor : inactiveColor}
+            />
+          </TabIcon>
         ),
       }} />
       <Tabs.Screen name="reglages" options={{
         title: 'Réglages',
         tabBarIcon: ({ focused }) => (
-          <View style={{ alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 18, backgroundColor: focused ? 'rgba(245,166,35,0.15)' : 'transparent' }}>
-            <Text style={{ fontSize: 22 }}>⚙️</Text>
-          </View>
+          <TabIcon focused={focused}>
+            <Ionicons
+              name={(focused ? 'settings' : 'settings-outline') as IoniconsName}
+              size={24}
+              color={focused ? activeColor : inactiveColor}
+            />
+          </TabIcon>
         ),
       }} />
       <Tabs.Screen name="onboarding" options={{ href: null }} />

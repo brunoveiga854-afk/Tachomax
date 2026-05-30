@@ -6,6 +6,9 @@ import { LangueProvider } from '../context/LangueContext'
 import { useEffect } from 'react'
 import { inicializarTrial } from '../src/trial'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SplashScreen from 'expo-splash-screen'
+
+SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   useEffect(() => {
@@ -14,6 +17,8 @@ export default function RootLayout() {
       if (!done) {
         setTimeout(() => router.replace('/onboarding'), 100)
       }
+      // Esconder o splash com pequeno delay para a app estar pronta
+      setTimeout(() => SplashScreen.hideAsync(), 300)
     })
   }, [])
 

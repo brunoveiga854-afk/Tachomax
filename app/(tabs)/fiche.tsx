@@ -171,6 +171,143 @@ function calcFraisMesPorHorarios(
   return { total, ptd, dej, din, nui }
 }
 
+// ── VÉRIFICATION CROISÉE FICHE vs APP ─────────────────────────────────────────
+type VerifNivel = 'ok' | 'warn' | 'alert'
+
+type VerifCruzada = {
+  mesTrabalhoLabel: string
+  mesFraisLabel: string
+  salario: { fiche: number; app: number; diff: number; nivel: VerifNivel; aviso?: string; fonteApp: string }
+  frais: { fiche: number; app: number; diff: number; pct: number; nivel: VerifNivel }
+  horas: { fiche: number; app: number; diff: number; nivel: VerifNivel; aviso?: string }
+}
+
+const VERIF_CORES: Record<VerifNivel, { bg: string; border: string; badge: string }> = {
+  ok:    { bg: 'rgba(39,174,96,0.10)',  border: '#27ae60', badge: '#27ae60' },
+  warn:  { bg: 'rgba(243,156,18,0.12)', border: '#f39c12', badge: '#f39c12' },
+  alert: { bg: 'rgba(230,126,34,0.14)', border: '#e67e22', badge: '#e67e22' },
+}
+
+function horasCalendarioMesTrabalho(histCal: any[], anoPay: number, mesPay: number, hlag: number): number {
+  const [aH, mH] = shiftMois(anoPay, mesPay, -hlag)
+  const dias = histCal.filter((j: any) => {
+    const parts = j.date?.split('/')
+    if (!parts || parts.length < 2) return false
+    const mes = parseInt(parts[1]) - 1
+    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+    return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+  })
+  return dias.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+}
+
+function netCalendarioMesPaye(histCal: any[], anoPay: number, mesPay: number, p: Padrao): number {
+  const [aH, mH] = shiftMois(anoPay, mesPay, -p.hlag)
+  const todosDoMes = histCal.filter((j: any) => {
+    const parts = j.date?.split('/')
+    if (!parts || parts.length < 2) return false
+    const mes = parseInt(parts[1]) - 1
+    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+    return mes === mH && ano === aH
+  })
+  const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
+  if (diasTrab.length === 0) return 0
+
+  const totalH = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+  const nConges = todosDoMes.filter((j: any) => ['FERIE', 'vac'].includes(j.type || '')).length
+  const nFeries = todosDoMes.filter((j: any) => ['FER', 'FERIADO', 'hol'].includes(j.type || '')).length
+  const nRC = todosDoMes.filter((j: any) => j.type === 'RC').length
+  const valCongeNet = (p.valorDiaConges > 0 ? p.valorDiaConges : (p.hbase / 22) * p.hval) * p.liquidRate
+  const valFerieNet = (p.valorDiaFerie > 0 ? p.valorDiaFerie : (p.hbase / 22) * p.hval) * p.liquidRate
+  const valRCNet = (p.hbase / 22) * p.hval * p.liquidRate
+
+  if (p.taxaHorariaNetaMedia > 0) {
+    return Math.round(
+      totalH * p.taxaHorariaNetaMedia + nConges * valCongeNet + nFeries * valFerieNet + nRC * valRCNet
+    )
+  }
+  const extra = Math.max(0, totalH - p.hbase)
+  const brut = totalH <= p.hbase
+    ? totalH * p.hval
+    : p.hbase * p.hval + Math.min(extra, p.lim25) * p.h25 + Math.max(0, extra - p.lim25) * p.h50
+  return Math.round(
+    brut * p.liquidRate + nConges * valCongeNet + nFeries * valFerieNet + nRC * valRCNet
+  )
+}
+
+function buildVerificacaoCruzada(
+  ficha: DocumentoAnalysado,
+  dados: any,
+  padrao: Padrao,
+  histCal: any[],
+  historique: MoisData[],
+): VerifCruzada {
+  const ano = ficha.annee
+  const mes = ficha.moisIndex
+  const [aT, mT] = shiftMois(ano, mes, -padrao.hlag)
+  const [aF, mF] = shiftMois(ano, mes, -padrao.flag)
+  const mesTrabalhoLabel = `${MOIS_NOMS[mT]} ${aT}`
+  const mesFraisLabel = `${MOIS_NOMS[mF]} ${aF}`
+
+  const salFiche = dados.netPaye || 0
+  const histMes = historique.find(h => h.moisIndex === mes && h.annee === ano && h.netPaye > 0)
+  const salApp = histMes?.netPaye || netCalendarioMesPaye(histCal, ano, mes, padrao)
+  const fonteApp = histMes ? 'Confirmé précédemment' : 'Estimé calendrier'
+  const diffSal = Math.abs(salFiche - salApp)
+  let nivelSal: VerifNivel = 'ok'
+  let avisoSal: string | undefined
+  if (salFiche > 0 && salApp > 0) {
+    if (diffSal <= 2) nivelSal = 'ok'
+    else if (diffSal <= 20) {
+      nivelSal = 'warn'
+      avisoSal = 'Écart modeste — vérifie le montant avant de confirmer.'
+    } else {
+      nivelSal = 'alert'
+      avisoSal = 'Écart important — possible heures supplémentaires d\'un autre mois incluses.'
+    }
+  } else if (salFiche > 0 && salApp === 0) {
+    nivelSal = 'warn'
+    avisoSal = 'Aucune heure enregistrée au calendrier pour le mois de travail (hlag).'
+  }
+
+  const fraisFiche = dados.remboursementFrais || 0
+  const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, padrao).total
+  const fraisApp = padrao.fraisFactorReal > 0 && padrao.fraisFactorReal !== 1
+    ? Math.round(fraisCalc * padrao.fraisFactorReal * 100) / 100
+    : fraisCalc
+  const diffFrais = Math.abs(fraisFiche - fraisApp)
+  const pctFrais = fraisApp > 0 ? (diffFrais / fraisApp) * 100 : (fraisFiche > 0 ? 100 : 0)
+  let nivelFrais: VerifNivel = 'ok'
+  if (fraisFiche > 0 || fraisApp > 0) {
+    if (pctFrais <= 5) nivelFrais = 'ok'
+    else if (pctFrais <= 15) nivelFrais = 'warn'
+    else nivelFrais = 'alert'
+  }
+
+  const hFiche = dados.totalHeures || 0
+  const hApp = horasCalendarioMesTrabalho(histCal, ano, mes, padrao.hlag)
+  const diffH = Math.abs(hFiche - hApp)
+  let nivelH: VerifNivel = 'ok'
+  let avisoH: string | undefined
+  if (hFiche > 0 && hApp > 0) {
+    if (diffH <= 5) nivelH = 'ok'
+    else {
+      nivelH = 'alert'
+      avisoH = 'Écart > 5h — possible heures d\'un autre mois incluses sur la fiche.'
+    }
+  } else if (hFiche > 0 && hApp === 0) {
+    nivelH = 'warn'
+    avisoH = 'Aucune heure au calendrier pour ce mois de travail.'
+  }
+
+  return {
+    mesTrabalhoLabel,
+    mesFraisLabel,
+    salario: { fiche: salFiche, app: salApp, diff: diffSal, nivel: nivelSal, aviso: avisoSal, fonteApp },
+    frais: { fiche: fraisFiche, app: fraisApp, diff: diffFrais, pct: pctFrais, nivel: nivelFrais },
+    horas: { fiche: hFiche, app: hApp, diff: diffH, nivel: nivelH, aviso: avisoH },
+  }
+}
+
 // ── VALIDAR HLAG COM TOTAIS CONFIRMADOS ──────────────────────────────────────
 // Usa montantTotalRecu (confirmado pelo utilizador) para encontrar o hlag correcto.
 // É o método mais fiável porque usa dados reais em vez de estimativas de bruto.
@@ -1193,11 +1330,11 @@ export default function MonSalaireScreen() {
             <Text style={st.calcularSub}>Combien tu vas recevoir ce mois</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
               <View style={{
-          backgroundColor: precisaoActual >= 94 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 85 ? 'rgba(100,180,50,0.3)' : precisaoActual >= 79 ? 'rgba(243,156,18,0.3)' : 'rgba(231,76,60,0.3)',
+          backgroundColor: precisaoActual >= 94 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 85 ? 'rgba(243,156,18,0.3)' : precisaoActual >= 79 ? 'rgba(243,156,18,0.3)' : 'rgba(231,76,60,0.3)',
                 borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
               }}>
                 <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>
-                  {precisaoActual >= 94 ? '✅' : precisaoActual >= 85 ? '🟢' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
+                  {precisaoActual >= 94 ? '✅' : precisaoActual >= 85 ? '⚡' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
                 </Text>
               </View>
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>
@@ -1237,8 +1374,8 @@ export default function MonSalaireScreen() {
               {/* ── BADGE GLOBAL DE PRECISÃO ── */}
               {precisaoGlobal !== null && (() => {
                   const pgColor = precisaoGlobal >= 95 ? '#27ae60' : precisaoGlobal >= 85 ? '#2ecc71' : precisaoGlobal >= 75 ? '#f5a623' : '#e74c3c'
-                  const pgBg   = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.15)' : precisaoGlobal >= 85 ? 'rgba(46,204,113,0.12)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.15)' : 'rgba(231,76,60,0.15)'
-                  const pgBdr  = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.4)'  : precisaoGlobal >= 85 ? 'rgba(46,204,113,0.35)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.4)'  : 'rgba(231,76,60,0.4)'
+                  const pgBg   = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.15)' : precisaoGlobal >= 85 ? 'rgba(243,156,18,0.12)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.15)' : 'rgba(231,76,60,0.15)'
+                  const pgBdr  = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.4)'  : precisaoGlobal >= 85 ? 'rgba(243,156,18,0.35)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.4)'  : 'rgba(231,76,60,0.4)'
                   return (
                     <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: pgBdr }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1257,7 +1394,7 @@ export default function MonSalaireScreen() {
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>0%</Text>
                         <Text style={{ fontSize: 10, color: pgColor, fontWeight: '800' }}>
-                          {precisaoGlobal >= 95 ? '🎯 Excellent !' : precisaoGlobal >= 85 ? `${100 - precisaoGlobal}% para 100%` : `Objectif 100% — carrega mais fiches`}
+                          {precisaoGlobal >= 95 ? '🎯 Excellent !' : precisaoGlobal >= 85 ? `${100 - precisaoGlobal}% pour 100%` : `Objectif 100% — carrega mais fiches`}
                         </Text>
                         <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>100%</Text>
                       </View>
@@ -1342,7 +1479,7 @@ export default function MonSalaireScreen() {
                       </View>
                       {pctAcerto !== null ? (
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
+                          <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#f39c12' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
                           <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
                         </View>
                       ) : estimativa > 0 ? (
@@ -1483,6 +1620,96 @@ export default function MonSalaireScreen() {
                 ) : (
                   <Text style={{ fontSize: 12, color: '#f39c12', textAlign: 'center', marginBottom: 16 }}>⚠️ Pas de boletim de frais pour ce mois</Text>
                 )}
+
+                {/* ── VÉRIFICATION CROISÉE FICHE vs APP ── */}
+                {(() => {
+                  const dadosFicha = (fichaActual.dados || fichaActual) as any
+                  const verif = buildVerificacaoCruzada(fichaActual, dadosFicha, padrao, histCal, historique)
+                  const salSaisie = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
+                  const fraisSaisie = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+
+                  const LinhaVerif = ({
+                    icon, titulo, nivel, ficheVal, appVal, diffText, aviso,
+                  }: {
+                    icon: string; titulo: string; nivel: VerifNivel
+                    ficheVal: string; appVal: string; diffText: string; aviso?: string
+                  }) => {
+                    const st = VERIF_CORES[nivel]
+                    return (
+                      <View style={{ backgroundColor: st.bg, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: st.border }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: c.text }}>{icon} {titulo}</Text>
+                          <View style={{ backgroundColor: st.badge, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>
+                              {nivel === 'ok' ? 'OK' : nivel === 'warn' ? 'ÉCART' : 'ALERTE'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 10, color: c.textSub }}>Fiche PDF</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>{ficheVal}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 10, color: c.textSub }}>App</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>{appVal}</Text>
+                        </View>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: st.badge }}>{diffText}</Text>
+                        {aviso ? (
+                          <Text style={{ fontSize: 10, color: st.badge, marginTop: 4, lineHeight: 14 }}>{aviso}</Text>
+                        ) : null}
+                      </View>
+                    )
+                  }
+
+                  const fmtHVerif = (h: number) =>
+                    h > 0 ? `${h.toFixed(1).replace('.', ',')}h` : '—'
+
+                  return (
+                    <View style={{ marginBottom: 14, padding: 12, backgroundColor: c.bg, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 4, textAlign: 'center' }}>
+                        🔍 VÉRIFICATION CROISÉE
+                      </Text>
+                      <Text style={{ fontSize: 10, color: c.textSub, textAlign: 'center', marginBottom: 10, lineHeight: 14 }}>
+                        Heures · mois travail {verif.mesTrabalhoLabel} (hlag {padrao.hlag}){'\n'}
+                        Frais · mois {verif.mesFraisLabel} (flag {padrao.flag})
+                      </Text>
+
+                      <LinhaVerif
+                        icon="💰"
+                        titulo="Salaire net"
+                        nivel={verif.salario.nivel}
+                        ficheVal={verif.salario.fiche > 0 ? `${Math.round(verif.salario.fiche).toLocaleString('fr-FR')}€` : '—'}
+                        appVal={verif.salario.app > 0 ? `${Math.round(verif.salario.app).toLocaleString('fr-FR')}€` : '—'}
+                        diffText={`Δ ${Math.round(verif.salario.diff).toLocaleString('fr-FR')}€ · ${verif.salario.fonteApp}${salSaisie > 0 && Math.abs(salSaisie - verif.salario.fiche) > 2 ? ` · saisie ${Math.round(salSaisie).toLocaleString('fr-FR')}€` : ''}`}
+                        aviso={verif.salario.aviso}
+                      />
+
+                      <LinhaVerif
+                        icon="🍽️"
+                        titulo="Frais"
+                        nivel={verif.frais.nivel}
+                        ficheVal={verif.frais.fiche > 0 ? `${verif.frais.fiche.toFixed(2)}€` : '—'}
+                        appVal={verif.frais.app > 0 ? `${verif.frais.app.toFixed(2)}€` : '—'}
+                        diffText={`Δ ${verif.frais.diff.toFixed(2)}€ · ${verif.frais.pct.toFixed(0)}% d'écart${fraisSaisie > 0 && Math.abs(fraisSaisie - verif.frais.fiche) > 0.5 ? ` · saisie ${fraisSaisie.toFixed(2)}€` : ''}`}
+                      />
+
+                      <LinhaVerif
+                        icon="⏱"
+                        titulo="Heures"
+                        nivel={verif.horas.nivel}
+                        ficheVal={fmtHVerif(verif.horas.fiche)}
+                        appVal={fmtHVerif(verif.horas.app)}
+                        diffText={`Δ ${verif.horas.diff.toFixed(1).replace('.', ',')}h · calendrier ${verif.mesTrabalhoLabel}`}
+                        aviso={verif.horas.aviso}
+                      />
+
+                      <Text style={{ fontSize: 9, color: c.textSub, textAlign: 'center', marginTop: 2, fontStyle: 'italic' }}>
+                        Indicatif — tu peux confirmer même en cas d'écart
+                      </Text>
+                    </View>
+                  )
+                })()}
+
                 {/* ── SALAIRE + FRAIS LADO A LADO ── */}
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                   {/* Salaire NET — le 5 */}

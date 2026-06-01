@@ -39,6 +39,7 @@ export default function ReglagesScreen() {
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [modoDecrescente, setModoDecrescente] = useState(false)
   const [mapApp, setMapApp] = useState<'google' | 'waze'>('google')
+  const [modeTest, setModeTest] = useState(false)
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -59,6 +60,7 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('mapApp').then(v => {
       if (v === 'waze') setMapApp('waze')
     })
+    AsyncStorage.getItem('mode_test').then(v => setModeTest(v === 'true'))
   }, [])
 
   const apagaHistorique = async () => {
@@ -288,6 +290,26 @@ export default function ReglagesScreen() {
               <Text style={{ fontSize: 22 }}>🔵</Text>
               <Text style={{ fontSize: 13, fontWeight: '700', color: mapApp === 'waze' ? '#2980b9' : c.text, marginTop: 4 }}>Waze</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* MODE TEST */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>DÉVELOPPEMENT</Text>
+          <View style={st.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[st.settingLabel, { color: c.text }]}>🧪 Mode test</Text>
+              <Text style={[st.settingSub, { color: c.textSub }]}>Affiche le bouton « Stop conduite » pour tests sans polluer les données</Text>
+            </View>
+            <Switch
+              value={modeTest}
+              onValueChange={async (valor) => {
+                setModeTest(valor)
+                await AsyncStorage.setItem('mode_test', String(valor))
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#9b59b6' }}
+              thumbColor="white"
+            />
           </View>
         </View>
 

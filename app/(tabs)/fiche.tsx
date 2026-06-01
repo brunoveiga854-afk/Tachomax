@@ -1,6 +1,6 @@
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
@@ -182,11 +182,11 @@ type VerifCruzada = {
   horas: { fiche: number; app: number; diff: number; nivel: VerifNivel; aviso?: string }
 }
 
-const VERIF_CORES: Record<VerifNivel, { bg: string; border: string; badge: string }> = {
-  ok:    { bg: 'rgba(39,174,96,0.10)',  border: '#27ae60', badge: '#27ae60' },
-  warn:  { bg: 'rgba(243,156,18,0.12)', border: '#f39c12', badge: '#f39c12' },
-  alert: { bg: 'rgba(230,126,34,0.14)', border: '#e67e22', badge: '#e67e22' },
+function temDiferencasVerif(verif: VerifCruzada): boolean {
+  return verif.salario.nivel !== 'ok' || verif.frais.nivel !== 'ok' || verif.horas.nivel !== 'ok'
 }
+
+const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 function horasCalendarioMesTrabalho(histCal: any[], anoPay: number, mesPay: number, hlag: number): number {
   const [aH, mH] = shiftMois(anoPay, mesPay, -hlag)
@@ -684,6 +684,8 @@ export default function MonSalaireScreen() {
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
+  const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const breathAnim = useRef(new Animated.Value(1)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -733,6 +735,15 @@ export default function MonSalaireScreen() {
         await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
       }
     } catch (e) { console.log('Erro:', e) }
+  }
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await charger()
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   // CÁLCULO PRINCIPAL
@@ -1125,6 +1136,7 @@ export default function MonSalaireScreen() {
     const pf = fiches[0]?.dados || fiches[0] as any
     setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
     setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+    setShowVerifDetalhes(false)
     setShowPerguntas(true)
   }
 
@@ -1151,6 +1163,7 @@ export default function MonSalaireScreen() {
       const pf = fiches[perguntaAtual + 1]?.dados || fiches[perguntaAtual + 1] as any
       setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
       setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+      setShowVerifDetalhes(false)
       setPerguntaAtual(perguntaAtual + 1)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -1217,7 +1230,17 @@ export default function MonSalaireScreen() {
 
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#f5a623"
+            colors={['#f5a623']}
+          />
+        }
+      >
         <View style={st.header}>
           <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>MAX</Text></Text>
           <View style={[st.badge, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
@@ -1608,178 +1631,129 @@ export default function MonSalaireScreen() {
       <Modal visible={showPerguntas} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
-            {fichaActual && (
-              <>
-                <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 4 }}>{perguntaAtual + 1} / {fiches.length}</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📄 {fichaActual.periode}</Text>
-                <Text style={{ fontSize: 13, color: '#27ae60', textAlign: 'center', fontWeight: '700', marginBottom: 4 }}>
-                  Net payé: {fmt((fichaActual.dados || fichaActual as any)?.netPaye || 0)}
-                </Text>
-                {documentosAnalisados.find(d => d.tipo === 'frais' && d.moisIndex === fichaActual.moisIndex) ? (
-                  <Text style={{ fontSize: 12, color: '#2980b9', textAlign: 'center', marginBottom: 16 }}>🧾 Frais trouvés pour ce mois</Text>
-                ) : (
-                  <Text style={{ fontSize: 12, color: '#f39c12', textAlign: 'center', marginBottom: 16 }}>⚠️ Pas de boletim de frais pour ce mois</Text>
-                )}
+            {fichaActual && (() => {
+              const dadosFicha = (fichaActual.dados || fichaActual) as any
+              const verif = buildVerificacaoCruzada(fichaActual, dadosFicha, padrao, histCal, historique)
+              const temDiff = temDiferencasVerif(verif)
+              const mesLabel = MESES_PT[fichaActual.moisIndex] || fichaActual.periode
+              const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
+              const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
 
-                {/* ── VÉRIFICATION CROISÉE FICHE vs APP ── */}
-                {(() => {
-                  const dadosFicha = (fichaActual.dados || fichaActual) as any
-                  const verif = buildVerificacaoCruzada(fichaActual, dadosFicha, padrao, histCal, historique)
-                  const salSaisie = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
-                  const fraisSaisie = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
-
-                  const LinhaVerif = ({
-                    icon, titulo, nivel, ficheVal, appVal, diffText, aviso,
-                  }: {
-                    icon: string; titulo: string; nivel: VerifNivel
-                    ficheVal: string; appVal: string; diffText: string; aviso?: string
-                  }) => {
-                    const st = VERIF_CORES[nivel]
-                    return (
-                      <View style={{ backgroundColor: st.bg, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: st.border }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: c.text }}>{icon} {titulo}</Text>
-                          <View style={{ backgroundColor: st.badge, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>
-                              {nivel === 'ok' ? 'OK' : nivel === 'warn' ? 'ÉCART' : 'ALERTE'}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                          <Text style={{ fontSize: 10, color: c.textSub }}>Fiche PDF</Text>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>{ficheVal}</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 10, color: c.textSub }}>App</Text>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>{appVal}</Text>
-                        </View>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: st.badge }}>{diffText}</Text>
-                        {aviso ? (
-                          <Text style={{ fontSize: 10, color: st.badge, marginTop: 4, lineHeight: 14 }}>{aviso}</Text>
-                        ) : null}
-                      </View>
-                    )
-                  }
-
-                  const fmtHVerif = (h: number) =>
-                    h > 0 ? `${h.toFixed(1).replace('.', ',')}h` : '—'
-
-                  return (
-                    <View style={{ marginBottom: 14, padding: 12, backgroundColor: c.bg, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 4, textAlign: 'center' }}>
-                        🔍 VÉRIFICATION CROISÉE
-                      </Text>
-                      <Text style={{ fontSize: 10, color: c.textSub, textAlign: 'center', marginBottom: 10, lineHeight: 14 }}>
-                        Heures · mois travail {verif.mesTrabalhoLabel} (hlag {padrao.hlag}){'\n'}
-                        Frais · mois {verif.mesFraisLabel} (flag {padrao.flag})
-                      </Text>
-
-                      <LinhaVerif
-                        icon="💰"
-                        titulo="Salaire net"
-                        nivel={verif.salario.nivel}
-                        ficheVal={verif.salario.fiche > 0 ? `${Math.round(verif.salario.fiche).toLocaleString('fr-FR')}€` : '—'}
-                        appVal={verif.salario.app > 0 ? `${Math.round(verif.salario.app).toLocaleString('fr-FR')}€` : '—'}
-                        diffText={`Δ ${Math.round(verif.salario.diff).toLocaleString('fr-FR')}€ · ${verif.salario.fonteApp}${salSaisie > 0 && Math.abs(salSaisie - verif.salario.fiche) > 2 ? ` · saisie ${Math.round(salSaisie).toLocaleString('fr-FR')}€` : ''}`}
-                        aviso={verif.salario.aviso}
-                      />
-
-                      <LinhaVerif
-                        icon="🍽️"
-                        titulo="Frais"
-                        nivel={verif.frais.nivel}
-                        ficheVal={verif.frais.fiche > 0 ? `${verif.frais.fiche.toFixed(2)}€` : '—'}
-                        appVal={verif.frais.app > 0 ? `${verif.frais.app.toFixed(2)}€` : '—'}
-                        diffText={`Δ ${verif.frais.diff.toFixed(2)}€ · ${verif.frais.pct.toFixed(0)}% d'écart${fraisSaisie > 0 && Math.abs(fraisSaisie - verif.frais.fiche) > 0.5 ? ` · saisie ${fraisSaisie.toFixed(2)}€` : ''}`}
-                      />
-
-                      <LinhaVerif
-                        icon="⏱"
-                        titulo="Heures"
-                        nivel={verif.horas.nivel}
-                        ficheVal={fmtHVerif(verif.horas.fiche)}
-                        appVal={fmtHVerif(verif.horas.app)}
-                        diffText={`Δ ${verif.horas.diff.toFixed(1).replace('.', ',')}h · calendrier ${verif.mesTrabalhoLabel}`}
-                        aviso={verif.horas.aviso}
-                      />
-
-                      <Text style={{ fontSize: 9, color: c.textSub, textAlign: 'center', marginTop: 2, fontStyle: 'italic' }}>
-                        Indicatif — tu peux confirmer même en cas d'écart
-                      </Text>
-                    </View>
-                  )
-                })()}
-
-                {/* ── SALAIRE + FRAIS LADO A LADO ── */}
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                  {/* Salaire NET — le 5 */}
-                  <View style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.08)', borderRadius: 14, padding: 12, borderWidth: 1.5, borderColor: 'rgba(39,174,96,0.35)' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 0.8, marginBottom: 2 }}>💰 SALAIRE NET</Text>
-                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
-                      le {perguntaAtual === 0 ? (inputDiaSal || '5') : (inputDiaSal || padrao.diaSalario)}
+              return (
+                <>
+                  {fiches.length > 1 && (
+                    <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'right', marginBottom: 8 }}>
+                      {perguntaAtual + 1}/{fiches.length}
                     </Text>
-                    <TextInput
-                      style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 20, fontWeight: '900', color: '#27ae60', borderWidth: 1, borderColor: 'rgba(39,174,96,0.4)', textAlign: 'center' }}
-                      value={inputMontantSalQ} onChangeText={setInputMontantSalQ}
-                      keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} autoFocus
-                    />
-                    {perguntaAtual === 0 && (
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700', marginBottom: 4 }}>JOUR REÇU</Text>
-                        <TextInput
-                          style={{ backgroundColor: c.input, borderRadius: 8, padding: 7, fontSize: 15, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: 'rgba(39,174,96,0.3)', textAlign: 'center' }}
-                          value={inputDiaSal} onChangeText={setInputDiaSal} keyboardType="number-pad" placeholder="5" placeholderTextColor={c.textSub}
-                        />
+                  )}
+
+                  {temDiff && (
+                    <View style={{ marginBottom: 16, padding: 14, backgroundColor: 'rgba(243,156,18,0.10)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(243,156,18,0.35)' }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, lineHeight: 22, marginBottom: 12 }}>
+                        ⚠️ Encontrei diferenças entre a fiche e os meus cálculos. Usar os valores da fiche?
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 12, padding: 12, alignItems: 'center' }}
+                          onPress={() => {
+                            if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
+                            if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Sim, usar fiche</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                          onPress={() => {
+                            if (verif.salario.app > 0) setInputMontantSalQ(String(Math.round(verif.salario.app)))
+                            if (verif.frais.app > 0) setInputMontantFraisQ(String(verif.frais.app))
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>❌ Não, os meus</Text>
+                        </TouchableOpacity>
                       </View>
-                    )}
+                      <TouchableOpacity onPress={() => setShowVerifDetalhes(v => !v)} style={{ alignItems: 'center', paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 12, color: c.textSub, textDecorationLine: 'underline' }}>
+                          {showVerifDetalhes ? 'Ocultar detalhes' : 'Ver detalhes'}
+                        </Text>
+                      </TouchableOpacity>
+                      {showVerifDetalhes && (
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,156,18,0.25)' }}>
+                          <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
+                            💰 Salário — fiche {Math.round(verif.salario.fiche)}€ · app {Math.round(verif.salario.app)}€
+                          </Text>
+                          <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
+                            🍽️ Frais — fiche {verif.frais.fiche.toFixed(2)}€ · app {verif.frais.app.toFixed(2)}€
+                          </Text>
+                          <Text style={{ fontSize: 12, color: c.textSub }}>
+                            ⏱ Horas — fiche {verif.horas.fiche.toFixed(1)}h · calendário {verif.horas.app.toFixed(1)}h
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20, lineHeight: 28 }}>
+                    Em {mesLabel} {fichaActual.annee}, quanto recebeste?
+                  </Text>
+
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                        💰 Dia {diaSal} — salário?
+                      </Text>
+                      <TextInput
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                        value={inputMontantSalQ}
+                        onChangeText={setInputMontantSalQ}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={c.textSub}
+                        autoFocus={!temDiff}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                        🍽️ Dia {diaFrais} — frais?
+                      </Text>
+                      <TextInput
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                        value={inputMontantFraisQ}
+                        onChangeText={setInputMontantFraisQ}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={c.textSub}
+                      />
+                    </View>
                   </View>
 
-                  {/* Frais — le 10 */}
-                  <View style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.08)', borderRadius: 14, padding: 12, borderWidth: 1.5, borderColor: 'rgba(41,128,185,0.35)' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#2980b9', letterSpacing: 0.8, marginBottom: 2 }}>🍽️ FRAIS</Text>
-                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
-                      le {perguntaAtual === 0 ? (inputDiaFrais || '10') : (inputDiaFrais || padrao.diaFrais)}
-                    </Text>
-                    <TextInput
-                      style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 20, fontWeight: '900', color: '#2980b9', borderWidth: 1, borderColor: 'rgba(41,128,185,0.4)', textAlign: 'center' }}
-                      value={inputMontantFraisQ} onChangeText={setInputMontantFraisQ}
-                      keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub}
-                    />
-                    {perguntaAtual === 0 && (
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700', marginBottom: 4 }}>JOUR REÇU</Text>
-                        <TextInput
-                          style={{ backgroundColor: c.input, borderRadius: 8, padding: 7, fontSize: 15, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)', textAlign: 'center' }}
-                          value={inputDiaFrais} onChangeText={setInputDiaFrais} keyboardType="number-pad" placeholder="10" placeholderTextColor={c.textSub}
-                        />
-                      </View>
-                    )}
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{ padding: 14, alignItems: 'center' }}
+                      onPress={() => {
+                        if (perguntaAtual > 0) {
+                          setPerguntaAtual(perguntaAtual - 1)
+                          setRespostas(respostas.slice(0, -1))
+                          setShowVerifDetalhes(false)
+                        } else {
+                          setShowModalCancelar(true)
+                        }
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: c.textSub }}>{perguntaAtual > 0 ? '←' : 'Cancelar'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                      onPress={responderPergunta}
+                    >
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>
+                        {perguntaAtual < fiches.length - 1 ? 'Seguinte →' : 'Guardar'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-
-                {/* Total automático */}
-                {(() => {
-                  const sal = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
-                  const fr  = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
-                  const tot = sal + fr
-                  return tot > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(245,166,35,0.35)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700' }}>TOTAL REÇU</Text>
-                      <Text style={{ fontSize: 22, color: '#f5a623', fontWeight: '900' }}>{Math.round(tot).toLocaleString('fr-FR')}€</Text>
-                    </View>
-                  ) : null
-                })()}
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                    onPress={() => { if (perguntaAtual > 0) { setPerguntaAtual(perguntaAtual - 1); setRespostas(respostas.slice(0, -1)); setInputValor('') } else setShowModalCancelar(true) }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{perguntaAtual > 0 ? '← Précédent' : 'Annuler'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={responderPergunta}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>{perguntaAtual < fiches.length - 1 ? '✅ Suivant →' : '✅ Enregistrer tout'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                </>
+              )
+            })()}
           </View>
         </View>
       </Modal>

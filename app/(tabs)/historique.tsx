@@ -239,13 +239,13 @@ export default function HistoriqueScreen() {
     })
   }
   const getMoisLabel = () => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + moisOffset)
+    const agora = new Date()
+    const d = new Date(agora.getFullYear(), agora.getMonth() + moisOffset, 1)
     return `${MOIS[d.getMonth()]} ${d.getFullYear()}`
   }
-  const getJoursMois = () => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + moisOffset)
+const getJoursMois = () => {
+    const agora = new Date()
+    const d = new Date(agora.getFullYear(), agora.getMonth() + moisOffset, 1)
     const mes = d.getMonth() + 1
     const ano = d.getFullYear()
     return historique.filter(jour => {
@@ -305,13 +305,24 @@ export default function HistoriqueScreen() {
     setEditServico(fmtHM(calcServicoDe(jour.debut, jour.fin, pausaMin)))
     setShowEdit(true)
   }
-  const calcularFraisEdicao = (debut: string, fin: string, servico: string, type: JourType) => {
+  const diaAnteriorDecouche = (jour: Jour | null) => {
+    if (!jour) return false
+    const parts = jour.date.split('/').map(Number)
+    if (parts.length < 2) return false
+    const ano = parts[2] || new Date(parseInt(jour.id)).getFullYear()
+    const atual = new Date(ano, (parts[1] || 1) - 1, parts[0] || 1)
+    atual.setDate(atual.getDate() - 1)
+    const alvo = `${String(atual.getDate()).padStart(2, '0')}/${String(atual.getMonth() + 1).padStart(2, '0')}`
+    return historique.some(j => j.id !== jour.id && (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
+  }
+  const calcularFraisEdicao = (debut: string, fin: string, servico: string, type: JourType, prevDec = false) => {
+    if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) return 0
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
     const servicoMin = hS * 60 + (mS || 0)
     const isDecouche = type === 'DEC'
     if (isDecouche) return 68.66
     if (servicoMin >= 6 * 60) return 20.78
-    if (servicoMin >= 5 * 60) return 16.36
+    if (servicoMin >= 5 * 60) return prevDec ? 20.78 : 16.36
     return 4.42
   }
   const abrirNota = (jour: Jour) => {
@@ -341,7 +352,7 @@ export default function HistoriqueScreen() {
     if (!jourEdit) return
     const novoSeg = calcServicoDe(editDebut, editFin, editPausaMin)
     const novoServicoStr = fmtHM(novoSeg)
-    const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType)
+    const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit))
     const jourAtualizado: Jour = {
       ...jourEdit,
       debut: editDebut,

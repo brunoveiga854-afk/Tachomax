@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import { inicializarTrial } from '../src/trial'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SplashScreen from 'expo-splash-screen'
+import '../src/tasks'
 
 SplashScreen.preventAutoHideAsync()
 

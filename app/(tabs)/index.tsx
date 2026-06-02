@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
-import DateTimePicker from '@react-native-community/datetimepicker'
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
+import { LOCATION_TASK_NAME } from '../../src/tasks'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -213,6 +214,93 @@ export default function AujourdhuiScreen() {
     } catch (e) { console.log('Erro ao guardar estado:', e) }
   }
 
+  const aplicarEstadoPersistido = (estado: any, tempoBackground = 0) => {
+    setEnService(true)
+    setEmPausa(!!estado.emPausa)
+    emPausaRef.current = !!estado.emPausa
+    setEmConducao(!!estado.emConducao)
+    setDecouche(!!estado.decouche)
+    setModeNuit(!!estado.modeNuit)
+    setHoraInicio(estado.horaInicio || '')
+    setKmDiarios(estado.kmDiarios || 0)
+    setSegPausaTotal((estado.segPausaTotal || 0) + (estado.emPausa ? tempoBackground : 0))
+    setSegConducaoDiario(estado.segConducaoDiario || 0)
+    setPausaReglementaireOk(!!estado.pausaReglementaireOk)
+    if (estado.pausas) setPausas(estado.pausas)
+    if (estado.gpsTrack) setGpsTrack(estado.gpsTrack)
+    gpsTrackTimer.current = estado.gpsTrackTimer || null
+    if (estado.ultimaLocalizacao) ultimaLocalizacao.current = estado.ultimaLocalizacao
+    if (estado.ultimoGpsCallback) ultimoGpsCallback.current = estado.ultimoGpsCallback
+    if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
+
+    if (estado.emPausa) {
+      setSegServico(estado.segServico || 0)
+      setSegConducao(estado.segConducao || 0)
+      setSegAmplitude(estado.segAmplitude || 0)
+      setSegPausa((estado.segPausa || 0) + tempoBackground)
+    } else {
+      setSegServico((estado.segServico || 0) + tempoBackground)
+      setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
+      setSegConducao(estado.emConducao ? (estado.segConducao || 0) + tempoBackground : (estado.segConducao || 0))
+      setSegPausa(estado.segPausa || 0)
+    }
+  }
+
+  const sincronizarEstadoPersistido = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY)
+      if (!data) return
+      const estado = JSON.parse(data)
+      if (!estado.enService) return
+      aplicarEstadoPersistido(estado, 0)
+    } catch (e) { console.log('Erro ao sincronizar estado:', e) }
+  }
+
+  const iniciarGPSBackground = async () => {
+    try {
+      let { status: bg } = await Location.getBackgroundPermissionsAsync()
+      if (bg !== 'granted') {
+        const req = await Location.requestBackgroundPermissionsAsync()
+        bg = req.status
+      }
+      if (bg !== 'granted') {
+        Alert.alert(
+          'Localisation en arrière-plan',
+          'Active "Toujours autoriser" pour que TachoMax continue à compter conduite et kilomètres écran éteint.',
+          [{ text: t.ok }]
+        )
+        return
+      }
+
+      const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)
+      if (started) return
+
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 1,
+        showsBackgroundLocationIndicator: true,
+        pausesUpdatesAutomatically: false,
+        foregroundService: {
+          notificationTitle: 'TachoMax actif',
+          notificationBody: 'Suivi conduite, pauses et kilomètres en cours',
+          notificationColor: '#f5a623',
+        },
+      })
+    } catch (e) {
+      console.log('Erro ao iniciar GPS background:', e)
+    }
+  }
+
+  const pararGPSBackground = async () => {
+    try {
+      const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)
+      if (started) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
+    } catch (e) {
+      console.log('Erro ao parar GPS background:', e)
+    }
+  }
+
   const restaurarEstado = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY)
@@ -237,32 +325,9 @@ export default function AujourdhuiScreen() {
 
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
-      setEnService(true)
-      setEmPausa(estado.emPausa)
-      emPausaRef.current = !!estado.emPausa
-      setDecouche(estado.decouche)
-      setSegConducaoDiario(estado.segConducaoDiario || 0)
-      setPausaReglementaireOk(!!estado.pausaReglementaireOk)
-      if (estado.pausas) setPausas(estado.pausas)
-      setModeNuit(estado.modeNuit)
-      setHoraInicio(estado.horaInicio)
-      setKmDiarios(estado.kmDiarios || 0)
-      setSegPausaTotal(estado.segPausaTotal || 0)
-      if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
-      if (estado.emPausa) {
-        setSegServico(estado.segServico)
-        setSegConducao(estado.segConducao)
-        setSegAmplitude(estado.segAmplitude)
-        setSegPausa(estado.segPausa + tempoBackground)
-        setSegPausaTotal((estado.segPausaTotal || 0) + tempoBackground)
-      } else {
-        setSegServico(estado.segServico + tempoBackground)
-        setSegAmplitude(estado.segAmplitude + tempoBackground)
-        if (estado.emConducao) setSegConducao(estado.segConducao + tempoBackground)
-        else setSegConducao(estado.segConducao)
-        setSegPausa(estado.segPausa)
-      }
+      aplicarEstadoPersistido(estado, tempoBackground)
       await iniciarGPS()
+      await iniciarGPSBackground()
     } catch (e) { console.log('Erro ao restaurar estado:', e) }
   }
 
@@ -356,11 +421,15 @@ export default function AujourdhuiScreen() {
         segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
         segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
         horaInicio, dateInicio: dateInicio?.toISOString(),
+        ultimaLocalizacao: ultimaLocalizacao.current,
+        ultimoGpsCallback: ultimoGpsCallback.current,
+        gpsTrack,
+        gpsTrackTimer: gpsTrackTimer.current,
         tsBackground: null,
       })
     }, 30000)
     return () => clearInterval(autoGuardarTimer.current)
-  }, [enService, emPausa, segServico, segConducao, segConducaoDiario, segAmplitude, segPausa, segPausaTotal, kmDiarios, pausaReglementaireOk, pausas])
+  }, [enService, emPausa, emConducao, segServico, segConducao, segConducaoDiario, segAmplitude, segPausa, segPausaTotal, kmDiarios, pausaReglementaireOk, pausas, gpsTrack])
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', async nextState => {
@@ -372,24 +441,19 @@ export default function AujourdhuiScreen() {
             segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
             segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
             horaInicio, dateInicio: dateInicio?.toISOString(),
+            ultimaLocalizacao: ultimaLocalizacao.current,
+            ultimoGpsCallback: ultimoGpsCallback.current,
+            gpsTrack,
+            gpsTrackTimer: gpsTrackTimer.current,
+            lastBgTick: Date.now(),
             tsBackground: tsBackground.current,
           })
         }
       }
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
         if (enService && tsBackground.current) {
-          const agora = Date.now()
-          const tempoBackground = Math.floor((agora - tsBackground.current) / 1000)
           tsBackground.current = null
-          // Amplitude always counts while in service — PONTO 6
-          setSegAmplitude(a => a + tempoBackground)
-          if (!emPausa) {
-            setSegServico(s => s + tempoBackground)
-            if (emConducao) setSegConducao(s => s + tempoBackground)
-          } else {
-            setSegPausa(p => p + tempoBackground)
-            setSegPausaTotal(p => p + tempoBackground)
-          }
+          await sincronizarEstadoPersistido()
           // Re-check GPS subscription after returning from background — PONTO 1C
           if (!locationSub.current) { iniciarGPS() }
         }
@@ -397,7 +461,7 @@ export default function AujourdhuiScreen() {
       appState.current = nextState
     })
     return () => sub.remove()
-  }, [enService, emPausa, segServico, segAmplitude, segPausa, segPausaTotal, segConducao, decouche, modeNuit, horaInicio, dateInicio, kmDiarios])
+  }, [enService, emPausa, emConducao, segServico, segAmplitude, segPausa, segPausaTotal, segConducao, segConducaoDiario, decouche, modeNuit, horaInicio, dateInicio, kmDiarios, gpsTrack, pausaReglementaireOk, pausas])
 
   const carregarStatsSemaine = async () => {
     try {
@@ -453,6 +517,29 @@ export default function AujourdhuiScreen() {
     return d
   }
 
+  const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
+  const valRegleFrais = (v: any, fallback: number, min: number, max: number) => {
+    const n = parseFloat(v)
+    return !isNaN(n) && n >= min && n <= max ? n : fallback
+  }
+  const sanitizeFraisRegles = (raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) => ({
+    ptDejAte: valRegleFrais(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
+    dejMinAmp: valRegleFrais(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
+    dinerDe: valRegleFrais(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
+  })
+  const carregarFraisRegles = async () => {
+    const reglesData = await AsyncStorage.getItem('frais_regles')
+    const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
+    if (reglesData) await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
+    return regles
+  }
+  const diaAnteriorDecouche = (lista: any[], dataAtual: Date) => {
+    const anterior = new Date(dataAtual)
+    anterior.setDate(dataAtual.getDate() - 1)
+    const alvo = `${String(anterior.getDate()).padStart(2, '0')}/${String(anterior.getMonth() + 1).padStart(2, '0')}`
+    return lista.some(j => (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
+  }
+
 const calcularFraisAuto = async (debut: string, fin: string, servico: string, type: string) => {
     // Dias sem serviço real não têm direito a frais nem horas
     if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) {
@@ -467,9 +554,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     if (isDecouche) {
       frais = 68.66
     } else {
+      let prevDec = false
+      try {
+        const existente = await AsyncStorage.getItem('historique')
+        const lista = existente ? JSON.parse(existente) : []
+        const [dia, mes] = addDiaStr.split('/').map(Number)
+        if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
+      } catch (e) {}
       if (servicoMin >= 6 * 60) frais = 20.78
       else if (servicoMin >= 5 * 60) frais = 16.36
       else frais = 4.42
+      if (prevDec && frais === 16.36) frais = Math.round((frais + 4.42) * 100) / 100
     }
     setAddFrais(frais.toFixed(2))
   }
@@ -649,6 +744,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
 
   const iniciarGPS = async () => {
+    if (locationSub.current) return
     let { status: fg } = await Location.getForegroundPermissionsAsync()
     if (fg !== 'granted') {
       const req = await Location.requestForegroundPermissionsAsync()
@@ -720,6 +816,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
 const pararGPS = async () => {
     if (locationSub.current) { locationSub.current.remove(); locationSub.current = null }
+      await pararGPSBackground()
       setEmConducao(false); setVelocidade(0)
   }
   const fmt = (seg: number) => {
@@ -761,6 +858,20 @@ const pararGPS = async () => {
         return `📊 ${t.service} · Máx ${modeNuit ? '10h' : '12h'}/jour\nIl te reste ${fmtHM(Math.max(MAX_SERVICE - segServico, 0))}`
       case 'amplitude':
         return `📏 ${t.amplitude} · Máx ${modeNuit ? '13h' : '15h'}/jour\nIl te reste ${fmtHM(Math.max(MAX_AMPLITUDE - segAmplitude, 0))}`
+    }
+  }
+
+  const abrirPickerCorrecao = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: correcaoPickerDate,
+        mode: 'time',
+        is24Hour: true,
+        display: 'default',
+        onChange: (event, date) => {
+          if (event.type === 'set' && date) setCorrecaoPickerDate(date)
+        },
+      })
     }
   }
 
@@ -809,10 +920,13 @@ const pararGPS = async () => {
       enService: true, emPausa: false, emConducao: false, decouche, modeNuit: isNuit,
       segServico: 0, segConducao: 0, segConducaoDiario: 0, segAmplitude: 0, segPausa: 0,
       segPausaTotal: 0, kmDiarios: 0, pausaReglementaireOk: false, pausas: [],
+      ultimaLocalizacao: null, ultimoGpsCallback: Date.now(), gpsTrack: [], gpsTrackTimer: null,
+      lastBgTick: Date.now(),
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
       tsBackground: null,
     })
     await iniciarGPS()
+    await iniciarGPSBackground()
 
     // 5. Agendar notificações
     if (notifOk) {
@@ -873,10 +987,12 @@ const pararGPS = async () => {
       setShowPausaBandeau(false)
       setParadoSegundos(0)
       await guardarEstado({
-        enService, emPausa: false, decouche, modeNuit,
+        enService, emPausa: false, emConducao: false, decouche, modeNuit,
         segServico, segConducao: novoSegConducao, segConducaoDiario: novoSegConducaoDiario,
         segAmplitude, segPausa: 0, segPausaTotal, kmDiarios,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
+        ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
+        gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
       // Reagendar alerta de pausa com tempo restante após retomar
@@ -893,9 +1009,11 @@ const pararGPS = async () => {
       setParadoSegundos(0)
       setSegPausa(0)
       await guardarEstado({
-        enService, emPausa: true, decouche, modeNuit,
+        enService, emPausa: true, emConducao: false, decouche, modeNuit,
         segServico, segConducao, segConducaoDiario, segAmplitude, segPausa: 0,
         segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
+        ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
+        gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
       await cancelarTodosAlertas()
@@ -918,20 +1036,21 @@ const pararGPS = async () => {
     const horaFimNum = fim.getHours() * 60 + fim.getMinutes()
     const amplitudeMin = Math.floor(segAmplitude / 60)
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
-    let regles = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
+    let regles = DEFAULT_FRAIS_REGLES
+    let lista: any[] = []
     try {
       const fvData = await AsyncStorage.getItem('frais_valores')
       if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
-      const reglesData = await AsyncStorage.getItem('frais_regles')
-      if (reglesData) regles = { ...regles, ...JSON.parse(reglesData) }
+      regles = await carregarFraisRegles()
+      const existente = await AsyncStorage.getItem('historique')
+      lista = existente ? JSON.parse(existente) : []
     } catch (e) {}
-    // Converter limiares decimais (6.5 = 06h30) para minutos
-    const safeNum = (v: any, d: number) => { const n = parseFloat(v); return !isNaN(n) && n > 0 && n < 24 ? n : d }
-    const ptDejAteMin = Math.round(safeNum(regles.ptDejAte, 6.0) * 60)
-    const dejMinAmpMin = Math.round(safeNum(regles.dejMinAmp, 6.017) * 60)
-    const dinerDeMin = Math.round(safeNum(regles.dinerDe, 21.25) * 60)
+    const ptDejAteMin = Math.round(regles.ptDejAte * 60)
+    const dejMinAmpMin = Math.round(regles.dejMinAmp * 60)
+    const dinerDeMin = Math.round(regles.dinerDe * 60)
+    const prevDec = diaAnteriorDecouche(lista, dateInicio)
     let frais = 0
-    if (horaInicioNum <= ptDejAteMin || decouche) frais += fv.ptDej
+    if (horaInicioNum <= ptDejAteMin || prevDec || decouche) frais += fv.ptDej
     if (amplitudeMin >= dejMinAmpMin || decouche) frais += fv.dej
     if (horaFimNum >= dinerDeMin || decouche) frais += fv.diner
     if (decouche) frais += fv.nuit
@@ -942,8 +1061,6 @@ const pararGPS = async () => {
       segServico, segPausa: segPausaTotal, decouche, frais, modeNuit, kmDiarios,
     }
     try {
-      const existente = await AsyncStorage.getItem('historique')
-      const lista = existente ? JSON.parse(existente) : []
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
     } catch (e) { console.log('Erro:', e) }
@@ -982,25 +1099,26 @@ const pararGPS = async () => {
     const horaInicioNum = dateInicio ? dateInicio.getHours() * 60 + dateInicio.getMinutes() : 0
     const amplitudeMin = Math.floor(segAmplitude / 60)
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
-    let regles2 = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
+    let regles2 = DEFAULT_FRAIS_REGLES
+    let prevDecResumo = false
     try {
       const fvData = await AsyncStorage.getItem('frais_valores')
       if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
-      const reglesData2 = await AsyncStorage.getItem('frais_regles')
-      if (reglesData2) regles2 = { ...regles2, ...JSON.parse(reglesData2) }
+      regles2 = await carregarFraisRegles()
+      const existente = await AsyncStorage.getItem('historique')
+      prevDecResumo = dateInicio ? diaAnteriorDecouche(existente ? JSON.parse(existente) : [], dateInicio) : false
     } catch (e) {}
-    const safeNum2 = (v: any, d: number) => { const n = parseFloat(v); return !isNaN(n) && n > 0 && n < 24 ? n : d }
-    const ptDejAteMin2 = Math.round(safeNum2(regles2.ptDejAte, 6.0) * 60)
-    const dejMinAmpMin2 = Math.round(safeNum2(regles2.dejMinAmp, 6.017) * 60)
-    const dinerDeMin2 = Math.round(safeNum2(regles2.dinerDe, 21.25) * 60)
+    const ptDejAteMin2 = Math.round(regles2.ptDejAte * 60)
+    const dejMinAmpMin2 = Math.round(regles2.dejMinAmp * 60)
+    const dinerDeMin2 = Math.round(regles2.dinerDe * 60)
     let snapFrais = 0
-    if (horaInicioNum <= ptDejAteMin2 || comDecouche || decouche) snapFrais += fv.ptDej
+    if (horaInicioNum <= ptDejAteMin2 || prevDecResumo || comDecouche || decouche) snapFrais += fv.ptDej
     if (amplitudeMin >= dejMinAmpMin2) snapFrais += fv.dej
     if (horaFimNum >= dinerDeMin2 || comDecouche || decouche) snapFrais += fv.diner
     if (comDecouche || decouche) snapFrais += fv.nuit
 
     await guardarDia(fim)
-    pararGPS()
+    await pararGPS()
     await cancelarTodosAlertas()
     await cancelarRappelSaisie()
     await AsyncStorage.removeItem(STORAGE_KEY)
@@ -1822,16 +1940,24 @@ const pararGPS = async () => {
             <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' }}>✏️ Corriger la conduite</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 20 }}>Indique le temps réel affiché sur ton tacographe</Text>
 
-            {/* PONTO 9 — DateTimePicker spinner */}
             <View style={{ backgroundColor: c.bg, borderRadius: 14, borderWidth: 2, borderColor: '#e74c3c', marginBottom: 16, alignItems: 'center', overflow: 'hidden' }}>
-              <DateTimePicker
-                value={correcaoPickerDate}
-                mode="time"
-                display="default"
-                is24Hour={true}
-                onChange={(_, date) => { if (date) setCorrecaoPickerDate(date) }}
-                textColor={c.text}
-              />
+              {Platform.OS === 'android' ? (
+                <TouchableOpacity onPress={abrirPickerCorrecao} style={{ width: '100%', paddingVertical: 18, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 34, fontWeight: '900', color: c.text }}>
+                    {String(correcaoPickerDate.getHours()).padStart(2, '0')}h{String(correcaoPickerDate.getMinutes()).padStart(2, '0')}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: c.textSub, marginTop: 4 }}>Toucher pour modifier</Text>
+                </TouchableOpacity>
+              ) : (
+                <DateTimePicker
+                  value={correcaoPickerDate}
+                  mode="time"
+                  display="default"
+                  is24Hour={true}
+                  onChange={(_, date) => { if (date) setCorrecaoPickerDate(date) }}
+                  textColor={c.text}
+                />
+              )}
             </View>
 
             <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }} onPress={async () => {

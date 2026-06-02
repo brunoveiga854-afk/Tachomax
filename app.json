@@ -42,6 +42,8 @@
       [
         "expo-location",
         {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
           "locationAlwaysAndWhenInUsePermission": "O TachoMax precisa de acesso a localizacao para registar o tempo de conducao mesmo com o ecra bloqueado."
         }
       ]

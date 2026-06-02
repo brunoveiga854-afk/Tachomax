@@ -354,6 +354,7 @@ export default function AujourdhuiScreen() {
     carregarConfigs()
     restaurarEstado()
     carregarDiasMes()
+    limparFraisHistorique()
     // Limpar quaisquer notificações pendentes de sessões anteriores ao arrancar
     cancelarTodosAlertas()
   }, [])
@@ -366,6 +367,7 @@ export default function AujourdhuiScreen() {
     React.useCallback(() => {
       carregarStatsSemaine()
       carregarDiasMes()
+      limparFraisHistorique()
       // Reler modoTacho sempre que o separador fica ativo (pode ter mudado nas Definições)
       AsyncStorage.getItem('modoTacho').then(v => {
         setModoTacho(v === 'decrescente' ? 'decrescente' : 'crescente')
@@ -538,6 +540,59 @@ export default function AujourdhuiScreen() {
     anterior.setDate(dataAtual.getDate() - 1)
     const alvo = `${String(anterior.getDate()).padStart(2, '0')}/${String(anterior.getMonth() + 1).padStart(2, '0')}`
     return lista.some(j => (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
+  }
+
+  const recalcFraisDiaHistorique = (j: any, lista: any[], fv: any, regles: any) => {
+    const type = j.type || 'TRAB'
+    if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) return 0
+    if (!['TRAB', 'DEC'].includes(type)) return j.frais || 0
+
+    const inicio = String(j.debut || '').replace('h', ':')
+    const fim = String(j.fin || '').replace('h', ':')
+    const [hI, mI] = inicio.split(':').map(Number)
+    const [hF, mF] = fim.split(':').map(Number)
+    if (isNaN(hI) || isNaN(hF)) return j.frais || 0
+
+    const horaInicioNum = hI * 60 + (mI || 0)
+    const horaFimNum = hF * 60 + (mF || 0)
+    const amplitudeMin = Math.floor((j.segServico || 0) / 60) + Math.floor((j.segPausa || 0) / 60)
+    const dataParts = String(j.date || '').split('/').map(Number)
+    const dataDia = new Date(dataParts[2] || new Date(parseInt(j.id || Date.now())).getFullYear(), (dataParts[1] || 1) - 1, dataParts[0] || 1)
+    const prevDec = diaAnteriorDecouche(lista, dataDia)
+    const isDec = type === 'DEC' || j.decouche
+
+    let frais = 0
+    if (horaInicioNum <= Math.round(regles.ptDejAte * 60) || prevDec || isDec) frais += fv.ptDej
+    if (amplitudeMin >= Math.round(regles.dejMinAmp * 60) || isDec) frais += fv.dej
+    if (horaFimNum >= Math.round(regles.dinerDe * 60) || isDec) frais += fv.diner
+    if (isDec) frais += fv.nuit
+    return Math.round(frais * 100) / 100
+  }
+
+  const limparFraisHistorique = async () => {
+    try {
+      const data = await AsyncStorage.getItem('historique')
+      if (!data) return
+      const lista = JSON.parse(data)
+      let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+      const fvData = await AsyncStorage.getItem('frais_valores')
+      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      const regles = await carregarFraisRegles()
+      let mudou = false
+      const nova = lista.map((j: any) => {
+        const frais = recalcFraisDiaHistorique(j, lista, fv, regles)
+        if (Math.abs((j.frais || 0) - frais) > 0.01) {
+          mudou = true
+          return { ...j, frais }
+        }
+        return j
+      })
+      if (mudou) {
+        await AsyncStorage.setItem('historique', JSON.stringify(nova))
+        setDiasHistorique(nova)
+        await carregarStatsSemaine()
+      }
+    } catch (e) { console.log('Erro ao limpar frais historique:', e) }
   }
 
 const calcularFraisAuto = async (debut: string, fin: string, servico: string, type: string) => {

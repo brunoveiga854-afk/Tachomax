@@ -580,6 +580,23 @@ function diagnosticarDadosFaltantes(dados: MoisData[], hist: any[], p: Padrao): 
   return faltas
 }
 
+function alertasFraisIncoerentes(dados: MoisData[], hist: any[], p: Padrao): string[] {
+  const confirmados = dados.filter(d => d.salarioConfirmado || d.fraisConfirmado || d.montantTotalRecu > 0).length
+  if (confirmados < 3) return []
+
+  return dados
+    .filter(d => (d.fraisBoletim || 0) > 0)
+    .map(d => {
+      const esperado = calcFraisMesPorHorarios(hist, d.annee, d.moisIndex, p).total
+      const pago = d.fraisBoletim || 0
+      const diff = Math.round((esperado - pago) * 100) / 100
+      const tolerancia = Math.max(5, esperado * 0.02)
+      if (esperado <= 0 || diff <= tolerancia) return null
+      return `Este mês esperava ${esperado.toFixed(2)}€ de frais mas o boletim diz ${pago.toFixed(2)}€ — diferença de ${diff.toFixed(2)}€. Verifica se todos os dias foram pagos correctamente.`
+    })
+    .filter(Boolean) as string[]
+}
+
 // ── ANALISAR PADRÃO V2 ────────────────────────────────────────────────────────
 
 function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padrao {
@@ -974,6 +991,23 @@ export default function MonSalaireScreen() {
     }
   }
 
+  const carregarPadraoAtual = async (histSal: MoisData[], histDiario: any[]) => {
+    const pData = await AsyncStorage.getItem('monSalaire_padrao')
+    let atual: Padrao = pData ? { ...padrao, ...JSON.parse(pData) } : { ...padrao }
+    const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
+    const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : atual.regles)
+    if (fraisReglesRaw) await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
+    atual = { ...atual, regles: reglesLimpas }
+    const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
+    if (fraisValsRaw) {
+      const fv = JSON.parse(fraisValsRaw)
+      atual = { ...atual, ptd: fv.ptDej || atual.ptd, dej: fv.dej || atual.dej, din: fv.diner || atual.din, nui: fv.nuit || atual.nui }
+    }
+    setPadrao(atual)
+    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(atual))
+    return atual
+  }
+
   // CÁLCULO PRINCIPAL
   const calcularSalario = async () => {
     try {
@@ -983,7 +1017,10 @@ export default function MonSalaireScreen() {
         return
       }
       const hist = JSON.parse(histData)
-      const p = padrao
+      const histSalData = await AsyncStorage.getItem('monSalaire_v2')
+      const histSal: MoisData[] = histSalData ? JSON.parse(histSalData) : historique
+      if (histSalData) setHistorique(histSal)
+      const p = await carregarPadraoAtual(histSal, hist)
       const agora = new Date()
       const anoActual = agora.getFullYear()
       const mesActual = agora.getMonth()
@@ -1035,7 +1072,7 @@ export default function MonSalaireScreen() {
 
       // Frais: pelos horários reais primeiro, fallback boletim
       const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
-      const fichesFrais = historique.filter(f =>
+      const fichesFrais = histSal.filter(f =>
         f.moisIndex === mesFrais && f.annee === anoFrais && ((f.fraisRecuConfirme || 0) > 0 || f.fraisBoletim > 0)
       )
       // Frais confirmado pelo utilizador tem prioridade sobre o cálculo automático
@@ -1049,7 +1086,7 @@ export default function MonSalaireScreen() {
 
       // Procura fiche do mês de RECEBIMENTO (não de trabalho)
       // ex: estimativa Maio → fiche Maio (se existir); se não existe → modo estimado
-      const ficheReal = historique.find(f =>
+      const ficheReal = histSal.find(f =>
         f.moisIndex === mesReceber && f.annee === anoReceber && f.netPaye > 0
       )
 
@@ -1095,10 +1132,10 @@ export default function MonSalaireScreen() {
       }
 
       const totalLiq = salLiq + totalFrais
-      const empresa = historique.length > 0 ? historique[0].entreprise : ''
+      const empresa = histSal.length > 0 ? histSal[0].entreprise : ''
 
       // Precisão real: compara estimativas passadas vs valores confirmados
-      const mesesComReal = historique.filter(m => m.montantTotalRecu > 0)
+      const mesesComReal = histSal.filter(m => m.montantTotalRecu > 0)
       const acertosReais = mesesComReal.map(m => {
         const est = calcEstimativaMes(m)
         if (est === 0 || m.montantTotalRecu === 0) return null
@@ -1106,7 +1143,7 @@ export default function MonSalaireScreen() {
       }).filter(v => v !== null) as number[]
       const precisao = acertosReais.length >= 2
         ? Math.round(acertosReais.reduce((a, b) => a + b, 0) / acertosReais.length)
-        : calcularPrecisao(p, historique.length)
+        : calcularPrecisao(p, histSal.length)
 
       setCalcResult({
         totalH, totalFrais, salBrut, salLiq, totalLiq,
@@ -1483,8 +1520,10 @@ export default function MonSalaireScreen() {
     setPadrao(novoPadrao)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
+    const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
-    setModalSucessoMsg(faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`)
+    const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`
+    setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
     setShowModalSucesso(true)
   }
 

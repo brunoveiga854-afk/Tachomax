@@ -1057,6 +1057,13 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       const valCongeNet = (base.valorDiaConges > 0 ? base.valorDiaConges : (base.hbase / 22) * base.hval) * base.liquidRate
       const valFerieNet = (base.valorDiaFerie > 0 ? base.valorDiaFerie : (base.hbase / 22) * base.hval) * base.liquidRate
       const valRCNet = (base.valorDiaRC > 0 ? base.valorDiaRC : (base.hbase / 22) * base.hval) * base.liquidRate
+      const extra = Math.max(0, totalH - base.hbase)
+      const brutEsperado = totalH <= base.hbase
+        ? totalH * base.hval
+        : base.hbase * base.hval + Math.min(extra, base.lim25) * base.h25 + Math.max(0, extra - base.lim25) * base.h50
+      const netEsperado = brutEsperado * base.liquidRate
+      const ratioPremio = netEsperado > 0 ? m.netPaye / netEsperado : 0
+      if (ratioPremio > 1.25) continue
       const netNormalizado = m.netPaye - nConges * valCongeNet - nFeries * valFerieNet - nRC * valRCNet
       if (netNormalizado < 100) continue // skip if result is unreasonable
       taxas.push(netNormalizado / totalH)

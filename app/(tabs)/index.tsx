@@ -247,13 +247,40 @@ export default function AujourdhuiScreen() {
     }
   }
 
+  const aplicarTempoBackground = (estado: any, tempoDecorrido: number) => {
+    const dt = Math.max(0, Math.floor(tempoDecorrido))
+    if (dt <= 0) return { ...estado, tsBackground: null }
+
+    if (estado.emPausa) {
+      return {
+        ...estado,
+        segPausa: (estado.segPausa || 0) + dt,
+        segPausaTotal: (estado.segPausaTotal || 0) + dt,
+        tsBackground: null,
+      }
+    }
+
+    return {
+      ...estado,
+      segServico: (estado.segServico || 0) + dt,
+      segAmplitude: (estado.segAmplitude || 0) + dt,
+      segConducao: estado.emConducao ? (estado.segConducao || 0) + dt : (estado.segConducao || 0),
+      tsBackground: null,
+    }
+  }
+
   const sincronizarEstadoPersistido = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY)
       if (!data) return
       const estado = JSON.parse(data)
       if (!estado.enService) return
-      aplicarEstadoPersistido(estado, 0)
+      const tempoDecorrido = estado.tsBackground
+        ? Math.floor((Date.now() - estado.tsBackground) / 1000)
+        : 0
+      const estadoAtualizado = aplicarTempoBackground(estado, tempoDecorrido)
+      await guardarEstado(estadoAtualizado)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
     } catch (e) { console.log('Erro ao sincronizar estado:', e) }
   }
 
@@ -324,9 +351,10 @@ export default function AujourdhuiScreen() {
         }
       }
 
-      const agora = Date.now()
-      const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
-      aplicarEstadoPersistido(estado, tempoBackground)
+      const tempoBackground = estado.tsBackground ? Math.floor((Date.now() - estado.tsBackground) / 1000) : 0
+      const estadoAtualizado = aplicarTempoBackground(estado, tempoBackground)
+      await guardarEstado(estadoAtualizado)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
       await iniciarGPS()
       await iniciarGPSBackground()
     } catch (e) { console.log('Erro ao restaurar estado:', e) }

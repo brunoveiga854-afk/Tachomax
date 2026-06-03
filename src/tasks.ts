@@ -49,17 +49,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       const lat = loc.coords.latitude
       const lon = loc.coords.longitude
 
-      if (dt > 0) {
-        next.segAmplitude = (next.segAmplitude || 0) + dt
-        if (next.emPausa) {
-          next.segPausa = (next.segPausa || 0) + dt
-          next.segPausaTotal = (next.segPausaTotal || 0) + dt
-        } else {
-          next.segServico = (next.segServico || 0) + dt
-          if (next.emConducao) next.segConducao = (next.segConducao || 0) + dt
-        }
-      }
-
       if (!next.emPausa) {
         const buffer = [...(next.bgVelBuffer || []), vel].slice(-5)
         const velMedia = media(buffer)
@@ -97,7 +86,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       next.ultimaLocalizacao = { lat, lon }
       next.ultimoGpsCallback = now
       next.lastBgTick = now
-      next.tsBackground = now
 
       if (!next.emPausa && (!next.gpsTrackTimer || now - next.gpsTrackTimer >= 30000)) {
         next.gpsTrackTimer = now

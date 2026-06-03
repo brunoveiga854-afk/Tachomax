@@ -99,6 +99,14 @@ const shiftMois = (ano: number, mes: number, delta: number): [number, number] =>
   return [a, m]
 }
 
+const anoDiaHistorico = (j: any, fallback: number): number => {
+  const parts = j.date?.split('/')
+  const anoDate = parts?.[2] ? parseInt(parts[2]) : NaN
+  if (!isNaN(anoDate)) return anoDate
+  const anoId = j.id ? new Date(parseInt(j.id)).getFullYear() : NaN
+  return !isNaN(anoId) ? anoId : fallback
+}
+
 const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
   let p = 40
   p += Math.min(nMeses * 15, 45)
@@ -164,7 +172,7 @@ function calcFraisMesPorHorarios(
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
       const m = parseInt(parts[1]) - 1
-      const a = j.id ? new Date(parseInt(j.id)).getFullYear() : ano
+      const a = anoDiaHistorico(j, ano)
       return m === mes && a === ano
     })
     .sort((a: any, b: any) => {
@@ -223,7 +231,7 @@ function horasCalendarioMesTrabalho(histCal: any[], anoPay: number, mesPay: numb
     const parts = j.date?.split('/')
     if (!parts || parts.length < 2) return false
     const mes = parseInt(parts[1]) - 1
-    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+    const ano = anoDiaHistorico(j, aH)
     return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
   })
   return dias.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
@@ -235,7 +243,7 @@ function netCalendarioMesPaye(histCal: any[], anoPay: number, mesPay: number, p:
     const parts = j.date?.split('/')
     if (!parts || parts.length < 2) return false
     const mes = parseInt(parts[1]) - 1
-    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+    const ano = anoDiaHistorico(j, aH)
     return mes === mH && ano === aH
   })
   const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
@@ -357,7 +365,7 @@ function validarHlagComTotais(
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const me = parseInt(parts[1]) - 1
-        const an = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        const an = anoDiaHistorico(j, aH)
         return me === mH && an === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
       })
       if (diasMes.length === 0) continue
@@ -436,7 +444,7 @@ function diasCalendarioMes(hist: any[], ano: number, mes: number) {
     const parts = j.date?.split('/')
     if (!parts || parts.length < 2) return false
     const m = parseInt(parts[1]) - 1
-    const a = j.id ? new Date(parseInt(j.id)).getFullYear() : ano
+    const a = anoDiaHistorico(j, ano)
     return m === mes && a === ano
   })
 }
@@ -695,7 +703,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        const a = anoDiaHistorico(j, aH)
         return m === mH && a === aH && ['work', 'dec', 'TRAB', 'DEC'].includes(j.type || 'TRAB')
       })
       if (diasMes.length === 0) continue
@@ -735,7 +743,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
           const parts = j.date?.split('/')
           if (!parts || parts.length < 2) return false
           const m = parseInt(parts[1]) - 1
-          const a = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+          const a = anoDiaHistorico(j, aH)
           return m === mH && a === aH && ['work', 'dec', 'TRAB', 'DEC'].includes(j.type || 'TRAB')
         })
         if (diasMes.length === 0) continue
@@ -837,7 +845,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        const a = anoDiaHistorico(j, aH)
         return m === mH && a === aH && ['work', 'dec', 'TRAB', 'DEC'].includes(j.type || 'TRAB')
       })
       if (diasMes.length === 0) continue
@@ -866,7 +874,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const me = parseInt(parts[1]) - 1
-        const an = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        const an = anoDiaHistorico(j, aH)
         return me === mH && an === aH
       })
       const diasTrab = todosDiasMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
@@ -1097,7 +1105,7 @@ export default function MonSalaireScreen() {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        const a = anoDiaHistorico(j, anoHoras)
         return m === mesHoras && a === anoHoras && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type)
       })
 
@@ -1114,21 +1122,21 @@ export default function MonSalaireScreen() {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        const a = anoDiaHistorico(j, anoHoras)
         return m === mesHoras && a === anoHoras && ['FERIE', 'vac'].includes(j.type)
       })
       const diasFeries = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        const a = anoDiaHistorico(j, anoHoras)
         return m === mesHoras && a === anoHoras && ['FER', 'FERIADO', 'hol'].includes(j.type)
       })
       const diasRC = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        const a = anoDiaHistorico(j, anoHoras)
         return m === mesHoras && a === anoHoras && j.type === 'RC'
       })
 
@@ -1235,7 +1243,7 @@ export default function MonSalaireScreen() {
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
       const mes = parseInt(parts[1]) - 1
-      const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+      const ano = anoDiaHistorico(j, aH)
       return mes === mH && ano === aH
     })
     const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
@@ -1401,7 +1409,7 @@ export default function MonSalaireScreen() {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
         const m = parseInt(parts[1]) - 1
-        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        const a = anoDiaHistorico(j, anoHoras)
         return m === mesHoras && a === anoHoras && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
       })
       const totalSeg = diasHoras.reduce((a: number, j: any) => a + (j.segServico || 0), 0)

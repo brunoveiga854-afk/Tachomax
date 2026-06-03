@@ -215,6 +215,22 @@ export default function AujourdhuiScreen() {
     } catch (e) { console.log('Erro ao guardar estado:', e) }
   }
 
+  const aplicarTempoBackgroundNoEstado = (estado: any, tempoBackground: number) => {
+    const tempo = Math.max(0, tempoBackground || 0)
+    const next = { ...estado, tsBackground: null }
+    if (tempo === 0) return next
+
+    if (estado.emPausa) {
+      next.segPausa = (estado.segPausa || 0) + tempo
+      next.segPausaTotal = (estado.segPausaTotal || 0) + tempo
+    } else {
+      next.segServico = (estado.segServico || 0) + tempo
+      next.segAmplitude = (estado.segAmplitude || 0) + tempo
+      if (estado.emConducao) next.segConducao = (estado.segConducao || 0) + tempo
+    }
+    return next
+  }
+
   const aplicarEstadoPersistido = (estado: any, tempoBackground = 0) => {
     setEnService(true)
     setEmPausa(!!estado.emPausa)
@@ -253,7 +269,10 @@ export default function AujourdhuiScreen() {
       if (!data) return
       const estado = JSON.parse(data)
       if (!estado.enService) return
-      aplicarEstadoPersistido(estado, 0)
+      const tempoBackground = estado.tsBackground ? Math.floor((Date.now() - estado.tsBackground) / 1000) : 0
+      const estadoAtualizado = aplicarTempoBackgroundNoEstado(estado, tempoBackground)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
+      await guardarEstado(estadoAtualizado)
     } catch (e) { console.log('Erro ao sincronizar estado:', e) }
   }
 
@@ -324,9 +343,10 @@ export default function AujourdhuiScreen() {
         }
       }
 
-      const agora = Date.now()
-      const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
-      aplicarEstadoPersistido(estado, tempoBackground)
+      const tempoBackground = estado.tsBackground ? Math.floor((Date.now() - estado.tsBackground) / 1000) : 0
+      const estadoAtualizado = aplicarTempoBackgroundNoEstado(estado, tempoBackground)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
+      await guardarEstado(estadoAtualizado)
       await iniciarGPS()
       await iniciarGPSBackground()
     } catch (e) { console.log('Erro ao restaurar estado:', e) }
@@ -453,9 +473,9 @@ export default function AujourdhuiScreen() {
         }
       }
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        if (enService && tsBackground.current) {
-          tsBackground.current = null
+        if (enService) {
           await sincronizarEstadoPersistido()
+          tsBackground.current = null
           // Re-check GPS subscription after returning from background — PONTO 1C
           if (!locationSub.current) { iniciarGPS() }
         }

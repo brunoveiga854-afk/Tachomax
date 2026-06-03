@@ -9,7 +9,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { LOCATION_TASK_NAME } from '../../src/tasks'
-import { calcularFraisJour } from '../../src/frais'
+import { DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, calcularFraisJour, sanitizeFraisRegles } from '../../src/frais'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -519,16 +519,6 @@ export default function AujourdhuiScreen() {
     return d
   }
 
-  const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
-  const valRegleFrais = (v: any, fallback: number, min: number, max: number) => {
-    const n = parseFloat(v)
-    return !isNaN(n) && n >= min && n <= max ? n : fallback
-  }
-  const sanitizeFraisRegles = (raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) => ({
-    ptDejAte: valRegleFrais(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valRegleFrais(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valRegleFrais(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
-  })
   const carregarFraisRegles = async () => {
     const reglesData = await AsyncStorage.getItem('frais_regles')
     const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
@@ -553,7 +543,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const semFrais = ['OFF', 'RC', 'FERIE', 'FER'].includes(type)
     if (semFrais) setAddServico('00h00')
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
-    let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let fv = { ...DEFAULT_FRAIS_VALEURS }
     let regles = DEFAULT_FRAIS_REGLES
     let prevDec = false
     try {
@@ -1040,7 +1030,7 @@ const pararGPS = async () => {
     const jour = diasSemana[dateInicio.getDay()]
     const date = `${String(dateInicio.getDate()).padStart(2, '0')}/${String(dateInicio.getMonth() + 1).padStart(2, '0')}`
     const fimStr = `${String(fim.getHours()).padStart(2, '0')}h${String(fim.getMinutes()).padStart(2, '0')}`
-    let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let fv = { ...DEFAULT_FRAIS_VALEURS }
     let regles = DEFAULT_FRAIS_REGLES
     let lista: any[] = []
     try {
@@ -1104,7 +1094,7 @@ const pararGPS = async () => {
     // Compute frais inline for summary
     const fim = new Date()
     const fimStr = `${String(fim.getHours()).padStart(2, '0')}h${String(fim.getMinutes()).padStart(2, '0')}`
-    let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let fv = { ...DEFAULT_FRAIS_VALEURS }
     let regles2 = DEFAULT_FRAIS_REGLES
     let prevDecResumo = false
     try {

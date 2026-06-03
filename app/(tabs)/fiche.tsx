@@ -6,14 +6,14 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
-import { calcularFraisJour } from '../../src/frais'
+import { DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, calcularFraisJour, sanitizeFraisRegles } from '../../src/frais'
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
   hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
   hlag: 1, flag: 0, liquidRate: 0.79,
-  ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
+  ptd: DEFAULT_FRAIS_VALEURS.ptDej, dej: DEFAULT_FRAIS_VALEURS.dej, din: DEFAULT_FRAIS_VALEURS.diner, nui: DEFAULT_FRAIS_VALEURS.nuit,
   valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
 }
 
@@ -92,22 +92,8 @@ const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
   return Math.min(p, 98)
 }
 
-const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
 const TYPES_TRAVAIL = ['work', 'dec', 'TRAB', 'DEC']
 const TYPES_SANS_FRAIS = ['OFF', 'RC', 'FERIE', 'FER', 'vac', 'CONGE', 'FERIADO', 'hol']
-
-function valRegle(v: any, fallback: number, min: number, max: number) {
-  const n = parseFloat(v)
-  return !isNaN(n) && n >= min && n <= max ? n : fallback
-}
-
-function sanitizeFraisRegles(raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) {
-  return {
-    ptDejAte: valRegle(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valRegle(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valRegle(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
-  }
-}
 
 const isTravailFrais = (type: string) => TYPES_TRAVAIL.includes(type || '')
 const isSansFrais = (type: string) => TYPES_SANS_FRAIS.includes(type || '')
@@ -1111,7 +1097,7 @@ export default function MonSalaireScreen() {
   const [padrao, setPadrao] = useState<Padrao>({
     descoberto: false, diaSalario: 5, diaFrais: 10, defasagemFrais: 3, confianca: 0,
     horasExtrasMedia: 0, taxaHorariaNetaMedia: 0, fraisFactorReal: 0,
-    ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
+    ptd: DEFAULT_FRAIS_VALEURS.ptDej, dej: DEFAULT_FRAIS_VALEURS.dej, din: DEFAULT_FRAIS_VALEURS.diner, nui: DEFAULT_FRAIS_VALEURS.nuit,
     valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
     ...DEF_SAL
   })

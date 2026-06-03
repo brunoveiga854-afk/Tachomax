@@ -12,7 +12,7 @@ const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
   hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
-  hlag: 2, flag: 1, liquidRate: 0.79,
+  hlag: 1, flag: 0, liquidRate: 0.79,
   ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
   valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
 }
@@ -383,20 +383,202 @@ function validarHlagComTotais(
 const diffMeses = (anoA: number, mesA: number, anoB: number, mesB: number) =>
   (anoA - anoB) * 12 + (mesA - mesB)
 
+const moneyMatches = (a: number, b: number) =>
+  a > 0 && b > 0 && Math.abs(a - b) <= 0.5
+
+const isLagValide = (lag: number) => lag >= 0 && lag <= 3
+
+const moisLabelToIndex = (label: string) => MOIS_NOMS.indexOf(label)
+
+function choisirVoteMajoritaire(votes: number[]): number | null {
+  if (votes.length === 0) return null
+  const counts: Record<number, number> = {}
+  votes.forEach(v => { counts[v] = (counts[v] || 0) + 1 })
+  return +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+}
+
 const mesFicheDe = (d: MoisData): [number, number] => [
   d.anoFiche ?? d.annee,
   d.mesFicheIndex ?? d.moisIndex,
 ]
 
 const mesPagamentoSalDe = (d: MoisData): [number, number] => [
-  d.anoPagamento ?? d.pagamentoSalAno ?? d.annee,
-  d.mesPagamentoIndex ?? d.pagamentoSalMesIndex ?? d.moisIndex,
+  d.pagamentoSalAno ?? d.anoPagamento ?? d.annee,
+  d.pagamentoSalMesIndex ?? d.mesPagamentoIndex ?? d.moisIndex,
 ]
 
 const mesPagamentoFraisDe = (d: MoisData): [number, number] => [
-  d.anoPagamento ?? d.pagamentoFraisAno ?? d.annee,
-  d.mesPagamentoIndex ?? d.pagamentoFraisMesIndex ?? d.moisIndex,
+  d.pagamentoFraisAno ?? d.anoPagamento ?? d.annee,
+  d.pagamentoFraisMesIndex ?? d.mesPagamentoIndex ?? d.moisIndex,
 ]
+
+function sourceScore(d: MoisData): number {
+  let score = 0
+  if ((d.fichePages || 0) <= 0) score += 10
+  if ((d.salairebrut || 0) <= 0 && (d.totalHeures || 0) <= 0 && (d.hval || 0) <= 0) score += 1
+  return score
+}
+
+function trouverSourceParValeur(
+  dados: MoisData[],
+  valeurConfirmee: number,
+  anoPagamento: number,
+  mesPagamento: number,
+  valeursSource: (d: MoisData) => number[],
+  apenasDocumentosCarregados = false,
+): { source: MoisData; lag: number } | null {
+  const candidats = dados
+    .map(source => {
+      if (apenasDocumentosCarregados && (source.fichePages || 0) <= 0) return null
+      const [anoSource, mesSource] = mesFicheDe(source)
+      const lag = diffMeses(anoPagamento, mesPagamento, anoSource, mesSource)
+      if (!isLagValide(lag)) return null
+      const diff = Math.min(...valeursSource(source).filter(v => v > 0).map(v => Math.abs(v - valeurConfirmee)))
+      if (!Number.isFinite(diff) || !moneyMatches(valeurConfirmee, valeurConfirmee - diff)) return null
+      return { source, lag, diff, score: sourceScore(source) }
+    })
+    .filter(Boolean) as { source: MoisData; lag: number; diff: number; score: number }[]
+
+  if (candidats.length === 0) return null
+  candidats.sort((a, b) => a.score - b.score || a.diff - b.diff || a.lag - b.lag)
+  return { source: candidats[0].source, lag: candidats[0].lag }
+}
+
+function aprenderHlagPorConfirmacoes(dados: MoisData[]): number[] {
+  return dados
+    .filter(d => d.salarioConfirmado && (d.netPaye || 0) > 0)
+    .map(d => {
+      const [anoPay, mesPay] = mesPagamentoSalDe(d)
+      const match = trouverSourceParValeur(dados, d.netPaye || 0, anoPay, mesPay, src => [src.netPaye || 0], true)
+      return match?.lag
+    })
+    .filter((lag): lag is number => typeof lag === 'number')
+}
+
+function aprenderFlagPorConfirmacoes(dados: MoisData[]): number[] {
+  return dados
+    .filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0)
+    .map(d => {
+      const [anoPay, mesPay] = mesPagamentoFraisDe(d)
+      const valor = fraisRealConfirme(d)
+      const match = trouverSourceParValeur(dados, valor, anoPay, mesPay, src => [
+        src.fraisRecuConfirme || 0,
+        src.fraisBoletim || 0,
+        src.remboursementFrais || 0,
+      ], true)
+      return match?.lag
+    })
+    .filter((lag): lag is number => typeof lag === 'number')
+}
+
+function aplicarConfirmacaoSalarioPorValor(
+  dados: MoisData[],
+  valor: number,
+  anoPagamento: number,
+  mesPagamento: number,
+  totalRecu: number,
+  padraoAtual: Padrao,
+  fallback: { entreprise: string; frais: number },
+): MoisData[] {
+  const match = trouverSourceParValeur(dados, valor, anoPagamento, mesPagamento, d => [d.netPaye || 0], true)
+  const next = [...dados]
+  if (match) {
+    const [anoFiche, mesFiche] = mesFicheDe(match.source)
+    const idx = next.findIndex(h => h === match.source)
+    if (idx >= 0) {
+      next[idx] = {
+        ...next[idx],
+        netPaye: valor,
+        montantTotalRecu: totalRecu,
+        salarioConfirmado: true,
+        pagamentoSalMesIndex: mesPagamento,
+        pagamentoSalAno: anoPagamento,
+        mesTrabalhoIndex: mesFiche,
+        anoTrabalho: anoFiche,
+      }
+      return next
+    }
+  }
+
+  next.push({
+    periode: `${MOIS_NOMS[mesPagamento]} ${anoPagamento}`,
+    moisIndex: mesPagamento,
+    annee: anoPagamento,
+    fichePages: 0,
+    netPaye: valor,
+    salairebrut: Math.round(valor / padraoAtual.liquidRate),
+    totalCotisations: 0,
+    remboursementFrais: fallback.frais,
+    fraisBoletim: fallback.frais,
+    montantTotalRecu: totalRecu,
+    jourPaiement1: padraoAtual.diaSalario,
+    jourPaiement2: padraoAtual.diaFrais,
+    analysedAt: new Date().toISOString(),
+    entreprise: fallback.entreprise,
+    conducteur: '',
+    salarioConfirmado: true,
+    pagamentoSalMesIndex: mesPagamento,
+    pagamentoSalAno: anoPagamento,
+  })
+  return next
+}
+
+function aplicarConfirmacaoFraisPorValor(
+  dados: MoisData[],
+  valor: number,
+  anoPagamento: number,
+  mesPagamento: number,
+  padraoAtual: Padrao,
+  fallback: { periode: string; moisIndex: number; annee: number; entreprise: string },
+): MoisData[] {
+  const match = trouverSourceParValeur(dados, valor, anoPagamento, mesPagamento, d => [
+    d.fraisRecuConfirme || 0,
+    d.fraisBoletim || 0,
+    d.remboursementFrais || 0,
+  ], true)
+  const next = [...dados]
+  if (match) {
+    const [anoFiche, mesFiche] = mesFicheDe(match.source)
+    const idx = next.findIndex(h => h === match.source)
+    if (idx >= 0) {
+      const netPaye = next[idx].netPaye || 0
+      next[idx] = {
+        ...next[idx],
+        fraisRecuConfirme: valor,
+        fraisConfirmado: true,
+        montantTotalRecu: netPaye > 0 ? netPaye + valor : next[idx].montantTotalRecu,
+        pagamentoFraisMesIndex: mesPagamento,
+        pagamentoFraisAno: anoPagamento,
+        mesFraisTrabalhoIndex: mesFiche,
+        anoFraisTrabalho: anoFiche,
+      }
+      return next
+    }
+  }
+
+  next.push({
+    periode: fallback.periode,
+    moisIndex: fallback.moisIndex,
+    annee: fallback.annee,
+    fichePages: 0,
+    netPaye: 0,
+    salairebrut: 0,
+    totalCotisations: 0,
+    remboursementFrais: 0,
+    fraisBoletim: 0,
+    fraisRecuConfirme: valor,
+    montantTotalRecu: 0,
+    jourPaiement1: padraoAtual.diaSalario,
+    jourPaiement2: padraoAtual.diaFrais,
+    analysedAt: new Date().toISOString(),
+    entreprise: fallback.entreprise,
+    conducteur: '',
+    fraisConfirmado: true,
+    pagamentoFraisMesIndex: mesPagamento,
+    pagamentoFraisAno: anoPagamento,
+  })
+  return next
+}
 
 const mesTrabalhoDe = (d: MoisData, p: Padrao): [number, number] => {
   if (d.anoTrabalho != null && d.mesTrabalhoIndex != null) return [d.anoTrabalho, d.mesTrabalhoIndex]
@@ -500,78 +682,86 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
   const confirmadosSal = dados.filter(d => contaParaSalarioAprendizagem(d) && ((d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0))
   const confirmadosFrais = dados.filter(d => contaParaFraisAprendizagem(d))
 
-  const hlagVotos: number[] = []
-  for (const fiche of confirmadosSal) {
-    const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
-    let melhorLag = -1
-    let melhorScore = Infinity
+  const hlagDireto = choisirVoteMajoritaire(aprenderHlagPorConfirmacoes(dados))
+  if (hlagDireto !== null) {
+    next.hlag = hlagDireto
+  } else {
+    const hlagVotos: number[] = []
+    for (const fiche of confirmadosSal) {
+      const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
+      let melhorLag = -1
+      let melhorScore = Infinity
 
-    for (let lag = 0; lag <= 3; lag++) {
-      const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
-      const dias = diasCalendarioMes(hist, aH, mH)
-      const totalH = horasTrabalhoDias(dias)
-      if (dias.length === 0 || totalH <= 0) continue
+      for (let lag = 0; lag <= 3; lag++) {
+        const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
+        const dias = diasCalendarioMes(hist, aH, mH)
+        const totalH = horasTrabalhoDias(dias)
+        if (dias.length === 0 || totalH <= 0) continue
 
-      const brutoEst = brutoCalendarioComFiche(totalH, fiche, next)
-      const scoreBruto = fiche.salairebrut > 0
-        ? Math.abs(brutoEst - fiche.salairebrut) / fiche.salairebrut
-        : fiche.netPaye > 0
-          ? Math.abs(brutoEst * next.liquidRate - fiche.netPaye) / fiche.netPaye
+        const brutoEst = brutoCalendarioComFiche(totalH, fiche, next)
+        const scoreBruto = fiche.salairebrut > 0
+          ? Math.abs(brutoEst - fiche.salairebrut) / fiche.salairebrut
+          : fiche.netPaye > 0
+            ? Math.abs(brutoEst * next.liquidRate - fiche.netPaye) / fiche.netPaye
+            : 0
+        const scoreHoras = fiche.totalHeures && fiche.totalHeures > 0
+          ? Math.abs(totalH - fiche.totalHeures) / fiche.totalHeures
           : 0
-      const scoreHoras = fiche.totalHeures && fiche.totalHeures > 0
-        ? Math.abs(totalH - fiche.totalHeures) / fiche.totalHeures
-        : 0
-      const score = scoreBruto + scoreHoras * 0.35
-      if (score < melhorScore) { melhorScore = score; melhorLag = lag }
+        const score = scoreBruto + scoreHoras * 0.35
+        if (score < melhorScore) { melhorScore = score; melhorLag = lag }
+      }
+
+      if (melhorLag >= 0) hlagVotos.push(melhorLag)
     }
 
-    if (melhorLag >= 0) hlagVotos.push(melhorLag)
+    if (hlagVotos.length > 0) {
+      const melhorHlag = choisirVoteMajoritaire(hlagVotos)
+      const count = hlagVotos.filter(v => v === melhorHlag).length
+      if (melhorHlag !== null && (confirmadosSal.length >= 3 || count >= 2 || next.hlag === DEF_SAL.hlag)) next.hlag = melhorHlag
+    }
   }
 
-  if (hlagVotos.length > 0) {
-    const counts: Record<number, number> = {}
-    hlagVotos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    const [lagStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
-    if (confirmadosSal.length >= 3 || count >= 2 || next.hlag === DEF_SAL.hlag) next.hlag = parseInt(lagStr)
-  }
+  const flagDireto = choisirVoteMajoritaire(aprenderFlagPorConfirmacoes(dados))
+  if (flagDireto !== null) {
+    next.flag = flagDireto
+  } else {
+    const flagVotos: number[] = []
+    for (const fiche of confirmadosFrais) {
+      const valorConfirmado = fraisRealConfirme(fiche) || fiche.fraisBoletim || fiche.remboursementFrais || 0
+      const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
+      let melhorFlag = -1
+      let melhorDiff = Infinity
 
-  const flagVotos: number[] = []
-  for (const fiche of confirmadosFrais) {
-    const valorConfirmado = fraisRealConfirme(fiche) || fiche.fraisBoletim || fiche.remboursementFrais || 0
-    const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
-    let melhorFlag = -1
-    let melhorDiff = Infinity
-
-    for (const fonte of dados) {
-      const valoresFonte = [fonte.remboursementFrais || 0, fonte.fraisBoletim || 0].filter(v => v > 0)
-      const [anoFonte, mesFonte] = mesFicheDe(fonte)
-      for (const valorFonte of valoresFonte) {
-        const diff = Math.abs(valorFonte - valorConfirmado)
-        const lag = diffMeses(anoPay, mesPay, anoFonte, mesFonte)
-        if (lag >= 0 && lag <= 3 && diff <= Math.max(5, valorConfirmado * 0.02) && diff < melhorDiff) {
-          melhorDiff = diff
-          melhorFlag = lag
+      for (const fonte of dados) {
+        const valoresFonte = [fonte.remboursementFrais || 0, fonte.fraisBoletim || 0].filter(v => v > 0)
+        const [anoFonte, mesFonte] = mesFicheDe(fonte)
+        for (const valorFonte of valoresFonte) {
+          const diff = Math.abs(valorFonte - valorConfirmado)
+          const lag = diffMeses(anoPay, mesPay, anoFonte, mesFonte)
+          if (isLagValide(lag) && diff <= Math.max(5, valorConfirmado * 0.02) && diff < melhorDiff) {
+            melhorDiff = diff
+            melhorFlag = lag
+          }
         }
       }
+
+      for (let flag = 0; flag <= 3; flag++) {
+        const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
+        const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, next).total
+        if (fraisCalc <= 0) continue
+        const diff = Math.abs(fraisCalc - valorConfirmado)
+        if (diff < melhorDiff) { melhorDiff = diff; melhorFlag = flag }
+      }
+
+      const tolerancia = Math.max(20, valorConfirmado * 0.08)
+      if (melhorFlag >= 0 && melhorDiff <= tolerancia) flagVotos.push(melhorFlag)
     }
 
-    for (let flag = 0; flag <= 3; flag++) {
-      const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
-      const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, next).total
-      if (fraisCalc <= 0) continue
-      const diff = Math.abs(fraisCalc - valorConfirmado)
-      if (diff < melhorDiff) { melhorDiff = diff; melhorFlag = flag }
+    if (flagVotos.length > 0) {
+      const melhorFlag = choisirVoteMajoritaire(flagVotos)
+      const count = flagVotos.filter(v => v === melhorFlag).length
+      if (melhorFlag !== null && (confirmadosFrais.length >= 3 || count >= 2 || next.flag === DEF_SAL.flag)) next.flag = melhorFlag
     }
-
-    const tolerancia = Math.max(20, valorConfirmado * 0.08)
-    if (melhorFlag >= 0 && melhorDiff <= tolerancia) flagVotos.push(melhorFlag)
-  }
-
-  if (flagVotos.length > 0) {
-    const counts: Record<number, number> = {}
-    flagVotos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    const [flagStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
-    if (confirmadosFrais.length >= 3 || count >= 2 || next.flag === DEF_SAL.flag) next.flag = parseInt(flagStr)
   }
 
   return next
@@ -713,8 +903,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     const lagsTestados: number[] = []
     for (const fiche of comBrutoOuNet) {
       const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
-      let melhorLag = 2, melhorDiff = Infinity
-      for (let lag = 1; lag <= 3; lag++) {
+      let melhorLag = base.hlag, melhorDiff = Infinity
+      for (let lag = 0; lag <= 3; lag++) {
         const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
         const diasMes = hist.filter((j: any) => {
           const parts = j.date?.split('/')
@@ -787,7 +977,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     for (const fiche of fichasComFrais) {
       const fraisRef = fiche.fraisBoletim > 0 ? fiche.fraisBoletim : fiche.remboursementFrais
       const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
-      let melhorFlag = 1, melhorDiff = Infinity
+      let melhorFlag = base.flag, melhorDiff = Infinity
       for (let flag = 0; flag <= 3; flag++) {
         const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
         const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
@@ -2238,31 +2428,26 @@ export default function MonSalaireScreen() {
                     // Guardar frais confirmado no histórico para persistir entre cálculos
                     const [mesFraisLabel] = calcResult.mesFraisLabel.split(' ')
                     const anoFrais = parseInt(calcResult.mesFraisLabel.split(' ')[1])
-                    const mesFraisIdx = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].indexOf(mesFraisLabel)
-                    const novoHist = [...historique]
-                    const idx = novoHist.findIndex(h => h.moisIndex === mesFraisIdx && h.annee === anoFrais)
-                    if (idx >= 0) {
-                      novoHist[idx] = {
-                        ...novoHist[idx],
-                        fraisRecuConfirme: fraisReel,
-                        fraisConfirmado: true,
-                        pagamentoFraisMesIndex: new Date().getMonth(),
-                        pagamentoFraisAno: new Date().getFullYear(),
-                      }
-                    } else {
-                      novoHist.push({
+                    const mesFraisIdx = moisLabelToIndex(mesFraisLabel)
+                    const [mesPagamentoLabel] = calcResult.mesReceber.split(' ')
+                    const mesPagamentoCalc = moisLabelToIndex(mesPagamentoLabel)
+                    const anoPagamentoCalc = parseInt(calcResult.mesReceber.split(' ')[1])
+                    const agora = new Date()
+                    const mesPagamento = mesPagamentoCalc >= 0 ? mesPagamentoCalc : agora.getMonth()
+                    const anoPagamento = Number.isFinite(anoPagamentoCalc) ? anoPagamentoCalc : agora.getFullYear()
+                    const novoHist = aplicarConfirmacaoFraisPorValor(
+                      historique,
+                      fraisReel,
+                      anoPagamento,
+                      mesPagamento,
+                      padrao,
+                      {
                         periode: calcResult.mesFraisLabel,
-                        moisIndex: mesFraisIdx, annee: anoFrais, fichePages: 0,
-                        netPaye: 0, salairebrut: 0, totalCotisations: 0,
-                        remboursementFrais: 0, fraisBoletim: 0, fraisRecuConfirme: fraisReel,
-                        montantTotalRecu: 0, jourPaiement1: padrao.diaSalario,
-                        jourPaiement2: padrao.diaFrais, analysedAt: new Date().toISOString(),
-                        entreprise: calcResult.empresa || '', conducteur: '',
-                        fraisConfirmado: true,
-                        pagamentoFraisMesIndex: new Date().getMonth(),
-                        pagamentoFraisAno: new Date().getFullYear(),
-                      })
-                    }
+                        moisIndex: mesFraisIdx >= 0 ? mesFraisIdx : mesPagamento,
+                        annee: Number.isFinite(anoFrais) ? anoFrais : anoPagamento,
+                        entreprise: calcResult.empresa || '',
+                      }
+                    )
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
@@ -2317,42 +2502,17 @@ export default function MonSalaireScreen() {
 
                     // Guardar no histórico para aprendizagem da IA
                     const [mesReceberLabel] = calcResult.mesReceber.split(' ')
-                    const mesIdx = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].indexOf(mesReceberLabel)
+                    const mesIdx = moisLabelToIndex(mesReceberLabel)
                     const ano = parseInt(calcResult.mesReceber.split(' ')[1]) || new Date().getFullYear()
-                    const periodeLabel = calcResult.mesReceber
-                    const novoHist = [...historique]
-                    const idx = novoHist.findIndex(h => h.periode === periodeLabel)
-                    if (idx >= 0) {
-                      novoHist[idx] = {
-                        ...novoHist[idx],
-                        netPaye: salReel,
-                        montantTotalRecu: novoTotal,
-                        salarioConfirmado: true,
-                        pagamentoSalMesIndex: mesIdx,
-                        pagamentoSalAno: ano,
-                      }
-                    } else {
-                      novoHist.push({
-                        periode: periodeLabel,
-                        moisIndex: mesIdx,
-                        annee: ano,
-                        fichePages: 0,
-                        netPaye: salReel,
-                        salairebrut: Math.round(salReel / padrao.liquidRate),
-                        totalCotisations: 0,
-                        remboursementFrais: calcResult.totalFrais,
-                        fraisBoletim: calcResult.totalFrais,
-                        montantTotalRecu: novoTotal,
-                        jourPaiement1: padrao.diaSalario,
-                        jourPaiement2: padrao.diaFrais,
-                        analysedAt: new Date().toISOString(),
-                        entreprise: calcResult.empresa || '',
-                        conducteur: '',
-                        salarioConfirmado: true,
-                        pagamentoSalMesIndex: mesIdx,
-                        pagamentoSalAno: ano,
-                      })
-                    }
+                    const novoHist = aplicarConfirmacaoSalarioPorValor(
+                      historique,
+                      salReel,
+                      ano,
+                      mesIdx >= 0 ? mesIdx : new Date().getMonth(),
+                      novoTotal,
+                      padrao,
+                      { entreprise: calcResult.empresa || '', frais: calcResult.totalFrais },
+                    )
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))

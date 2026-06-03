@@ -171,94 +171,6 @@ export default function ReglagesScreen() {
     setImportData(null)
   }
 
-  const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
-  const valRegleFrais = (v: any, fallback: number, min: number, max: number) => {
-    const n = parseFloat(v)
-    return !isNaN(n) && n >= min && n <= max ? n : fallback
-  }
-  const sanitizeFraisRegles = (raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) => ({
-    ptDejAte: valRegleFrais(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valRegleFrais(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valRegleFrais(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
-  })
-  const diaAnteriorDecouche = (lista: any[], jour: any) => {
-    const parts = String(jour.date || '').split('/').map(Number)
-    if (parts.length < 2) return false
-    const ano = parts[2] || new Date(parseInt(jour.id || Date.now())).getFullYear()
-    const atual = new Date(ano, (parts[1] || 1) - 1, parts[0] || 1)
-    atual.setDate(atual.getDate() - 1)
-    const alvo = `${String(atual.getDate()).padStart(2, '0')}/${String(atual.getMonth() + 1).padStart(2, '0')}`
-    return lista.some(j => j.id !== jour.id && (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
-  }
-  const recalcularFraisDia = (jour: any, lista: any[], fv: any, regles: any) => {
-    const type = jour.type || 'TRAB'
-    if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) return 0
-    if (!['TRAB', 'DEC', 'work', 'dec'].includes(type)) return jour.frais || 0
-
-    const debut = String(jour.debut || jour.inicio || '').replace('h', ':')
-    const fin = String(jour.fin || jour.fim || '').replace('h', ':')
-    const [hI, mI] = debut.split(':').map(Number)
-    const [hF, mF] = fin.split(':').map(Number)
-    if (isNaN(hI) || isNaN(hF)) return jour.frais || 0
-
-    const inicioMin = hI * 60 + (mI || 0)
-    const fimMin = hF * 60 + (mF || 0)
-    const amplitudeMin = Math.floor(((jour.segServico || 0) + (jour.segPausa || 0)) / 60)
-    const isDec = type === 'DEC' || type === 'dec' || jour.decouche
-    const prevDec = !['OFF', 'RC', 'FERIE', 'FER'].includes(type) && diaAnteriorDecouche(lista, jour)
-
-    let frais = 0
-    if (inicioMin <= Math.round(regles.ptDejAte * 60) || prevDec || isDec) frais += fv.ptDej
-    if (amplitudeMin >= Math.round(regles.dejMinAmp * 60) || isDec) frais += fv.dej
-    if (fimMin >= Math.round(regles.dinerDe * 60) || isDec) frais += fv.diner
-    if (isDec) frais += fv.nuit
-    return Math.round(frais * 100) / 100
-  }
-  const executarRecalculoFrais = async () => {
-    try {
-      const data = await AsyncStorage.getItem('historique')
-      if (!data) {
-        setModalSucessoMsg('Aucun historique trouvé.')
-        setShowModalSucesso(true)
-        return
-      }
-      const historique = JSON.parse(data)
-      let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
-      const fvData = await AsyncStorage.getItem('frais_valores')
-      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
-      const reglesRaw = await AsyncStorage.getItem('frais_regles')
-      const regles = sanitizeFraisRegles(reglesRaw ? JSON.parse(reglesRaw) : {})
-      await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
-
-      let alterados = 0
-      const recalculado = historique.map((j: any) => {
-        const frais = recalcularFraisDia(j, historique, fv, regles)
-        if (Math.abs((j.frais || 0) - frais) > 0.01) {
-          alterados += 1
-          return { ...j, frais }
-        }
-        return j
-      })
-
-      await AsyncStorage.setItem('historique', JSON.stringify(recalculado))
-      setModalSucessoMsg(`✅ Frais recalculés\n${alterados} jour(s) mis à jour avec les règles actuelles.`)
-      setShowModalSucesso(true)
-    } catch (e) {
-      setModalSucessoMsg('❌ Erreur lors du recalcul.\n' + String(e))
-      setShowModalSucesso(true)
-    }
-  }
-  const confirmarRecalculoFrais = () => {
-    Alert.alert(
-      'Recalculer les frais?',
-      'Cette action va recalculer les frais de tous les jours du calendrier avec les règles actuelles. Continuer?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Recalculer', style: 'destructive', onPress: executarRecalculoFrais },
-      ]
-    )
-  }
-
   const c = {
     bg: themeSombre ? '#0f1117' : '#f0f2f8',
     card: themeSombre ? '#181c27' : '#ffffff',
@@ -543,17 +455,6 @@ export default function ReglagesScreen() {
         {/* DADOS */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.mesDonnees}</Text>
-          <TouchableOpacity
-            style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.10)', borderColor: '#f5a623', marginBottom: 12 }]}
-            onPress={confirmarRecalculoFrais}
-          >
-            <Text style={{ fontSize: 22 }}>🔁</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Recalcular frais du calendrier</Text>
-              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>Action manuelle avec les règles actuelles</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={[st.divider, { backgroundColor: c.divider }]} />
           <TouchableOpacity style={st.btnDanger} onPress={() => setShowModalHistorique(true)}>
             <Text style={st.btnDangerIcon}>🗑️</Text>
             <View>

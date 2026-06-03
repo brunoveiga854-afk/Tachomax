@@ -944,9 +944,26 @@ export default function MonSalaireScreen() {
     input: themeSombre ? '#1f2436' : '#f0f2f8',
   }
 
-  useEffect(() => { charger() }, [])
-
   const [histCal, setHistCal] = useState<any[]>([])
+
+  const limparFraisReglesAoArrancar = async () => {
+    try {
+      const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
+      if (!fraisReglesRaw) return sanitizeFraisRegles({})
+      const reglesAtuais = JSON.parse(fraisReglesRaw)
+      const reglesLimpas = sanitizeFraisRegles(reglesAtuais)
+      if (JSON.stringify(reglesAtuais) !== JSON.stringify(reglesLimpas)) {
+        await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
+      }
+      return reglesLimpas
+    } catch (e) {
+      const reglesLimpas = sanitizeFraisRegles({})
+      await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
+      return reglesLimpas
+    }
+  }
+
+  useEffect(() => { charger() }, [])
 
   const charger = async () => {
     try {
@@ -954,9 +971,7 @@ export default function MonSalaireScreen() {
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
       const cal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
       setHistCal(cal)
-      const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
-      const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : {})
-      if (fraisReglesRaw) await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
+      const reglesLimpas = await limparFraisReglesAoArrancar()
       if (data) {
         const hist = JSON.parse(data)
         setHistorique(hist)

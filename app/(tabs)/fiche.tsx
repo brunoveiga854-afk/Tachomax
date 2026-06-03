@@ -75,6 +75,21 @@ type CalcResult = {
   salConfirmado?: boolean  // true quando o utilizador confirmou o valor real
 }
 
+type DiagnosticoPonto = {
+  id: 'mesTrabalho' | 'horas' | 'mesFrais' | 'valorFrais'
+  titulo: string
+  valor: string
+  explicacao: string
+  detalhe?: string
+  inputLabel: string
+  placeholder: string
+}
+
+type DiagnosticoResposta = {
+  correcto: boolean
+  valorCorreto?: string
+}
+
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
 const shiftMois = (ano: number, mes: number, delta: number): [number, number] => {
@@ -953,6 +968,13 @@ export default function MonSalaireScreen() {
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
+  const [showDiagnostico, setShowDiagnostico] = useState(false)
+  const [diagnosticoPontos, setDiagnosticoPontos] = useState<DiagnosticoPonto[]>([])
+  const [diagnosticoIndex, setDiagnosticoIndex] = useState(0)
+  const [diagnosticoRespostas, setDiagnosticoRespostas] = useState<Record<string, DiagnosticoResposta>>({})
+  const [diagnosticoModoCorrecao, setDiagnosticoModoCorrecao] = useState(false)
+  const [diagnosticoInput, setDiagnosticoInput] = useState('')
+  const [diagnosticoErro, setDiagnosticoErro] = useState('')
   const [refreshing, setRefreshing] = useState(false)
 
   const breathAnim = useRef(new Animated.Value(1)).current
@@ -1310,6 +1332,145 @@ export default function MonSalaireScreen() {
   const fmtH = (h: number) => `${Math.floor(h)}h${String(Math.round((h - Math.floor(h)) * 60)).padStart(2, '0')}`
   const fmt = (val: number) => val > 0 ? `${val.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'
   const fmtInt = (val: number) => `${Math.round(val).toLocaleString('fr-FR')}€`
+
+  const textoLag = (lag: number, tipo: 'trabalho' | 'frais') => {
+    const alvo = tipo === 'trabalho' ? 'as horas' : 'os frais'
+    if (lag === 0) return `${alvo} do próprio mês de pagamento`
+    if (lag === 1) return `${alvo} do mês anterior ao pagamento`
+    return `${alvo} de ${lag} meses antes do pagamento`
+  }
+
+  const fecharDiagnostico = () => {
+    setShowDiagnostico(false)
+    setDiagnosticoModoCorrecao(false)
+    setDiagnosticoInput('')
+    setDiagnosticoErro('')
+  }
+
+  const avancarDiagnostico = (resposta: DiagnosticoResposta) => {
+    const ponto = diagnosticoPontos[diagnosticoIndex]
+    if (!ponto) return
+    setDiagnosticoRespostas(prev => ({ ...prev, [ponto.id]: resposta }))
+    setDiagnosticoModoCorrecao(false)
+    setDiagnosticoInput('')
+    setDiagnosticoErro('')
+    setDiagnosticoIndex(prev => prev + 1)
+  }
+
+  const confirmarDiagnostico = (correcto: boolean) => {
+    if (correcto) {
+      avancarDiagnostico({ correcto: true })
+      return
+    }
+    setDiagnosticoModoCorrecao(true)
+    setDiagnosticoInput('')
+    setDiagnosticoErro('')
+  }
+
+  const guardarCorrecaoDiagnostico = () => {
+    const valorCorreto = diagnosticoInput.trim()
+    if (!valorCorreto) {
+      setDiagnosticoErro('Indica o valor correcto para continuar.')
+      return
+    }
+    avancarDiagnostico({ correcto: false, valorCorreto })
+  }
+
+  const abrirDiagnostico = async () => {
+    try {
+      const histData = await AsyncStorage.getItem('historique')
+      const hist = histData ? JSON.parse(histData) : histCal
+      if (!hist || hist.length === 0) {
+        mostrarErro("Aucun historique trouvé.\nAjoute tes jours dans l'onglet Aujourd'hui ou le Calendrier.")
+        return
+      }
+
+      const histSalData = await AsyncStorage.getItem('monSalaire_v2')
+      const histSal: MoisData[] = histSalData ? JSON.parse(histSalData) : historique
+      if (histSalData) setHistorique(histSal)
+      const p = await carregarPadraoAtual(histSal, hist)
+
+      const agora = new Date()
+      const anoActual = agora.getFullYear()
+      const mesActual = agora.getMonth()
+      const [anoHoras, mesHoras] = shiftMois(anoActual, mesActual, -p.hlag)
+      const [anoFrais, mesFrais] = shiftMois(anoActual, mesActual, -p.flag)
+      const [anoReceber, mesReceber] = shiftMois(anoActual, mesActual, 0)
+
+      const diasHoras = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const m = parseInt(parts[1]) - 1
+        const a = j.id ? new Date(parseInt(j.id)).getFullYear() : anoHoras
+        return m === mesHoras && a === anoHoras && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+      })
+      const totalSeg = diasHoras.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+      const totalH = totalSeg / 3600
+
+      const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
+      const fichesFrais = histSal.filter(f =>
+        f.moisIndex === mesFrais && f.annee === anoFrais && ((f.fraisRecuConfirme || 0) > 0 || f.fraisBoletim > 0)
+      )
+      const factorFrais = (p.fraisFactorReal || 0) > 0.1 ? p.fraisFactorReal : 1
+      const totalFrais = fichesFrais.length > 0
+        ? (fichesFrais[0].fraisRecuConfirme || fichesFrais[0].fraisBoletim)
+        : fraisHorario.total > 0 ? Math.round(fraisHorario.total * factorFrais) : 0
+      const fonteFrais = fichesFrais.length > 0
+        ? `Encontrei um valor já confirmado no histórico/boletim de ${fichesFrais[0].periode}.`
+        : fraisHorario.total > 0
+          ? `Calculei pelos horários do calendário: pt-déj ${fraisHorario.ptd}, déjeuner ${fraisHorario.dej}, dîner ${fraisHorario.din}, nuit ${fraisHorario.nui}.`
+          : 'Não encontrei boletim nem horários suficientes para calcular frais neste mês.'
+
+      const pontos: DiagnosticoPonto[] = [
+        {
+          id: 'mesTrabalho',
+          titulo: '1. Mês de trabalho usado',
+          valor: `${MOIS_NOMS[mesHoras]} ${anoHoras}`,
+          explicacao: `A estimativa actual é para receber em ${MOIS_NOMS[mesReceber]} ${anoReceber}. O padrão aprendido usa hlag=${p.hlag}, por isso procuro ${textoLag(p.hlag, 'trabalho')}.`,
+          inputLabel: 'Qual é o mês de trabalho correcto?',
+          placeholder: 'ex: Avril 2026',
+        },
+        {
+          id: 'horas',
+          titulo: '2. Horas encontradas',
+          valor: `${fmtH(totalH)} (${diasHoras.length} dia${diasHoras.length === 1 ? '' : 's'})`,
+          explicacao: `Somei todos os dias TRAB/DEC/work/dec guardados no calendário de ${MOIS_NOMS[mesHoras]} ${anoHoras}.`,
+          detalhe: diasHoras.length > 0 ? `Total bruto encontrado: ${(totalSeg / 3600).toFixed(2)}h.` : 'Nenhum dia de trabalho encontrado nesse mês.',
+          inputLabel: 'Quantas horas correctas devo considerar?',
+          placeholder: 'ex: 172h30 ou 172.5',
+        },
+        {
+          id: 'mesFrais',
+          titulo: '3. Mês de frais usado',
+          valor: `${MOIS_NOMS[mesFrais]} ${anoFrais}`,
+          explicacao: `O padrão aprendido usa flag=${p.flag}, por isso procuro ${textoLag(p.flag, 'frais')}.`,
+          inputLabel: 'Qual é o mês de frais correcto?',
+          placeholder: 'ex: Mai 2026',
+        },
+        {
+          id: 'valorFrais',
+          titulo: '4. Valor de frais encontrado',
+          valor: fmt(totalFrais),
+          explicacao: fonteFrais,
+          detalhe: fichesFrais.length === 0 && factorFrais !== 1
+            ? `Apliquei o factor aprendido ${factorFrais.toFixed(3)} sobre ${fraisHorario.total.toFixed(2)}€.`
+            : undefined,
+          inputLabel: 'Qual é o valor correcto de frais?',
+          placeholder: 'ex: 615.40',
+        },
+      ]
+
+      setDiagnosticoPontos(pontos)
+      setDiagnosticoIndex(0)
+      setDiagnosticoRespostas({})
+      setDiagnosticoModoCorrecao(false)
+      setDiagnosticoInput('')
+      setDiagnosticoErro('')
+      setShowDiagnostico(true)
+    } catch (e) {
+      mostrarErro('Erreur diagnostic: ' + String(e))
+    }
+  }
 
   const importerDocumentos = () => setShowEscolhaModal(true)
 
@@ -1716,22 +1877,35 @@ export default function MonSalaireScreen() {
             </TouchableOpacity>
           </Animated.View>
         ) : (
-          <TouchableOpacity style={st.calcularBtn} onPress={calcularSalario} disabled={loading}>
-            <Text style={st.calcularIcon}>💰</Text>
-            <Text style={st.calcularLabel}>CALCULER</Text>
-            <Text style={st.calcularSub}>Combien tu vas recevoir ce mois</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-              <View style={{
-          backgroundColor: precisaoActual >= 94 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 85 ? 'rgba(243,156,18,0.3)' : precisaoActual >= 79 ? 'rgba(243,156,18,0.3)' : 'rgba(231,76,60,0.3)',
-                borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
-              }}>
-                <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>
-                  {precisaoActual >= 94 ? '✅' : precisaoActual >= 85 ? '⚡' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
-                </Text>
+          <View style={st.calcularRow}>
+            <TouchableOpacity style={[st.calcularBtn, st.calcularBtnCompact]} onPress={calcularSalario} disabled={loading}>
+              <Text style={st.calcularIcon}>💰</Text>
+              <Text style={st.calcularLabel}>CALCULER</Text>
+              <Text style={st.calcularSub}>Combien tu vas recevoir ce mois</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <View style={{
+            backgroundColor: precisaoActual >= 94 ? 'rgba(39,174,96,0.3)' : precisaoActual >= 85 ? 'rgba(243,156,18,0.3)' : precisaoActual >= 79 ? 'rgba(243,156,18,0.3)' : 'rgba(231,76,60,0.3)',
+                  borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
+                }}>
+                  <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>
+                    {precisaoActual >= 94 ? '✅' : precisaoActual >= 85 ? '⚡' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>
               </View>
-              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[st.diagnosticoBtn, { backgroundColor: c.card, borderColor: '#f5a623' }]}
+              onPress={abrirDiagnostico}
+              disabled={loading}
+            >
+              <Text style={{ fontSize: 28, marginBottom: 8 }}>🔍</Text>
+              <Text style={{ fontSize: 14, fontWeight: '900', color: '#f5a623', textAlign: 'center' }}>Diagnóstico</Text>
+              <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center', marginTop: 6, lineHeight: 15 }}>
+                Ver raciocínio
+              </Text>
+            </TouchableOpacity>
             </View>
-          </TouchableOpacity>
         )}
 
         <TouchableOpacity
@@ -1895,6 +2069,149 @@ export default function MonSalaireScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* MODAL DIAGNOSTICO */}
+      <Modal visible={showDiagnostico} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623', maxHeight: '88%' }}>
+            <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
+            {diagnosticoPontos.length > 0 && diagnosticoIndex < diagnosticoPontos.length ? (() => {
+              const ponto = diagnosticoPontos[diagnosticoIndex]
+              return (
+                <>
+                  <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'right', marginBottom: 8 }}>
+                    {diagnosticoIndex + 1}/{diagnosticoPontos.length}
+                  </Text>
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    <Text style={{ fontSize: 20, fontWeight: '900', color: c.text, textAlign: 'center', marginBottom: 6 }}>
+                      🔍 Diagnóstico
+                    </Text>
+                    <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', lineHeight: 19, marginBottom: 18 }}>
+                      Vou confirmar contigo o raciocínio da estimativa actual, ponto por ponto.
+                    </Text>
+
+                    <View style={{ backgroundColor: c.bg, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 }}>
+                      <Text style={{ fontSize: 13, color: '#f5a623', fontWeight: '900', letterSpacing: 0.6, marginBottom: 10 }}>
+                        {ponto.titulo}
+                      </Text>
+                      <Text style={{ fontSize: 28, color: c.text, fontWeight: '900', marginBottom: 10, textAlign: 'center' }}>
+                        {ponto.valor}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: c.textSub, lineHeight: 20, textAlign: 'center' }}>
+                        {ponto.explicacao}
+                      </Text>
+                      {ponto.detalhe ? (
+                        <Text style={{ fontSize: 12, color: '#f39c12', lineHeight: 18, textAlign: 'center', marginTop: 10 }}>
+                          {ponto.detalhe}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {diagnosticoModoCorrecao ? (
+                      <View>
+                        <Text style={{ fontSize: 15, color: c.text, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>
+                          {ponto.inputLabel}
+                        </Text>
+                        <TextInput
+                          style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: '#f5a623', textAlign: 'center', marginBottom: 8 }}
+                          value={diagnosticoInput}
+                          onChangeText={(v) => { setDiagnosticoInput(v); setDiagnosticoErro('') }}
+                          keyboardType={ponto.id === 'valorFrais' ? 'decimal-pad' : 'default'}
+                          placeholder={ponto.placeholder}
+                          placeholderTextColor={c.textSub}
+                          autoFocus
+                        />
+                        {diagnosticoErro ? (
+                          <Text style={{ fontSize: 12, color: '#e74c3c', textAlign: 'center', marginBottom: 10 }}>
+                            {diagnosticoErro}
+                          </Text>
+                        ) : null}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                            onPress={() => { setDiagnosticoModoCorrecao(false); setDiagnosticoInput(''); setDiagnosticoErro('') }}
+                          >
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Voltar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 12, padding: 14, alignItems: 'center' }}
+                            onPress={guardarCorrecaoDiagnostico}
+                          >
+                            <Text style={{ fontSize: 14, fontWeight: '900', color: 'white' }}>Guardar correcção</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={{ fontSize: 16, color: c.text, fontWeight: '900', textAlign: 'center', marginBottom: 14 }}>
+                          Está correcto?
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                            onPress={() => confirmarDiagnostico(true)}
+                          >
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>Sim</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#e74c3c', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                            onPress={() => confirmarDiagnostico(false)}
+                          >
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>Não</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  <TouchableOpacity onPress={fecharDiagnostico} style={{ alignItems: 'center', paddingTop: 16 }}>
+                    <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '700' }}>Fechar diagnóstico</Text>
+                  </TouchableOpacity>
+                </>
+              )
+            })() : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={{ fontSize: 22, fontWeight: '900', color: c.text, textAlign: 'center', marginBottom: 6 }}>
+                  Resumo do diagnóstico
+                </Text>
+                <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', lineHeight: 19, marginBottom: 18 }}>
+                  Pontos incorrectos identificados durante a confirmação.
+                </Text>
+                {diagnosticoPontos.filter(p => diagnosticoRespostas[p.id]?.correcto === false).length > 0 ? (
+                  <View style={{ gap: 10, marginBottom: 18 }}>
+                    {diagnosticoPontos
+                      .filter(p => diagnosticoRespostas[p.id]?.correcto === false)
+                      .map(p => (
+                        <View key={p.id} style={{ backgroundColor: 'rgba(231,76,60,0.10)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(231,76,60,0.35)' }}>
+                          <Text style={{ fontSize: 13, color: '#e74c3c', fontWeight: '900', marginBottom: 6 }}>{p.titulo}</Text>
+                          <Text style={{ fontSize: 12, color: c.textSub, lineHeight: 18 }}>Estimativa: {p.valor}</Text>
+                          <Text style={{ fontSize: 13, color: c.text, fontWeight: '800', lineHeight: 19 }}>
+                            Correcto: {diagnosticoRespostas[p.id]?.valorCorreto}
+                          </Text>
+                        </View>
+                      ))}
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: 'rgba(39,174,96,0.10)', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(39,174,96,0.35)', marginBottom: 18 }}>
+                    <Text style={{ fontSize: 15, color: '#27ae60', fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>
+                      Tudo confirmado
+                    </Text>
+                    <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', lineHeight: 19 }}>
+                      Não marcaste nenhum ponto como incorrecto nesta estimativa.
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                  onPress={fecharDiagnostico}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: 'white' }}>Fechar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL ERRO */}
       <Modal visible={showModalErro} transparent animationType="fade">
@@ -2448,7 +2765,10 @@ const st = StyleSheet.create({
   previsionMontant: { fontSize: 66, fontWeight: '800', color: 'white', letterSpacing: -2, lineHeight: 74 },
   previsionJour: { fontSize: 15, fontWeight: '700', color: 'rgba(255,255,255,0.85)', marginTop: 4, textAlign: 'center' },
   previsionConfianca: { fontSize: 14, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  calcularRow: { marginHorizontal: 20, marginBottom: 16, flexDirection: 'row', gap: 10, alignItems: 'stretch' },
   calcularBtn: { marginHorizontal: 20, marginBottom: 16, borderRadius: 24, padding: 28, alignItems: 'center', backgroundColor: '#f5a623', elevation: 8 },
+  calcularBtnCompact: { flex: 2, marginHorizontal: 0, marginBottom: 0, padding: 22, justifyContent: 'center' },
+  diagnosticoBtn: { flex: 1, borderRadius: 24, padding: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, elevation: 3 },
   calcularIcon: { fontSize: 40, marginBottom: 8 },
   calcularLabel: { fontSize: 22, fontWeight: '800', color: 'white', letterSpacing: 3 },
   calcularSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },

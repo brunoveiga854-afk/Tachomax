@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { LOCATION_TASK_NAME } from '../../src/tasks'
+import { calcularFraisJour } from '../../src/frais'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -549,32 +550,31 @@ export default function AujourdhuiScreen() {
   }
 
 const calcularFraisAuto = async (debut: string, fin: string, servico: string, type: string) => {
-    // Dias sem serviço real não têm direito a frais nem horas
-    if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) {
-      setAddFrais('0.00')
-      setAddServico('00h00')
-      return
-    }
+    const semFrais = ['OFF', 'RC', 'FERIE', 'FER'].includes(type)
+    if (semFrais) setAddServico('00h00')
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
-    const servicoMin = hS * 60 + (mS || 0)
-    const isDecouche = type === 'DEC'
-    let frais = 0
-    if (isDecouche) {
-      frais = 68.66
-    } else {
-      let prevDec = false
-      try {
-        const existente = await AsyncStorage.getItem('historique')
-        const lista = existente ? JSON.parse(existente) : []
-        const [dia, mes] = addDiaStr.split('/').map(Number)
-        if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
-      } catch (e) {}
-      if (servicoMin >= 6 * 60) frais = 20.78
-      else if (servicoMin >= 5 * 60) frais = 16.36
-      else frais = 4.42
-      if (prevDec && frais === 16.36) frais = Math.round((frais + 4.42) * 100) / 100
-    }
-    setAddFrais(frais.toFixed(2))
+    let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+    let regles = DEFAULT_FRAIS_REGLES
+    let prevDec = false
+    try {
+      const fvData = await AsyncStorage.getItem('frais_valores')
+      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      regles = await carregarFraisRegles()
+      const existente = await AsyncStorage.getItem('historique')
+      const lista = existente ? JSON.parse(existente) : []
+      const [dia, mes] = addDiaStr.split('/').map(Number)
+      if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
+    } catch (e) {}
+    const result = calcularFraisJour({
+      type,
+      debut,
+      fin,
+      segServico: semFrais ? 0 : (hS * 3600) + ((mS || 0) * 60),
+      prevDecouche: prevDec,
+      regles,
+      valeurs: fv,
+    })
+    setAddFrais(result.total.toFixed(2))
   }
 
   const abrirPicker = (field: 'debut'|'fin'|'servico') => {
@@ -1040,9 +1040,6 @@ const pararGPS = async () => {
     const jour = diasSemana[dateInicio.getDay()]
     const date = `${String(dateInicio.getDate()).padStart(2, '0')}/${String(dateInicio.getMonth() + 1).padStart(2, '0')}`
     const fimStr = `${String(fim.getHours()).padStart(2, '0')}h${String(fim.getMinutes()).padStart(2, '0')}`
-    const horaInicioNum = dateInicio.getHours() * 60 + dateInicio.getMinutes()
-    const horaFimNum = fim.getHours() * 60 + fim.getMinutes()
-    const amplitudeMin = Math.floor(segAmplitude / 60)
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
     let regles = DEFAULT_FRAIS_REGLES
     let lista: any[] = []
@@ -1053,15 +1050,18 @@ const pararGPS = async () => {
       const existente = await AsyncStorage.getItem('historique')
       lista = existente ? JSON.parse(existente) : []
     } catch (e) {}
-    const ptDejAteMin = Math.round(regles.ptDejAte * 60)
-    const dejMinAmpMin = Math.round(regles.dejMinAmp * 60)
-    const dinerDeMin = Math.round(regles.dinerDe * 60)
     const prevDec = diaAnteriorDecouche(lista, dateInicio)
-    let frais = 0
-    if (horaInicioNum <= ptDejAteMin || prevDec || decouche) frais += fv.ptDej
-    if (amplitudeMin >= dejMinAmpMin || decouche) frais += fv.dej
-    if (horaFimNum >= dinerDeMin || decouche) frais += fv.diner
-    if (decouche) frais += fv.nuit
+    const frais = calcularFraisJour({
+      type: decouche ? 'DEC' : 'TRAB',
+      debut: horaInicio,
+      fin: fimStr,
+      segServico,
+      segPausa: segPausaTotal,
+      decouche,
+      prevDecouche: prevDec,
+      regles,
+      valeurs: fv,
+    }).total
     const novoDia = {
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
@@ -1103,9 +1103,7 @@ const pararGPS = async () => {
 
     // Compute frais inline for summary
     const fim = new Date()
-    const horaFimNum = fim.getHours() * 60 + fim.getMinutes()
-    const horaInicioNum = dateInicio ? dateInicio.getHours() * 60 + dateInicio.getMinutes() : 0
-    const amplitudeMin = Math.floor(segAmplitude / 60)
+    const fimStr = `${String(fim.getHours()).padStart(2, '0')}h${String(fim.getMinutes()).padStart(2, '0')}`
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
     let regles2 = DEFAULT_FRAIS_REGLES
     let prevDecResumo = false
@@ -1116,14 +1114,17 @@ const pararGPS = async () => {
       const existente = await AsyncStorage.getItem('historique')
       prevDecResumo = dateInicio ? diaAnteriorDecouche(existente ? JSON.parse(existente) : [], dateInicio) : false
     } catch (e) {}
-    const ptDejAteMin2 = Math.round(regles2.ptDejAte * 60)
-    const dejMinAmpMin2 = Math.round(regles2.dejMinAmp * 60)
-    const dinerDeMin2 = Math.round(regles2.dinerDe * 60)
-    let snapFrais = 0
-    if (horaInicioNum <= ptDejAteMin2 || prevDecResumo || comDecouche || decouche) snapFrais += fv.ptDej
-    if (amplitudeMin >= dejMinAmpMin2) snapFrais += fv.dej
-    if (horaFimNum >= dinerDeMin2 || comDecouche || decouche) snapFrais += fv.diner
-    if (comDecouche || decouche) snapFrais += fv.nuit
+    const snapFrais = calcularFraisJour({
+      type: (comDecouche || decouche) ? 'DEC' : 'TRAB',
+      debut: horaInicio,
+      fin: fimStr,
+      segServico: snapService,
+      segPausa: segPausaTotal,
+      decouche: comDecouche || decouche,
+      prevDecouche: prevDecResumo,
+      regles: regles2,
+      valeurs: fv,
+    }).total
 
     await guardarDia(fim)
     await pararGPS()

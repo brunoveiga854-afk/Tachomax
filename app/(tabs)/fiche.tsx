@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
+import { calcularFraisJour } from '../../src/frais'
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
 // Valeurs par défaut convention transport français
@@ -18,6 +19,12 @@ const DEF_SAL = {
 
 type MoisData = {
   periode: string; moisIndex: number; annee: number; fichePages: number
+  mesFicheIndex?: number; anoFiche?: number
+  mesTrabalhoIndex?: number; anoTrabalho?: number
+  mesPagamentoIndex?: number; anoPagamento?: number
+  mesFraisTrabalhoIndex?: number; anoFraisTrabalho?: number
+  fonte?: 'confirmado' | 'ia' | 'editado'
+  confiancaAprendizagem?: number
   netPaye: number; salairebrut: number; totalCotisations: number
   remboursementFrais: number; fraisBoletim: number; montantTotalRecu: number
   jourPaiement1: number; jourPaiement2: number; analysedAt: string
@@ -121,31 +128,14 @@ function calcFraisHorario(
   prevDec: boolean,
   p: Padrao
 ): { ptd: number; dej: number; din: number; nui: number; total: number } {
-  const isDec = type === 'dec' || type === 'DEC'
-  if (!isDec && isSansFrais(type)) return { ptd: 0, dej: 0, din: 0, nui: 0, total: 0 }
-  const start = pT(inicio)
-  const end = pT(fim)
-
-  // Regras aprendidas (com defaults da convenção colectiva transport)
-  const regles = sanitizeFraisRegles(p.regles)
-
-  // Pt.D: entrada ≤ limite aprendido OU dia após découché OU próprio découché
-  const ptd = (start !== null && start <= regles.ptDejAte) || prevDec || isDec ? 1 : 0
-
-  // Amplitude sem pausa (para frais a pausa não conta)
-  const amp = start !== null && end !== null ? end - start : 0
-
-  // Déjeuner: amplitude ≥ mínimo aprendido OU découché
-  const dej = amp >= regles.dejMinAmp || isDec ? 1 : 0
-
-  // Dîner: saída ≥ hora aprendida OU découché
-  const din = (end !== null && end >= regles.dinerDe) || isDec ? 1 : 0
-
-  // Nuit: só découché
-  const nui = isDec ? 1 : 0
-
-  const total = ptd * p.ptd + dej * p.dej + din * p.din + nui * p.nui
-  return { ptd, dej, din, nui, total }
+  return calcularFraisJour({
+    type,
+    debut: inicio,
+    fin: fim,
+    prevDecouche: prevDec,
+    regles: p.regles,
+    valeurs: { ptDej: p.ptd, dej: p.dej, diner: p.din, nuit: p.nui },
+  })
 }
 
 function calcFraisMesPorHorarios(
@@ -338,15 +328,15 @@ function buildVerificacaoCruzada(
 function validarHlagComTotais(
   dados: MoisData[], hist: any[], base: Padrao
 ): number {
-  const mesesConf = dados.filter(d => d.montantTotalRecu > 0)
+  const mesesConf = dados.filter(d => d.montantTotalRecu > 0 && contaParaSalarioAprendizagem(d))
   if (mesesConf.length < 2 || hist.length === 0) return base.hlag
 
   const erros: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] }
 
   for (const m of mesesConf) {
+    const [anoPay, mesPay] = mesPagamentoSalDe(m)
     for (let lag = 0; lag <= 3; lag++) {
-      let mH = m.moisIndex - lag, aH = m.annee
-      while (mH < 0) { mH += 12; aH-- }
+      const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
 
       const diasMes = hist.filter((j: any) => {
         const parts = j.date?.split('/')
@@ -368,8 +358,7 @@ function validarHlagComTotais(
       const salLiq = brut * base.liquidRate
 
       // Frais do mês correspondente (usa flag actual)
-      let mF = m.moisIndex - base.flag, aF = m.annee
-      while (mF < 0) { mF += 12; aF-- }
+      const [aF, mF] = mesFraisTrabalhoDe(m, base)
       const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
       const frais = fraisCalc.total > 0 ? fraisCalc.total : (m.fraisBoletim || 0)
 
@@ -393,6 +382,39 @@ function validarHlagComTotais(
 
 const diffMeses = (anoA: number, mesA: number, anoB: number, mesB: number) =>
   (anoA - anoB) * 12 + (mesA - mesB)
+
+const mesFicheDe = (d: MoisData): [number, number] => [
+  d.anoFiche ?? d.annee,
+  d.mesFicheIndex ?? d.moisIndex,
+]
+
+const mesPagamentoSalDe = (d: MoisData): [number, number] => [
+  d.anoPagamento ?? d.pagamentoSalAno ?? d.annee,
+  d.mesPagamentoIndex ?? d.pagamentoSalMesIndex ?? d.moisIndex,
+]
+
+const mesPagamentoFraisDe = (d: MoisData): [number, number] => [
+  d.anoPagamento ?? d.pagamentoFraisAno ?? d.annee,
+  d.mesPagamentoIndex ?? d.pagamentoFraisMesIndex ?? d.moisIndex,
+]
+
+const mesTrabalhoDe = (d: MoisData, p: Padrao): [number, number] => {
+  if (d.anoTrabalho != null && d.mesTrabalhoIndex != null) return [d.anoTrabalho, d.mesTrabalhoIndex]
+  const [anoPay, mesPay] = mesPagamentoSalDe(d)
+  return shiftMois(anoPay, mesPay, -p.hlag)
+}
+
+const mesFraisTrabalhoDe = (d: MoisData, p: Padrao): [number, number] => {
+  if (d.anoFraisTrabalho != null && d.mesFraisTrabalhoIndex != null) return [d.anoFraisTrabalho, d.mesFraisTrabalhoIndex]
+  const [anoPay, mesPay] = mesPagamentoFraisDe(d)
+  return shiftMois(anoPay, mesPay, -p.flag)
+}
+
+const contaParaSalarioAprendizagem = (d: MoisData) =>
+  d.salarioConfirmado || (d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0
+
+const contaParaFraisAprendizagem = (d: MoisData) =>
+  d.fraisConfirmado || fraisRealConfirme(d) > 0 || (d.fraisBoletim || 0) > 0 || (d.remboursementFrais || 0) > 0
 
 function diasCalendarioMes(hist: any[], ano: number, mes: number) {
   return hist.filter((j: any) => {
@@ -447,7 +469,7 @@ function melhorarReglesFraisReais(dados: MoisData[], hist: any[], base: Padrao):
   const score = (regles: any) => {
     const diffs: number[] = []
     for (const { d, valor } of alvos) {
-      const [aF, mF] = shiftMois(d.pagamentoFraisAno ?? d.annee, d.pagamentoFraisMesIndex ?? d.moisIndex, -base.flag)
+      const [aF, mF] = mesFraisTrabalhoDe(d, base)
       const calc = calcFraisTotalComRegles(hist, aF, mF, base, regles)
       if (calc > 0) diffs.push(Math.abs(calc - valor))
     }
@@ -475,13 +497,12 @@ function melhorarReglesFraisReais(dados: MoisData[], hist: any[], base: Padrao):
 
 function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao): Padrao {
   const next: Padrao = { ...base }
-  const confirmadosSal = dados.filter(d => d.salarioConfirmado && d.netPaye > 0)
-  const confirmadosFrais = dados.filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0)
+  const confirmadosSal = dados.filter(d => contaParaSalarioAprendizagem(d) && ((d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0))
+  const confirmadosFrais = dados.filter(d => contaParaFraisAprendizagem(d))
 
   const hlagVotos: number[] = []
   for (const fiche of confirmadosSal) {
-    const anoPay = fiche.pagamentoSalAno ?? fiche.annee
-    const mesPay = fiche.pagamentoSalMesIndex ?? fiche.moisIndex
+    const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
     let melhorLag = -1
     let melhorScore = Infinity
 
@@ -516,17 +537,17 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
 
   const flagVotos: number[] = []
   for (const fiche of confirmadosFrais) {
-    const valorConfirmado = fraisRealConfirme(fiche)
-    const anoPay = fiche.pagamentoFraisAno ?? fiche.annee
-    const mesPay = fiche.pagamentoFraisMesIndex ?? fiche.moisIndex
+    const valorConfirmado = fraisRealConfirme(fiche) || fiche.fraisBoletim || fiche.remboursementFrais || 0
+    const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
     let melhorFlag = -1
     let melhorDiff = Infinity
 
     for (const fonte of dados) {
       const valoresFonte = [fonte.remboursementFrais || 0, fonte.fraisBoletim || 0].filter(v => v > 0)
+      const [anoFonte, mesFonte] = mesFicheDe(fonte)
       for (const valorFonte of valoresFonte) {
         const diff = Math.abs(valorFonte - valorConfirmado)
-        const lag = diffMeses(anoPay, mesPay, fonte.annee, fonte.moisIndex)
+        const lag = diffMeses(anoPay, mesPay, anoFonte, mesFonte)
         if (lag >= 0 && lag <= 3 && diff <= Math.max(5, valorConfirmado * 0.02) && diff < melhorDiff) {
           melhorDiff = diff
           melhorFlag = lag
@@ -612,7 +633,9 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     base.diaFrais = Math.round(diasFrais.reduce((a, b) => a + b, 0) / diasFrais.length)
 
   // B. LiquidRate real — prefere meses sem férias (bruto mais limpo)
-  const comBruto = dados.filter(d => d.salairebrut > 0 && d.netPaye > 0)
+  const comSalarioAprendizagem = dados.filter(d => contaParaSalarioAprendizagem(d))
+  const comBruto = comSalarioAprendizagem.filter(d => d.salairebrut > 0 && d.netPaye > 0)
+  const comBrutoOuNet = comSalarioAprendizagem.filter(d => (d.salairebrut || 0) > 0 || (d.netPaye || 0) > 0)
   if (comBruto.length > 0) {
     const semFerias = comBruto.filter(d => (d.joursConges || 0) === 0 && (d.joursFeries || 0) === 0)
     const fonte = semFerias.length >= 2 ? semFerias : comBruto
@@ -646,14 +669,13 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   if (comConges.length > 0) {
     const vals = comConges.map(d => (d.montantConges || 0) / (d.joursConges || 1))
     base.valorDiaConges = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
-  } else if (comBruto.length >= 3 && hist.length > 0) {
+  } else if (comBrutoOuNet.length >= 3 && hist.length > 0) {
     // Fallback: aprende por diferença entre meses — precisa de variação
     const aprendizagens: number[] = []
-    for (const fiche of comBruto) {
+    for (const fiche of comBrutoOuNet) {
       const joursConges = fiche.joursConges || 0
       if (joursConges === 0) continue
-      let mH = fiche.moisIndex - base.hlag, aH = fiche.annee
-      while (mH < 0) { mH += 12; aH-- }
+      const [aH, mH] = mesTrabalhoDe(fiche, base)
       const diasMes = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
@@ -668,7 +690,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       const brutSemConges = totalH <= base.hbase
         ? totalH * base.hval
         : base.hbase * base.hval + Math.min(extra, base.lim25) * base.h25 + Math.max(0, extra - base.lim25) * base.h50
-      const brutConges = fiche.salairebrut - brutSemConges
+      const brutoRef = fiche.salairebrut > 0 ? fiche.salairebrut : (fiche.netPaye || 0) / base.liquidRate
+      const brutConges = brutoRef - brutSemConges
       if (brutConges > 0) aprendizagens.push(brutConges / joursConges)
     }
     if (aprendizagens.length > 0)
@@ -686,13 +709,13 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   // E. Detectar hlag automaticamente (com ≥2 fiches + horários)
-  if (comBruto.length >= 2 && hist.length > 0) {
+  if (comBrutoOuNet.length >= 2 && hist.length > 0) {
     const lagsTestados: number[] = []
-    for (const fiche of comBruto) {
+    for (const fiche of comBrutoOuNet) {
+      const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
       let melhorLag = 2, melhorDiff = Infinity
       for (let lag = 1; lag <= 3; lag++) {
-        let mH = fiche.moisIndex - lag, aH = fiche.annee
-        while (mH < 0) { mH += 12; aH-- }
+        const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
         const diasMes = hist.filter((j: any) => {
           const parts = j.date?.split('/')
           if (!parts || parts.length < 2) return false
@@ -710,7 +733,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
           ? totalH * base.hval
           : base.hbase * base.hval + Math.min(extra, base.lim25) * base.h25 + Math.max(0, extra - base.lim25) * base.h50
         ) + valorConges
-        const diff = Math.abs(brutEst - fiche.salairebrut)
+        const brutoRef = fiche.salairebrut > 0 ? fiche.salairebrut : (fiche.netPaye || 0) / base.liquidRate
+        const diff = Math.abs(brutEst - brutoRef)
         if (diff < melhorDiff) { melhorDiff = diff; melhorLag = lag }
       }
       lagsTestados.push(melhorLag)
@@ -730,20 +754,22 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   // F. Detectar flag automaticamente
   // Método 1 (prioritário): matching directo synthèse↔fiche por valor — não depende do histórico
   // Para cada fiche com frais, procura a synthèse com totalFrais mais próximo e calcula o lag
-  const fichasComFrais = dados.filter(d => (d.fraisBoletim > 0) || (d.remboursementFrais > 0))
-  const sintesesCom = dados.filter(d => d.fraisBoletim > 0)
-  const fichasComRefPaye = dados.filter(d => d.remboursementFrais > 0)
+  const fichasComFrais = dados.filter(d => contaParaFraisAprendizagem(d))
+  const sintesesCom = dados.filter(d => (d.fraisBoletim || 0) > 0)
+  const fichasComRefPaye = dados.filter(d => (d.remboursementFrais || 0) > 0)
 
   const flagsDiretos: number[] = []
   // Cross-match: remboursementFrais da fiche vs fraisBoletim da synthèse
   for (const fiche of fichasComRefPaye) {
     const fraisRef = fiche.remboursementFrais
+    const [anoFiche, mesFiche] = mesFicheDe(fiche)
     let melhorFlag = -1, melhorDiff = Infinity
     for (const sint of sintesesCom) {
+      const [anoSint, mesSint] = mesFicheDe(sint)
       const diff = Math.abs(sint.fraisBoletim - fraisRef)
       if (diff < melhorDiff && diff < fraisRef * 0.02) { // tolerância 2%
         melhorDiff = diff
-        let lag = fiche.moisIndex - sint.moisIndex + (fiche.annee - sint.annee) * 12
+        let lag = diffMeses(anoFiche, mesFiche, anoSint, mesSint)
         if (lag >= 0 && lag <= 3) melhorFlag = lag
       }
     }
@@ -760,10 +786,10 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     const flagsTestados: number[] = []
     for (const fiche of fichasComFrais) {
       const fraisRef = fiche.fraisBoletim > 0 ? fiche.fraisBoletim : fiche.remboursementFrais
+      const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
       let melhorFlag = 1, melhorDiff = Infinity
       for (let flag = 0; flag <= 3; flag++) {
-        let mF = fiche.moisIndex - flag, aF = fiche.annee
-        while (mF < 0) { mF += 12; aF-- }
+        const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
         const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
         if (fraisCalc.total === 0) continue
         const diff = Math.abs(fraisCalc.total - fraisRef)
@@ -790,9 +816,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   // G. HorasExtrasMedia (fallback quando não temos valorDiaConges)
   if (base.valorDiaConges === 0) {
     const aprendizagens: number[] = []
-    for (const fiche of comBruto) {
-      let mH = fiche.moisIndex - base.hlag, aH = fiche.annee
-      while (mH < 0) { mH += 12; aH-- }
+    for (const fiche of comBrutoOuNet) {
+      const [aH, mH] = mesTrabalhoDe(fiche, base)
       const diasMes = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
@@ -807,7 +832,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       const brutCalculado = totalH <= base.hbase
         ? totalH * base.hval
         : base.hbase * base.hval + Math.min(extra, base.lim25) * base.h25 + Math.max(0, extra - base.lim25) * base.h50
-      const diffH = (fiche.salairebrut - brutCalculado) / base.hval
+      const brutoRef = fiche.salairebrut > 0 ? fiche.salairebrut : (fiche.netPaye || 0) / base.liquidRate
+      const diffH = (brutoRef - brutCalculado) / base.hval
       if (diffH > 0 && diffH < 60) aprendizagens.push(diffH)
     }
     if (aprendizagens.length > 0)
@@ -816,12 +842,11 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
   // H. Taxa horária neta efectiva — aprende de meses com salário confirmado
   // netSal_real / horas_trabalho_mês = taxa que já inclui férias, feriados, prémios
-  const mesesComSalReal = dados.filter(d => d.netPaye > 0 && d.montantTotalRecu > 0)
+  const mesesComSalReal = dados.filter(d => contaParaSalarioAprendizagem(d) && d.netPaye > 0 && d.montantTotalRecu > 0)
   if (mesesComSalReal.length >= 2 && hist.length > 0) {
     const taxas: number[] = []
     for (const m of mesesComSalReal) {
-      let mH = m.moisIndex - base.hlag, aH = m.annee
-      while (mH < 0) { mH += 12; aH-- }
+      const [aH, mH] = mesTrabalhoDe(m, base)
       const todosDiasMes = hist.filter((j: any) => {
         const parts = j.date?.split('/')
         if (!parts || parts.length < 2) return false
@@ -855,11 +880,11 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
   // I. Factor de correcção de frais — aprende da diferença boletim vs cálculo
   // Quando o utilizador carrega fiches com fraisBoletim real, aprendemos o ratio
-  const mesesComFraisBoletim = dados.filter(d => (fraisRealConfirme(d) || d.fraisBoletim || 0) > 0)
+  const mesesComFraisBoletim = dados.filter(d => contaParaFraisAprendizagem(d))
   if (mesesComFraisBoletim.length >= 2 && hist.length > 0) {
     const ratios: number[] = []
     for (const m of mesesComFraisBoletim) {
-      const [aF, mF] = shiftMois(m.pagamentoFraisAno ?? m.annee, m.pagamentoFraisMesIndex ?? m.moisIndex, -base.flag)
+      const [aF, mF] = mesFraisTrabalhoDe(m, base)
       const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
       const fraisReal = fraisRealConfirme(m) || m.fraisBoletim || 0
       const diff = Math.abs(fraisReal - fraisCalc.total)
@@ -878,7 +903,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     }
   }
 
-  base.descoberto = dados.filter(d => d.salarioConfirmado || d.fraisConfirmado || d.montantTotalRecu > 0).length >= 3 || dados.length >= 2
+  base.descoberto = dados.filter(d => contaParaSalarioAprendizagem(d) || contaParaFraisAprendizagem(d) || d.montantTotalRecu > 0).length >= 3 || dados.length >= 2
   base.confianca = calcularPrecisao(base, dados.length)
   return base
 }
@@ -1180,9 +1205,8 @@ export default function MonSalaireScreen() {
   const calcEstimativaMes = (m: MoisData): number => {
     const p = padrao
 
-    // Mês de TRABALHO (moisIndex - hlag)
-    let mH = m.moisIndex - p.hlag, aH = m.annee
-    while (mH < 0) { mH += 12; aH-- }
+    // Mês de TRABALHO
+    const [aH, mH] = mesTrabalhoDe(m, p)
 
     // Todos os dias do mês de trabalho
     const todosDoMes = histCal.filter((j: any) => {
@@ -1229,14 +1253,14 @@ export default function MonSalaireScreen() {
       )
     }
 
-    // Frais — mês (moisIndex - flag)
-    let mF = m.moisIndex - p.flag, aF = m.annee
-    while (mF < 0) { mF += 12; aF-- }
+    // Frais — mês de trabalho dos frais
+    const [aF, mF] = mesFraisTrabalhoDe(m, p)
 
     // 1ª prioridade: fraisBoletim confirmado para este mês de frais
-    const ficheComFrais = historique.find(f =>
-      f.moisIndex === mF && f.annee === aF && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
-    )
+    const ficheComFrais = historique.find(f => {
+      const [anoFrais, mesFrais] = mesFraisTrabalhoDe(f, p)
+      return mesFrais === mF && anoFrais === aF && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
+    })
     let totalFrais: number
     if (ficheComFrais) {
       totalFrais = ficheComFrais.fraisRecuConfirme || ficheComFrais.fraisBoletim
@@ -1445,6 +1469,10 @@ export default function MonSalaireScreen() {
     const sal = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
     const fraisReel = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
     if (sal <= 0 && fraisReel <= 0) { setShowModalValorInvalido(true); return }
+    const mesFicheIndex = fichaActual.moisIndex
+    const anoFiche = fichaActual.annee
+    const [anoTrabalho, mesTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
+    const [anoFraisTrabalho, mesFraisTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -padrao.flag)
     const novaResposta = {
       fiche: fichaActual,
       frais: fraisDoc.find(f => f.moisIndex === fichaActual.moisIndex && f.annee === fichaActual.annee) || null,
@@ -1457,6 +1485,14 @@ export default function MonSalaireScreen() {
       pagamentoSalAno: fichaActual.annee,
       pagamentoFraisMesIndex: fichaActual.moisIndex,
       pagamentoFraisAno: fichaActual.annee,
+      mesFicheIndex,
+      anoFiche,
+      mesTrabalhoIndex,
+      anoTrabalho,
+      mesPagamentoIndex: fichaActual.moisIndex,
+      anoPagamento: fichaActual.annee,
+      mesFraisTrabalhoIndex,
+      anoFraisTrabalho,
       autoDetectado: false,
     }
     const novasRespostas = [...respostas, novaResposta]
@@ -1482,9 +1518,24 @@ export default function MonSalaireScreen() {
       const existenteIdx = novoHist.findIndex(h => h.periode === periodeLabel)
       const fraisRecebido = resp.montantFraisReel > 0 ? resp.montantFraisReel : 0
       const fraisFiche = fiche.remboursementFrais || 0
+      const mesFicheIndex = resp.mesFicheIndex ?? resp.fiche.moisIndex ?? 0
+      const anoFiche = resp.anoFiche ?? resp.fiche.annee ?? new Date().getFullYear()
+      const [anoTrabalhoCalc, mesTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
+      const [anoFraisTrabalhoCalc, mesFraisTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -padrao.flag)
+      const fonte = resp.autoDetectado ? 'ia' : 'confirmado'
       const novoDado: MoisData = {
         periode: periodeLabel, moisIndex: resp.fiche.moisIndex || 0,
         annee: resp.fiche.annee || new Date().getFullYear(), fichePages: 1,
+        mesFicheIndex,
+        anoFiche,
+        mesTrabalhoIndex: resp.mesTrabalhoIndex ?? mesTrabalhoCalc,
+        anoTrabalho: resp.anoTrabalho ?? anoTrabalhoCalc,
+        mesPagamentoIndex: resp.mesPagamentoIndex ?? resp.pagamentoSalMesIndex ?? resp.fiche.moisIndex,
+        anoPagamento: resp.anoPagamento ?? resp.pagamentoSalAno ?? resp.fiche.annee,
+        mesFraisTrabalhoIndex: resp.mesFraisTrabalhoIndex ?? mesFraisTrabalhoCalc,
+        anoFraisTrabalho: resp.anoFraisTrabalho ?? anoFraisTrabalhoCalc,
+        fonte,
+        confiancaAprendizagem: fonte === 'ia' ? 0.65 : 1,
         netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : fiche.netPaye || 0,
         salairebrut: fiche.salairebrut || 0,
         totalCotisations: fiche.totalCotisations || 0,

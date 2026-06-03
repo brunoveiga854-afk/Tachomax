@@ -5,6 +5,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share, Alert, Mod
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
+import { calcularFraisJour } from '../../src/frais'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
 type Jour = {
   id: string
@@ -316,14 +317,15 @@ const getJoursMois = () => {
     return historique.some(j => j.id !== jour.id && (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
   }
   const calcularFraisEdicao = (debut: string, fin: string, servico: string, type: JourType, prevDec = false) => {
-    if (['OFF', 'RC', 'FERIE', 'FER'].includes(type)) return 0
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
-    const servicoMin = hS * 60 + (mS || 0)
-    const isDecouche = type === 'DEC'
-    if (isDecouche) return 68.66
-    if (servicoMin >= 6 * 60) return 20.78
-    if (servicoMin >= 5 * 60) return prevDec ? 20.78 : 16.36
-    return 4.42
+    return calcularFraisJour({
+      type,
+      debut,
+      fin,
+      segServico: (hS * 3600) + ((mS || 0) * 60),
+      decouche: type === 'DEC',
+      prevDecouche: prevDec,
+    }).total
   }
   const abrirNota = (jour: Jour) => {
     setNoteJour(jour)

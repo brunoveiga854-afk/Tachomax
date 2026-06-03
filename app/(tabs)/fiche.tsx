@@ -9,10 +9,14 @@ import { useTheme } from '../../context/ThemeContext'
 import { calcularFraisJour } from '../../src/frais'
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
-// Valeurs par défaut convention transport français
+const HLAG_BASE_CONFIRMADO = 1
+const FLAG_BASE_CONFIRMADO = 0
+const MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM = 3
+
+// Valeurs par défaut confirmées par extraits bancaires.
 const DEF_SAL = {
   hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
-  hlag: 2, flag: 1, liquidRate: 0.79,
+  hlag: HLAG_BASE_CONFIRMADO, flag: FLAG_BASE_CONFIRMADO, liquidRate: 0.79,
   ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
   valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
 }
@@ -112,6 +116,23 @@ function sanitizeFraisRegles(raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES
 const isTravailFrais = (type: string) => TYPES_TRAVAIL.includes(type || '')
 const isSansFrais = (type: string) => TYPES_SANS_FRAIS.includes(type || '')
 const fraisRealConfirme = (d: MoisData) => d.fraisConfirmado ? (d.fraisRecuConfirme || d.remboursementFrais || d.fraisBoletim || 0) : 0
+
+function normalizarDefasagensBase(p: Padrao): Padrao {
+  return { ...p, hlag: DEF_SAL.hlag, flag: DEF_SAL.flag }
+}
+
+function votoMaisForte(votos: number[]): { valor: number; count: number } | null {
+  if (votos.length === 0) return null
+  const counts: Record<number, number> = {}
+  votos.forEach(v => counts[v] = (counts[v] || 0) + 1)
+  const [valorStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  return { valor: parseInt(valorStr), count }
+}
+
+function defasagemProtegida(candidato: number, confirmacoes: number, valorBase: number): number {
+  if (candidato === valorBase) return valorBase
+  return confirmacoes >= MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM ? candidato : valorBase
+}
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
@@ -329,7 +350,7 @@ function validarHlagComTotais(
   dados: MoisData[], hist: any[], base: Padrao
 ): number {
   const mesesConf = dados.filter(d => d.montantTotalRecu > 0 && contaParaSalarioAprendizagem(d))
-  if (mesesConf.length < 2 || hist.length === 0) return base.hlag
+  if (mesesConf.length < MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM || hist.length === 0) return DEF_SAL.hlag
 
   const erros: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] }
 
@@ -370,14 +391,14 @@ function validarHlagComTotais(
     }
   }
 
-  // Escolhe o lag com menor erro médio (exige ≥2 meses)
-  let melhorLag = base.hlag, melhorErr = Infinity
+  // Escolhe o lag com menor erro médio, mas só aceita contrariar a base com 3 confirmações.
+  let melhorLag = DEF_SAL.hlag, melhorErr = Infinity, melhorCount = 0
   for (let lag = 0; lag <= 3; lag++) {
-    if (erros[lag].length < 2) continue
+    if (erros[lag].length < MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM) continue
     const med = erros[lag].reduce((a, b) => a + b, 0) / erros[lag].length
-    if (med < melhorErr) { melhorErr = med; melhorLag = lag }
+    if (med < melhorErr) { melhorErr = med; melhorLag = lag; melhorCount = erros[lag].length }
   }
-  return melhorLag
+  return defasagemProtegida(melhorLag, melhorCount, DEF_SAL.hlag)
 }
 
 const diffMeses = (anoA: number, mesA: number, anoB: number, mesB: number) =>
@@ -529,10 +550,8 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
   }
 
   if (hlagVotos.length > 0) {
-    const counts: Record<number, number> = {}
-    hlagVotos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    const [lagStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
-    if (confirmadosSal.length >= 3 || count >= 2 || next.hlag === DEF_SAL.hlag) next.hlag = parseInt(lagStr)
+    const voto = votoMaisForte(hlagVotos)
+    if (voto) next.hlag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.hlag)
   }
 
   const flagVotos: number[] = []
@@ -568,10 +587,8 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
   }
 
   if (flagVotos.length > 0) {
-    const counts: Record<number, number> = {}
-    flagVotos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    const [flagStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
-    if (confirmadosFrais.length >= 3 || count >= 2 || next.flag === DEF_SAL.flag) next.flag = parseInt(flagStr)
+    const voto = votoMaisForte(flagVotos)
+    if (voto) next.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
   }
 
   return next
@@ -621,7 +638,7 @@ function alertasFraisIncoerentes(dados: MoisData[], hist: any[], p: Padrao): str
 // ── ANALISAR PADRÃO V2 ────────────────────────────────────────────────────────
 
 function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padrao {
-  const base: Padrao = { ...padrao }
+  const base: Padrao = normalizarDefasagensBase({ ...padrao })
   if (dados.length < 1) return base
 
   // A. Dias de pagamento
@@ -708,13 +725,13 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     base.valorDiaRC = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
   }
 
-  // E. Detectar hlag automaticamente (com ≥2 fiches + horários)
+  // E. Detectar hlag automaticamente (só contraria a base com ≥3 votos)
   if (comBrutoOuNet.length >= 2 && hist.length > 0) {
     const lagsTestados: number[] = []
     for (const fiche of comBrutoOuNet) {
       const [anoPay, mesPay] = mesPagamentoSalDe(fiche)
-      let melhorLag = 2, melhorDiff = Infinity
-      for (let lag = 1; lag <= 3; lag++) {
+      let melhorLag = -1, melhorDiff = Infinity
+      for (let lag = 0; lag <= 3; lag++) {
         const [aH, mH] = shiftMois(anoPay, mesPay, -lag)
         const diasMes = hist.filter((j: any) => {
           const parts = j.date?.split('/')
@@ -737,21 +754,15 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         const diff = Math.abs(brutEst - brutoRef)
         if (diff < melhorDiff) { melhorDiff = diff; melhorLag = lag }
       }
-      lagsTestados.push(melhorLag)
+      if (melhorLag >= 0) lagsTestados.push(melhorLag)
     }
     if (lagsTestados.length > 0) {
-      const counts: Record<number, number> = {}
-      lagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      const melhorHlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-      const melhorCount = counts[melhorHlag] || 0
-      // Só muda hlag se: já é esse valor, OU ≥2 meses confirmam, OU ainda é o default de fábrica (nunca foi aprendido)
-      if (melhorHlag === base.hlag || melhorCount >= 2 || base.hlag === DEF_SAL.hlag) {
-        base.hlag = melhorHlag
-      }
+      const voto = votoMaisForte(lagsTestados)
+      if (voto) base.hlag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.hlag)
     }
   }
 
-  // F. Detectar flag automaticamente
+  // F. Detectar flag automaticamente (só contraria a base com ≥3 votos)
   // Método 1 (prioritário): matching directo synthèse↔fiche por valor — não depende do histórico
   // Para cada fiche com frais, procura a synthèse com totalFrais mais próximo e calcula o lag
   const fichasComFrais = dados.filter(d => contaParaFraisAprendizagem(d))
@@ -777,17 +788,15 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   if (flagsDiretos.length > 0) {
-    // Método directo funcionou — usa este resultado com alta confiança
-    const counts: Record<number, number> = {}
-    flagsDiretos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    base.flag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+    const voto = votoMaisForte(flagsDiretos)
+    if (voto) base.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
   } else if (fichasComFrais.length >= 1 && hist.length > 0) {
     // Método 2 (fallback): recalcular frais pelo histórico
     const flagsTestados: number[] = []
     for (const fiche of fichasComFrais) {
       const fraisRef = fiche.fraisBoletim > 0 ? fiche.fraisBoletim : fiche.remboursementFrais
       const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
-      let melhorFlag = 1, melhorDiff = Infinity
+      let melhorFlag = -1, melhorDiff = Infinity
       for (let flag = 0; flag <= 3; flag++) {
         const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
         const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
@@ -795,17 +804,11 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         const diff = Math.abs(fraisCalc.total - fraisRef)
         if (diff < melhorDiff) { melhorDiff = diff; melhorFlag = flag }
       }
-      flagsTestados.push(melhorFlag)
+      if (melhorFlag >= 0) flagsTestados.push(melhorFlag)
     }
     if (flagsTestados.length > 0) {
-      const counts: Record<number, number> = {}
-      flagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      const melhorFlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-      const melhorCount = counts[melhorFlag] || 0
-      // Fallback: exige ≥2 meses para mudar flag (método directo já é fiável por si só)
-      if (melhorFlag === base.flag || melhorCount >= 2) {
-        base.flag = melhorFlag
-      }
+      const voto = votoMaisForte(flagsTestados)
+      if (voto) base.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
     }
   }
 
@@ -1002,16 +1005,15 @@ export default function MonSalaireScreen() {
         setHistorique(hist)
         // Sempre re-analisa com o algoritmo actual para apanhar melhorias de detecção
         let base = pData ? { ...padrao, ...JSON.parse(pData) } : { ...padrao }
-        // Salvaguarda: se hlag/flag ainda está no default de fábrica mas o método directo
-        // já provou o valor correcto numa sessão anterior, não regredir.
-        // (O guard ≥2 no analisarPadraoV2 trata disso — aqui só garantimos base limpa)
-        base = { ...base, regles: reglesLimpas }
+        // hlag/flag têm base confirmada por extratos; valores antigos aprendidos
+        // só voltam a entrar se houver 3 confirmações contrárias nesta análise.
+        base = normalizarDefasagensBase({ ...base, regles: reglesLimpas })
         const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
         if (fraisValsRaw) {
           const fv = JSON.parse(fraisValsRaw)
           base = { ...base, ptd: fv.ptDej || base.ptd, dej: fv.dej || base.dej, din: fv.diner || base.din, nui: fv.nuit || base.nui }
         }
-        // Valida hlag com totais confirmados — mais fiável que detecção por bruto estimado
+        // Valida hlag com totais confirmados — mais fiável que detecção por bruto estimado.
         const hlagValidado = validarHlagComTotais(hist, cal, base)
         if (hlagValidado !== base.hlag) base = { ...base, hlag: hlagValidado }
 
@@ -1037,12 +1039,13 @@ export default function MonSalaireScreen() {
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : atual.regles)
     if (fraisReglesRaw) await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
-    atual = { ...atual, regles: reglesLimpas }
+    atual = normalizarDefasagensBase({ ...atual, regles: reglesLimpas })
     const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
     if (fraisValsRaw) {
       const fv = JSON.parse(fraisValsRaw)
       atual = { ...atual, ptd: fv.ptDej || atual.ptd, dej: fv.dej || atual.dej, din: fv.diner || atual.din, nui: fv.nuit || atual.nui }
     }
+    if (histSal.length > 0) atual = analisarPadraoV2(histSal, histDiario, atual)
     setPadrao(atual)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(atual))
     return atual
@@ -1570,7 +1573,7 @@ export default function MonSalaireScreen() {
     // Aplicar valores de frais dos boletins se existirem
     const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
-    let padraoBase = { ...padrao }
+    let padraoBase = normalizarDefasagensBase({ ...padrao })
     if (fraisValsRaw) {
       const fv = JSON.parse(fraisValsRaw)
       padraoBase = { ...padraoBase, ptd: fv.ptDej || padraoBase.ptd, dej: fv.dej || padraoBase.dej, din: fv.diner || padraoBase.din, nui: fv.nuit || padraoBase.nui }

@@ -52,7 +52,7 @@ export const TYPES_SANS_FRAIS = ['OFF', 'RC', 'FERIE', 'FER', 'vac', 'CONGE', 'F
 
 const emptyResult = (): FraisJourResult => ({ ptd: 0, dej: 0, din: 0, nui: 0, total: 0, details: [] })
 
-const valNumber = (v: unknown, fallback: number, min: number, max: number) => {
+export const valRegle = (v: unknown, fallback: number, min: number, max: number) => {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''))
   return Number.isFinite(n) && n >= min && n <= max ? n : fallback
 }
@@ -67,9 +67,9 @@ export function sanitizeFraisRegles(
   fallback: Partial<FraisRegles> = DEFAULT_FRAIS_REGLES
 ): FraisRegles {
   return {
-    ptDejAte: valNumber(raw?.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valNumber(raw?.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valNumber(raw?.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
+    ptDejAte: valRegle(raw?.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
+    dejMinAmp: valRegle(raw?.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
+    dinerDe: valRegle(raw?.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
   }
 }
 
@@ -91,6 +91,14 @@ export function isJourSansFrais(type?: FraisJourType) {
 
 export function isJourTravailFrais(type?: FraisJourType) {
   return TYPES_TRAVAIL_FRAIS.includes(String(type || ''))
+}
+
+export function isSansFrais(type?: FraisJourType) {
+  return isJourSansFrais(type)
+}
+
+export function isTravailFrais(type?: FraisJourType) {
+  return isJourTravailFrais(type)
 }
 
 export function parseHeureToMinutes(value?: string | null): number | null {

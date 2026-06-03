@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
-import { calcularFraisJour } from '../../src/frais'
+import { calcularFraisJour, DEFAULT_FRAIS_REGLES, isSansFrais, isTravailFrais, sanitizeFraisRegles } from '../../src/frais'
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
 // Valeurs par défaut convention transport français
@@ -115,34 +115,9 @@ const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
   return Math.min(p, 98)
 }
 
-const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
-const TYPES_TRAVAIL = ['work', 'dec', 'TRAB', 'DEC']
-const TYPES_SANS_FRAIS = ['OFF', 'RC', 'FERIE', 'FER', 'vac', 'CONGE', 'FERIADO', 'hol']
-
-function valRegle(v: any, fallback: number, min: number, max: number) {
-  const n = parseFloat(v)
-  return !isNaN(n) && n >= min && n <= max ? n : fallback
-}
-
-function sanitizeFraisRegles(raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) {
-  return {
-    ptDejAte: valRegle(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valRegle(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valRegle(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
-  }
-}
-
-const isTravailFrais = (type: string) => TYPES_TRAVAIL.includes(type || '')
-const isSansFrais = (type: string) => TYPES_SANS_FRAIS.includes(type || '')
 const fraisRealConfirme = (d: MoisData) => d.fraisConfirmado ? (d.fraisRecuConfirme || d.remboursementFrais || d.fraisBoletim || 0) : 0
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
-
-function pT(s: string): number | null {
-  if (!s) return null
-  const [h, mi] = s.split(':').map(Number)
-  return isNaN(h) || isNaN(mi) ? null : h + mi / 60
-}
 
 function calcFraisHorario(
   type: string,
@@ -183,7 +158,7 @@ function calcFraisMesPorHorarios(
 
   let total = 0, ptd = 0, dej = 0, din = 0, nui = 0
 
-  // Normalize time format: historique stores "HHhMM", pT() expects "HH:MM"
+  // Normalize time format: historique stores "HHhMM", calcularFraisJour expects "HH:MM"
   const normTime = (t: string) => t ? t.replace('h', ':') : ''
 
   for (let i = 0; i < diasMes.length; i++) {

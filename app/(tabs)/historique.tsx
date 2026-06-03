@@ -21,6 +21,7 @@ type Jour = {
   kmDiarios?: number
   nota?: { categoria: string; emoji: string; texto?: string }
 }
+type Profil = 'CD' | 'MIXTE' | 'LD'
 const TYPE_CONFIG: Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }> = {
   TRAB:  { label: 'Travail',     color: '#27ae60', bg: 'rgba(39,174,96,0.12)',   bgLight: 'rgba(39,174,96,0.15)',  emoji: '💼' },
   DEC:   { label: 'Découché',    color: '#2980b9', bg: 'rgba(41,128,185,0.12)',  bgLight: 'rgba(41,128,185,0.15)', emoji: '🌙' },
@@ -38,7 +39,6 @@ const fmtHM = (seg: number) => {
 }
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const MOIS_COURT = ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
-const MAX_SEMAINE = 56 * 3600
 function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, index }: {
   jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, index: number
 }) {
@@ -182,9 +182,12 @@ export default function HistoriqueScreen() {
   const [notaDataSel, setNotaDataSel] = useState<string>('')
   const [showNotaDatePicker, setShowNotaDatePicker] = useState(false)
   const [editKm, setEditKm] = useState('')
+  const [profil, setProfil] = useState<Profil>('MIXTE')
   useFocusEffect(useCallback(() => { setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   const chargerHistorique = async () => {
     try {
+      const profilData = await AsyncStorage.getItem('profil')
+      if (profilData === 'CD' || profilData === 'MIXTE' || profilData === 'LD') setProfil(profilData)
       const data = await AsyncStorage.getItem('historique')
       if (!data) return
       const lista = JSON.parse(data)
@@ -391,7 +394,9 @@ const getJoursMois = () => {
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
   const totalKm = joursActuels.reduce((a, j) => a + (j.kmDiarios || 0), 0)
   const nbDecouche = joursActuels.filter(j => j.decouche).length
-  const pctSemaine = Math.min((totalService / MAX_SEMAINE) * 100, 100)
+  const maxSemaine = profil === 'CD' ? 52 * 3600 : 56 * 3600
+  const maxSemaineLabel = profil === 'CD' ? '52h00' : '56h00'
+  const pctSemaine = Math.min((totalService / maxSemaine) * 100, 100)
   const barColor = pctSemaine > 90 ? '#e74c3c' : pctSemaine > 75 ? '#f39c12' : '#27ae60'
   const invalidos = joursActuels.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC'))
   const validos = joursActuels.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
@@ -522,7 +527,7 @@ const getJoursMois = () => {
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>SEMAINE</Text>
-                <Text style={{ fontSize: 10, color: barColor, fontWeight: '700' }}>{fmtHM(totalService)} / 56h00</Text>
+                <Text style={{ fontSize: 10, color: barColor, fontWeight: '700' }}>{fmtHM(totalService)} / {maxSemaineLabel}</Text>
               </View>
               <View style={[st.barraProgressoBg, { backgroundColor: c.progressBg, marginBottom: 10 }]}>
                 <View style={[st.barraProgressoFill, { width: `${pctSemaine}%` as any, backgroundColor: barColor }]} />

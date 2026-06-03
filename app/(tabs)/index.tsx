@@ -9,7 +9,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { LOCATION_TASK_NAME } from '../../src/tasks'
-import { calcularFraisJour } from '../../src/frais'
+import { calcularFraisJour, DEFAULT_FRAIS_REGLES, sanitizeFraisRegles } from '../../src/frais'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -519,16 +519,6 @@ export default function AujourdhuiScreen() {
     return d
   }
 
-  const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
-  const valRegleFrais = (v: any, fallback: number, min: number, max: number) => {
-    const n = parseFloat(v)
-    return !isNaN(n) && n >= min && n <= max ? n : fallback
-  }
-  const sanitizeFraisRegles = (raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES) => ({
-    ptDejAte: valRegleFrais(raw.ptDejAte, fallback.ptDejAte ?? DEFAULT_FRAIS_REGLES.ptDejAte, 5, 8),
-    dejMinAmp: valRegleFrais(raw.dejMinAmp, fallback.dejMinAmp ?? DEFAULT_FRAIS_REGLES.dejMinAmp, 4, 8),
-    dinerDe: valRegleFrais(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
-  })
   const carregarFraisRegles = async () => {
     const reglesData = await AsyncStorage.getItem('frais_regles')
     const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})

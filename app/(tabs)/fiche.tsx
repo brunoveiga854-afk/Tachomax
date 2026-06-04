@@ -27,6 +27,7 @@ type MoisData = {
   confiancaAprendizagem?: number
   netPaye: number; salairebrut: number; totalCotisations: number
   remboursementFrais: number; fraisBoletim: number; montantTotalRecu: number
+  interessement?: number; primeExceptionnelle?: number; participationSalariale?: number; autresPrimes?: number
   jourPaiement1: number; jourPaiement2: number; analysedAt: string
   entreprise: string; conducteur: string
   // Campos novos extraídos pela IA das fiches
@@ -54,8 +55,8 @@ type Padrao = {
   valorDiaConges: number; valorDiaFerie: number; valorDiaRC: number
   // Regras/limiares aprendidos dos boletins (opcionais)
   regles?: { ptDejAte: number; dejMinAmp: number; dinerDe: number }
-  // Taxa salarial efectiva aprendida: netSal_real / horas_trabalhadas_mês_trabalho
-  // Captura automaticamente férias, feriados, prémios — tudo incluído
+  // Taxa salarial efectiva aprendida: net récurrent / horas_trabalhadas_mês_trabalho
+  // Exclui intéressement e primes exceptionnelles extraídas da fiche.
   taxaHorariaNetaMedia: number
   // Factor de correcção de frais: fraisBoletim_real / fraisCalc_app
   // Aprende quando há discrepância entre o calculado e o recebido
@@ -595,6 +596,17 @@ const mesFraisTrabalhoDe = (d: MoisData, p: Padrao): [number, number] => {
 const contaParaSalarioAprendizagem = (d: MoisData) =>
   d.salarioConfirmado || (d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0
 
+const totalPrimesExceptionnelles = (d: any) =>
+  (d?.interessement || 0) +
+  (d?.primeExceptionnelle || 0) +
+  (d?.participationSalariale || 0) +
+  (d?.autresPrimes || 0)
+
+const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, d?.netPaye || 0)
+
+const montantTotalRecuFiche = (d: any) =>
+  netPayeRecurrent(d) + totalPrimesExceptionnelles(d) + (d?.remboursementFrais || 0)
+
 const contaParaFraisAprendizagem = (d: MoisData) =>
   d.fraisConfirmado || fraisRealConfirme(d) > 0 || (d.fraisBoletim || 0) > 0 || (d.remboursementFrais || 0) > 0
 
@@ -824,12 +836,12 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
   // B. LiquidRate real — prefere meses sem férias (bruto mais limpo)
   const comSalarioAprendizagem = dados.filter(d => contaParaSalarioAprendizagem(d))
-  const comBruto = comSalarioAprendizagem.filter(d => d.salairebrut > 0 && d.netPaye > 0)
+  const comBruto = comSalarioAprendizagem.filter(d => d.salairebrut > 0 && netPayeRecurrent(d) > 0)
   const comBrutoOuNet = comSalarioAprendizagem.filter(d => (d.salairebrut || 0) > 0 || (d.netPaye || 0) > 0)
   if (comBruto.length > 0) {
     const semFerias = comBruto.filter(d => (d.joursConges || 0) === 0 && (d.joursFeries || 0) === 0)
     const fonte = semFerias.length >= 2 ? semFerias : comBruto
-    const taxa = fonte.reduce((a, d) => a + d.netPaye / d.salairebrut, 0) / fonte.length
+    const taxa = fonte.reduce((a, d) => a + netPayeRecurrent(d) / d.salairebrut, 0) / fonte.length
     base.liquidRate = Math.round(taxa * 1000) / 1000
   }
 
@@ -1031,8 +1043,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   // H. Taxa horária neta efectiva — aprende de meses com salário confirmado
-  // netSal_real / horas_trabalho_mês = taxa que já inclui férias, feriados, prémios
-  const mesesComSalReal = dados.filter(d => contaParaSalarioAprendizagem(d) && d.netPaye > 0 && d.montantTotalRecu > 0)
+  // Usa netPaye recorrente: intéressement e primes exceptionnelles ficam fora da taxa base.
+  const mesesComSalReal = dados.filter(d => contaParaSalarioAprendizagem(d) && netPayeRecurrent(d) > 0 && d.montantTotalRecu > 0)
   if (mesesComSalReal.length >= 2 && hist.length > 0) {
     const taxas: number[] = []
     for (const m of mesesComSalReal) {
@@ -1057,7 +1069,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       const valCongeNet = (base.valorDiaConges > 0 ? base.valorDiaConges : (base.hbase / 22) * base.hval) * base.liquidRate
       const valFerieNet = (base.valorDiaFerie > 0 ? base.valorDiaFerie : (base.hbase / 22) * base.hval) * base.liquidRate
       const valRCNet = (base.valorDiaRC > 0 ? base.valorDiaRC : (base.hbase / 22) * base.hval) * base.liquidRate
-      const netNormalizado = m.netPaye - nConges * valCongeNet - nFeries * valFerieNet - nRC * valRCNet
+      const netNormalizado = netPayeRecurrent(m) - nConges * valCongeNet - nFeries * valFerieNet - nRC * valRCNet
       if (netNormalizado < 100) continue // skip if result is unreasonable
       taxas.push(netNormalizado / totalH)
     }
@@ -1529,11 +1541,40 @@ export default function MonSalaireScreen() {
         }
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
       }
-      content.push({ type: 'text', text: `Tu es un expert en bulletins de salaire français transport routier.\nAnalyse TOUS ces documents. Réponds UNIQUEMENT avec un JSON array sans markdown:\n[{"tipo":"fiche","periode":"Avril 2026","moisIndex":3,"annee":2026,"netPaye":0,"salairebrut":0,"totalCotisations":0,"remboursementFrais":0,"entreprise":"","conducteur":"","joursConges":0,"montantConges":0,"joursFeries":0,"montantFeries":0,"joursRC":0,"montantRC":0,"totalHeures":0,"hbase":0,"hval":0,"h25":0,"lim25":0,"h50":0}]\nExtrais TOUS ces champs:\n- netPaye: net à payer\n- salairebrut: salaire brut\n- totalCotisations: total cotisations salariales\n- remboursementFrais: remboursement frais si présent\n- joursConges: nombre jours congés payés ce mois\n- montantConges: montant total payé pour ces congés\n- joursFeries: jours fériés indemnisés\n- montantFeries: montant fériés\n- joursRC: repos compensateur\n- montantRC: montant total payé pour repos compensateur si présent\n- totalHeures: heures totales indiquées sur le bulletin\n- hbase: heures de base contractuelles (ex: 169h)\n- hval: taux horaire de base en € (ex: 14.76)\n- h25: taux horaire majoré 25% en € (ex: 18.45)\n- lim25: nombre d'heures à 25% (ex: 17)\n- h50: taux horaire majoré 50% en € (ex: 22.31)\nCherche les lignes "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%" pour extraire hbase/hval/h25/lim25/h50. Si une valeur n'existe pas sur le bulletin, mets 0.` })
+      content.push({ type: 'text', text: `Tu es un expert en bulletins de salaire français transport routier.
+
+RÈGLE ABSOLUE: lis TOUTES les lignes de chaque fiche de paye, sans exception. Ne te limite jamais aux totaux. Inspecte chaque ligne individuelle: salaire de base, heures normales, heures supplémentaires, primes, avantages en nature, intéressement, participation, remboursements, retenues, cotisations et net à payer.
+
+Réponds UNIQUEMENT avec un JSON array sans markdown, exactement sous cette forme:
+[{"tipo":"fiche","periode":"Avril 2026","moisIndex":3,"annee":2026,"netPaye":0,"salairebrut":0,"totalCotisations":0,"interessement":0,"primeExceptionnelle":0,"participationSalariale":0,"autresPrimes":0,"remboursementFrais":0,"entreprise":"","conducteur":"","joursConges":0,"montantConges":0,"joursFeries":0,"montantFeries":0,"joursRC":0,"montantRC":0,"totalHeures":0,"hbase":0,"hval":0,"h25":0,"lim25":0,"h50":0}]
+
+Définition stricte des champs salaire:
+- netPaye: salaire NET RÉCURRENT / net à payer AVANT intéressement, participation, primes exceptionnelles, avantages exceptionnels et tout paiement non récurrent. Si la fiche affiche un net final qui inclut ces montants, SOUSTRAIS-les et mets ici seulement le net salaire récurrent.
+- salairebrut: salaire brut de base/récurrent du bulletin, hors intéressement et primes exceptionnelles si elles sont affichées séparément.
+- totalCotisations: total cotisations salariales.
+- interessement: ligne intéressement versé, prime intéressement, ou versement équivalent (ex: 464.80). 0 si absent.
+- primeExceptionnelle: prime exceptionnelle / prime non récurrente explicite. 0 si absent.
+- participationSalariale: participation salariale / participation aux bénéfices. 0 si absent.
+- autresPrimes: total de tout autre montant exceptionnel non récurrent qui ne doit PAS entrer dans netPaye (prime bilan, prime ponctuelle, avantage exceptionnel, régularisation exceptionnelle, etc.). 0 si absent.
+- remboursementFrais: remboursement frais professionnels / frais de déplacement / indemnités non soumises si présent.
+
+Définition des heures et coefficients:
+- totalHeures: heures totales indiquées sur le bulletin.
+- hbase: heures de base contractuelles (ex: 169h).
+- hval: taux horaire de base en € (ex: 14.76).
+- h25: taux horaire majoré 25% en € (ex: 18.45).
+- lim25: nombre d'heures à 25% (ex: 17).
+- h50: taux horaire majoré 50% en € (ex: 22.31).
+
+Congés/absences:
+- joursConges, montantConges, joursFeries, montantFeries, joursRC, montantRC: extrais les quantités et montants si les lignes existent.
+
+Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
+Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 2000, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3500, messages: [{ role: 'user', content }] })
       })
       const data = await response.json()
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
@@ -1625,8 +1666,8 @@ export default function MonSalaireScreen() {
         return {
           fiche: f,
           frais: fraisDoc.find(fr => fr.moisIndex === f.moisIndex && fr.annee === f.annee) || null,
-          montantTotal: (pf?.netPaye || 0) + (pf?.remboursementFrais || 0),
-          montantSalReel: pf?.netPaye || 0,
+          montantTotal: montantTotalRecuFiche(pf),
+          montantSalReel: netPayeRecurrent(pf),
           montantFraisReel: pf?.remboursementFrais || 0,
           diaSalario: padrao.diaSalario,
           diaFrais: padrao.diaFrais,
@@ -1726,11 +1767,15 @@ export default function MonSalaireScreen() {
         anoFraisTrabalho: resp.anoFraisTrabalho ?? anoFraisTrabalhoCalc,
         fonte,
         confiancaAprendizagem: fonte === 'ia' ? 0.65 : 1,
-        netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : fiche.netPaye || 0,
+        netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : netPayeRecurrent(fiche),
         salairebrut: fiche.salairebrut || 0,
         totalCotisations: fiche.totalCotisations || 0,
         remboursementFrais: fraisFiche,
         fraisBoletim: frais?.totalFrais > 0 ? frais.totalFrais : 0,
+        interessement: fiche.interessement || 0,
+        primeExceptionnelle: fiche.primeExceptionnelle || 0,
+        participationSalariale: fiche.participationSalariale || 0,
+        autresPrimes: fiche.autresPrimes || 0,
         fraisRecuConfirme: fraisRecebido,
         montantTotalRecu: resp.montantTotal,
         jourPaiement1: resp.diaSalario, jourPaiement2: resp.diaFrais,
@@ -2329,9 +2374,15 @@ export default function MonSalaireScreen() {
                 <Text style={{ color: '#f5a623', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.salairebrut || 0)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: c.textSub, fontSize: 13 }}>Net payé</Text>
+                <Text style={{ color: c.textSub, fontSize: 13 }}>Net payé récurrent</Text>
                 <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.netPaye || 0)}</Text>
               </View>
+              {totalPrimesExceptionnelles(modalDetail) > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: c.textSub, fontSize: 13 }}>Primes non récurrentes</Text>
+                  <Text style={{ color: '#9b59b6', fontWeight: '700', fontSize: 13 }}>{fmt(totalPrimesExceptionnelles(modalDetail))}</Text>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: c.textSub, fontSize: 13 }}>Frais boletim</Text>
                 <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.fraisBoletim || 0)}</Text>

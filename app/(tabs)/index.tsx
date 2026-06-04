@@ -1323,20 +1323,6 @@ const pararGPS = async () => {
               )}
             </View>
 
-            {/* ── KM TACOGRAPHE ── */}
-            <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: c.cardBorder }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM início (tacógrafo)</Text>
-              <TextInput
-                value={kmInicioInput}
-                onChangeText={v => setKmInicioInput(limparInputKm(v))}
-                placeholder="0 (optionnel)"
-                placeholderTextColor={c.textSub}
-                keyboardType="numeric"
-                style={{ backgroundColor: c.bg, borderRadius: 12, padding: 14, color: c.text, fontSize: 18, fontWeight: '800', borderWidth: 1, borderColor: c.cardBorder }}
-              />
-              <Text style={{ fontSize: 11, color: c.textSub, marginTop: 6 }}>Se não preencher, fica 0.</Text>
-            </View>
-
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>

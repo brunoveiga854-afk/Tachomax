@@ -23,7 +23,9 @@ const PAUSA_MAX = 4.5 * 3600
 const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOMAX_estado'
 const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
-const CONDUCAO_SEGUNDOS_OFF = 8  // consecutive stopped ticks before setEmConducao(false)
+const CONDUCAO_PARAR_ABAIXO_3_S = 3
+const CONDUCAO_PARAR_ABAIXO_5_S = 12
+const CONDUCAO_PARAR_ABAIXO_7_S = 15
 const GPS_MOVIMENTO_SALTO_MAX_KM = 1
 const GPS_MOVIMENTO_GAP_S = 30
 const GPS_MOVIMENTO_GAP_MAX_KM = 50
@@ -118,7 +120,9 @@ export default function AujourdhuiScreen() {
   const fadeIn = useRef(new Animated.Value(1)).current
   const velocidadeBuffer = useRef<number[]>([])
   const conducaoSegundos = useRef(0)
-  const paradoSegundosGps = useRef(0)
+  const paradoAbaixo3Segundos = useRef(0)
+  const paradoAbaixo5Segundos = useRef(0)
+  const paradoAbaixo7Segundos = useRef(0)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
 
@@ -171,6 +175,42 @@ export default function AujourdhuiScreen() {
     velocidadeBuffer.current.push(vel)
     if (velocidadeBuffer.current.length > 5) velocidadeBuffer.current.shift()
     return velocidadeBuffer.current.reduce((a, b) => a + b, 0) / velocidadeBuffer.current.length
+  }
+
+  const resetarParagemGps = () => {
+    paradoAbaixo3Segundos.current = 0
+    paradoAbaixo5Segundos.current = 0
+    paradoAbaixo7Segundos.current = 0
+  }
+
+  const pararConducaoGps = () => {
+    conducaoSegundos.current = 0
+    setEmConducao(false)
+  }
+
+  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number) => {
+    const dt = Math.max(1, dtGps)
+
+    paradoAbaixo3Segundos.current = vel < 3 ? paradoAbaixo3Segundos.current + dt : 0
+    paradoAbaixo5Segundos.current = vel < 5 ? paradoAbaixo5Segundos.current + dt : 0
+    paradoAbaixo7Segundos.current = vel < 7 ? paradoAbaixo7Segundos.current + dt : 0
+
+    const deveParar =
+      paradoAbaixo3Segundos.current >= CONDUCAO_PARAR_ABAIXO_3_S ||
+      paradoAbaixo5Segundos.current >= CONDUCAO_PARAR_ABAIXO_5_S ||
+      paradoAbaixo7Segundos.current >= CONDUCAO_PARAR_ABAIXO_7_S
+
+    if (deveParar) {
+      pararConducaoGps()
+      return
+    }
+
+    if (vel >= VELOCIDADE_MIN && velMedia >= VELOCIDADE_MIN) {
+      conducaoSegundos.current += dt
+      if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
+    } else if (vel < VELOCIDADE_MIN) {
+      conducaoSegundos.current = 0
+    }
   }
 
   const limparInputKm = (valor: string) => valor.replace(/[^0-9.,]/g, '')
@@ -788,23 +828,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         const dtGps = Math.max(1, Math.min(300, Math.floor(gapGpsS)))
 
         if (!emPausaRef.current) {
-          if (vel === 0) {
-            conducaoSegundos.current = 0
-            paradoSegundosGps.current = CONDUCAO_SEGUNDOS_OFF
-            setEmConducao(false)
-          } else if (velMedia >= VELOCIDADE_MIN) {
-            conducaoSegundos.current += dtGps
-            paradoSegundosGps.current = 0
-            if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
-          } else {
-            paradoSegundosGps.current += dtGps
-            conducaoSegundos.current = 0
-            if (paradoSegundosGps.current >= CONDUCAO_SEGUNDOS_OFF) setEmConducao(false)
-          }
+          atualizarConducaoGps(vel, velMedia, dtGps)
         } else {
-          setEmConducao(false)
-          conducaoSegundos.current = 0
-          paradoSegundosGps.current = 0
+          pararConducaoGps()
+          resetarParagemGps()
         }
 
         ultimaLocalizacao.current = { lat, lon }
@@ -955,7 +982,7 @@ const pararGPS = async () => {
   const handleStopConduiteTest = () => {
     setEmConducao(false)
     conducaoSegundos.current = 0
-    paradoSegundosGps.current = 0
+    resetarParagemGps()
     ultimaVerificacao.current = segConducao
     setShowCorrecao(true)
   }

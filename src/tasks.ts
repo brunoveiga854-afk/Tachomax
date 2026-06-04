@@ -6,7 +6,9 @@ export const LOCATION_TASK_NAME = 'background-location-task'
 const STORAGE_KEY = 'TACHOMAX_estado'
 const VELOCIDADE_MIN = 8
 const CONDUCAO_SEGUNDOS_ON = 8
-const CONDUCAO_SEGUNDOS_OFF = 8
+const CONDUCAO_PARAR_ABAIXO_3_S = 3
+const CONDUCAO_PARAR_ABAIXO_5_S = 12
+const CONDUCAO_PARAR_ABAIXO_7_S = 15
 const GPS_MOVIMENTO_SALTO_MAX_KM = 1
 const GPS_MOVIMENTO_GAP_S = 30
 const GPS_MOVIMENTO_GAP_MAX_KM = 50
@@ -38,6 +40,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
     delete next.gpsTrack
     delete next.gpsTrackTimer
     delete next.kmDiariosExact
+    delete next.bgParadoTicks
 
     for (const loc of data.locations) {
       const now = loc.timestamp || Date.now()
@@ -54,30 +57,40 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
         dist = calcularDistancia(next.ultimaLocalizacao.lat, next.ultimaLocalizacao.lon, lat, lon)
       }
 
+      const velInferida = gapS > 0 && dist > 0.001 && dist <= saltoMax ? (dist / gapS) * 3600 : 0
+      const velMovimento = Math.max(velGps, velInferida)
+      const intervaloConducao = !next.emPausa && dt > 0 && velInferida >= VELOCIDADE_MIN
+
       if (!next.emPausa) {
-        const velInferida = gapS > 0 && dist > 0.001 && dist <= saltoMax ? (dist / gapS) * 3600 : 0
-        const velMovimento = Math.max(velGps, velInferida)
         const buffer = [...(next.bgVelBuffer || []), velMovimento].slice(-5)
         const velMedia = media(buffer)
         next.bgVelBuffer = buffer
 
-        if (velMovimento === 0) {
+        const dtParagem = Math.max(1, dt)
+        next.bgParadoAbaixo3Ticks = velMovimento < 3 ? (next.bgParadoAbaixo3Ticks || 0) + dtParagem : 0
+        next.bgParadoAbaixo5Ticks = velMovimento < 5 ? (next.bgParadoAbaixo5Ticks || 0) + dtParagem : 0
+        next.bgParadoAbaixo7Ticks = velMovimento < 7 ? (next.bgParadoAbaixo7Ticks || 0) + dtParagem : 0
+
+        const deveParar =
+          next.bgParadoAbaixo3Ticks >= CONDUCAO_PARAR_ABAIXO_3_S ||
+          next.bgParadoAbaixo5Ticks >= CONDUCAO_PARAR_ABAIXO_5_S ||
+          next.bgParadoAbaixo7Ticks >= CONDUCAO_PARAR_ABAIXO_7_S
+
+        if (deveParar) {
           next.bgConducaoTicks = 0
-          next.bgParadoTicks = CONDUCAO_SEGUNDOS_OFF
           next.emConducao = false
-        } else if (velMedia >= VELOCIDADE_MIN) {
-          next.bgConducaoTicks = (next.bgConducaoTicks || 0) + Math.max(1, dt)
-          next.bgParadoTicks = 0
+        } else if (velMovimento >= VELOCIDADE_MIN && velMedia >= VELOCIDADE_MIN) {
+          next.bgConducaoTicks = (next.bgConducaoTicks || 0) + dtParagem
           if (next.bgConducaoTicks >= CONDUCAO_SEGUNDOS_ON) next.emConducao = true
-        } else {
-          next.bgParadoTicks = (next.bgParadoTicks || 0) + Math.max(1, dt)
+        } else if (velMovimento < VELOCIDADE_MIN) {
           next.bgConducaoTicks = 0
-          if (next.bgParadoTicks >= CONDUCAO_SEGUNDOS_OFF) next.emConducao = false
         }
       } else {
         next.emConducao = false
         next.bgConducaoTicks = 0
-        next.bgParadoTicks = 0
+        next.bgParadoAbaixo3Ticks = 0
+        next.bgParadoAbaixo5Ticks = 0
+        next.bgParadoAbaixo7Ticks = 0
       }
 
       if (dt > 0) {
@@ -87,7 +100,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
           next.segPausaTotal = (next.segPausaTotal || 0) + dt
         } else {
           next.segServico = (next.segServico || 0) + dt
-          if (next.emConducao) next.segConducao = (next.segConducao || 0) + dt
+          if (intervaloConducao) next.segConducao = (next.segConducao || 0) + dt
         }
       }
 

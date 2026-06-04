@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
+import { calcularFraisJour } from '../../src/frais'
 
 // Chaves a exportar/importar
 const BACKUP_KEYS = [
@@ -71,6 +72,81 @@ export default function ReglagesScreen() {
     setShowModalReset(false)
     setModalSucessoMsg("✅ App réinitialisée\nRedémarre l'app pour recommencer.")
     setTimeout(() => setShowModalSucesso(true), 300)
+  }
+
+  const recalcularFraisErrados = () => {
+    Alert.alert(
+      'Recalculer les frais?',
+      'Seuls les jours TRAB/DEC avec plus de 200€ de frais seront recalculés. Les autres jours ne seront pas modifiés.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Recalculer',
+          onPress: async () => {
+            try {
+              const raw = await AsyncStorage.getItem('historique')
+              if (!raw) {
+                setModalSucessoMsg('Aucun historique trouvé.')
+                setShowModalSucesso(true)
+                return
+              }
+
+              const historique = JSON.parse(raw)
+              const reglesRaw = await AsyncStorage.getItem('frais_regles')
+              const valeursRaw = await AsyncStorage.getItem('frais_valores')
+              const regles = reglesRaw ? JSON.parse(reglesRaw) : undefined
+              const valeurs = valeursRaw ? JSON.parse(valeursRaw) : undefined
+
+              const dateToTime = (date: string, id?: string) => {
+                const parts = (date || '').split('/').map(Number)
+                const fallbackYear = id ? new Date(parseInt(id)).getFullYear() : new Date().getFullYear()
+                return new Date(parts[2] || fallbackYear, (parts[1] || 1) - 1, parts[0] || 1).getTime()
+              }
+              const sorted = [...historique].sort((a: any, b: any) => dateToTime(a.date, a.id) - dateToTime(b.date, b.id))
+              const decouchePorData = new Set(
+                sorted
+                  .filter((j: any) => j.type === 'DEC' || j.decouche)
+                  .map((j: any) => new Date(dateToTime(j.date, j.id)).toDateString())
+              )
+              const prevDecouche = (j: any) => {
+                const d = new Date(dateToTime(j.date, j.id))
+                d.setDate(d.getDate() - 1)
+                return decouchePorData.has(d.toDateString())
+              }
+
+              let corrigidos = 0
+              const novoHistorique = historique.map((j: any) => {
+                if (!['TRAB', 'DEC'].includes(j.type) || (j.frais || 0) <= 200) return j
+
+                const result = calcularFraisJour({
+                  type: j.type,
+                  debut: j.debut,
+                  fin: j.fin,
+                  segServico: j.segServico || 0,
+                  segPausa: j.segPausa || 0,
+                  decouche: j.decouche || j.type === 'DEC',
+                  prevDecouche: prevDecouche(j),
+                  regles,
+                  valeurs,
+                })
+
+                const fraisCorrige = result.total
+                if (Math.abs((j.frais || 0) - fraisCorrige) < 0.005) return j
+                corrigidos += 1
+                return { ...j, frais: fraisCorrige }
+              })
+
+              if (corrigidos > 0) await AsyncStorage.setItem('historique', JSON.stringify(novoHistorique))
+              setModalSucessoMsg(`🔄 Frais recalculés\n${corrigidos} jour${corrigidos > 1 ? 's' : ''} corrigé${corrigidos > 1 ? 's' : ''}.`)
+              setShowModalSucesso(true)
+            } catch (e) {
+              setModalSucessoMsg('❌ Erreur lors du recalcul des frais.\n' + String(e))
+              setShowModalSucesso(true)
+            }
+          },
+        },
+      ]
+    )
   }
 
   // EXPORTAR — gera JSON com todos os dados
@@ -429,6 +505,14 @@ export default function ReglagesScreen() {
         {/* DADOS */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.mesDonnees}</Text>
+          <TouchableOpacity style={[st.backupBtn, { backgroundColor: 'rgba(41,128,185,0.1)', borderColor: '#2980b9', marginBottom: 12 }]} onPress={recalcularFraisErrados}>
+            <Text style={{ fontSize: 22 }}>🔄</Text>
+            <View>
+              <Text style={[st.btnDangerText, { color: '#2980b9' }]}>Recalculer les frais</Text>
+              <Text style={[st.btnDangerSub, { color: c.dangerSub }]}>Corrige uniquement les jours à plus de 200€</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
           <TouchableOpacity style={st.btnDanger} onPress={() => setShowModalHistorique(true)}>
             <Text style={st.btnDangerIcon}>🗑️</Text>
             <View>

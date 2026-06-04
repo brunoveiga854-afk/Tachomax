@@ -7,9 +7,9 @@ const STORAGE_KEY = 'TACHOMAX_estado'
 const VELOCIDADE_MIN = 8
 const CONDUCAO_SEGUNDOS_ON = 8
 const CONDUCAO_SEGUNDOS_OFF = 8
-const KM_SALTO_MAX = 1
-const GPS_PERDA_DEAD_RECKON_S = 30
-const GPS_SALTO_DEAD_RECKON_MAX_KM = 50
+const GPS_MOVIMENTO_SALTO_MAX_KM = 1
+const GPS_MOVIMENTO_GAP_S = 30
+const GPS_MOVIMENTO_GAP_MAX_KM = 50
 
 const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371
@@ -19,13 +19,6 @@ const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: numbe
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2)
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-const addKmExact = (estado: any, dist: number, max: number) => {
-  if (dist <= 0.001 || dist > max) return
-  const exact = (estado.kmDiariosExact ?? estado.kmDiarios ?? 0) + dist
-  estado.kmDiariosExact = exact
-  estado.kmDiarios = Math.round(exact * 10) / 10
 }
 
 const media = (vals: number[]) =>
@@ -42,6 +35,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
     if (!estado.enService) return
 
     let next = { ...estado }
+    delete next.gpsTrack
+    delete next.gpsTrackTimer
+    delete next.kmDiariosExact
 
     for (const loc of data.locations) {
       const now = loc.timestamp || Date.now()
@@ -52,11 +48,10 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       const lon = loc.coords.longitude
       let dist = 0
       const gapS = next.ultimoGpsCallback ? Math.max(0, (now - next.ultimoGpsCallback) / 1000) : 0
-      const saltoMax = gapS > GPS_PERDA_DEAD_RECKON_S ? GPS_SALTO_DEAD_RECKON_MAX_KM : KM_SALTO_MAX
+      const saltoMax = gapS > GPS_MOVIMENTO_GAP_S ? GPS_MOVIMENTO_GAP_MAX_KM : GPS_MOVIMENTO_SALTO_MAX_KM
 
       if (next.ultimaLocalizacao && !next.emPausa) {
         dist = calcularDistancia(next.ultimaLocalizacao.lat, next.ultimaLocalizacao.lon, lat, lon)
-        addKmExact(next, dist, saltoMax)
       }
 
       if (!next.emPausa) {
@@ -100,11 +95,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       next.ultimoGpsCallback = now
       next.lastBgTick = now
       next.tsBackground = now
-
-      if (!next.emPausa && (!next.gpsTrackTimer || now - next.gpsTrackTimer >= 30000)) {
-        next.gpsTrackTimer = now
-        next.gpsTrack = [...(next.gpsTrack || []).slice(-200), { lat, lon, ts: now }]
-      }
     }
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next))

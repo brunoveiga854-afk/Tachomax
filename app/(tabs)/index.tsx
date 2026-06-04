@@ -223,9 +223,12 @@ export default function AujourdhuiScreen() {
 
   const arredondarKm = (valor: number) => Math.round(Math.max(0, valor) * 10) / 10
 
+  const getKmInicioManual = () => parseKmInput(kmInicioInput) || kmInicioTacho
+
   const calcularKmManual = () => {
     const kmFim = parseKmInput(kmFimInput)
-    if (kmInicioTacho > 0) return arredondarKm(kmFim - kmInicioTacho)
+    const kmInicio = getKmInicioManual()
+    if (kmInicio > 0) return arredondarKm(kmFim - kmInicio)
     return arredondarKm(kmFim)
   }
 
@@ -970,8 +973,7 @@ const pararGPS = async () => {
     const rappelAtivo = await AsyncStorage.getItem('rappel_saisie_ativo')
     if (rappelAtivo !== 'false' && notifOk) await agendarRappelSaisie(20, 0)
 
-    // 2. Calcular hora, modo noturno e km inicial opcional
-    const kmInicial = parseKmInput(kmInicioInput)
+    // 2. Calcular hora e modo noturno
     const agora = new Date()
     const h = String(agora.getHours()).padStart(2, '0')
     const m = String(agora.getMinutes()).padStart(2, '0')
@@ -980,7 +982,8 @@ const pararGPS = async () => {
 
     // 3. Atualizar todo o estado de uma vez (React 18 auto-batching)
     setModeNuit(isNuit)
-    setKmInicioTacho(kmInicial)
+    setKmInicioTacho(0)
+    setKmInicioInput('')
     setKmFimInput('')
     setHoraInicio(`${h}h${m}`)
     setDateInicio(agora)
@@ -997,7 +1000,7 @@ const pararGPS = async () => {
     await guardarEstado({
       enService: true, emPausa: false, emConducao: false, decouche, modeNuit: isNuit,
       segServico: 0, segConducao: 0, segConducaoDiario: 0, segAmplitude: 0, segPausa: 0,
-      segPausaTotal: 0, kmDiarios: 0, kmInicioTacho: kmInicial, pausaReglementaireOk: false, pausas: [],
+      segPausaTotal: 0, kmDiarios: 0, kmInicioTacho: 0, pausaReglementaireOk: false, pausas: [],
       ultimaLocalizacao: null, ultimoGpsCallback: Date.now(),
       lastBgTick: Date.now(),
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
@@ -1321,20 +1324,6 @@ const pararGPS = async () => {
                   <Text style={[st.semStat, { color: '#27ae60' }]}>💰 {statsSemaine.frais.toFixed(0)}€</Text>
                 </View>
               )}
-            </View>
-
-            {/* ── KM TACOGRAPHE ── */}
-            <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: c.cardBorder }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM início (tacógrafo)</Text>
-              <TextInput
-                value={kmInicioInput}
-                onChangeText={v => setKmInicioInput(limparInputKm(v))}
-                placeholder="0 (optionnel)"
-                placeholderTextColor={c.textSub}
-                keyboardType="numeric"
-                style={{ backgroundColor: c.bg, borderRadius: 12, padding: 14, color: c.text, fontSize: 18, fontWeight: '800', borderWidth: 1, borderColor: c.cardBorder }}
-              />
-              <Text style={{ fontSize: 11, color: c.textSub, marginTop: 6 }}>Se não preencher, fica 0.</Text>
             </View>
 
             {/* ── DÉMARRER BUTTON ── */}
@@ -1982,6 +1971,15 @@ const pararGPS = async () => {
               </View>
             </View>
             <View style={{ backgroundColor: c.bg, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.cardBorder }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM início (tacógrafo)</Text>
+              <TextInput
+                value={kmInicioInput}
+                onChangeText={v => setKmInicioInput(limparInputKm(v))}
+                placeholder="0 (optionnel)"
+                placeholderTextColor={c.textSub}
+                keyboardType="numeric"
+                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, color: c.text, fontSize: 18, fontWeight: '800', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12 }}
+              />
               <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM fim (tacógrafo)</Text>
               <TextInput
                 value={kmFimInput}
@@ -1993,7 +1991,7 @@ const pararGPS = async () => {
               />
               <Text style={{ fontSize: 12, color: c.textSub, marginTop: 8 }}>
                 KM calculados : <Text style={{ fontWeight: '900', color: '#2980b9' }}>{calcularKmManual()} km</Text>
-                {kmInicioTacho > 0 ? <Text> · início {kmInicioTacho} km</Text> : <Text> · início não preenchido</Text>}
+                {getKmInicioManual() > 0 ? <Text> · início {getKmInicioManual()} km</Text> : <Text> · início não preenchido</Text>}
               </Text>
             </View>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: decouche ? 'rgba(41,128,185,0.12)' : c.bg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: decouche ? '#2980b9' : c.cardBorder }} onPress={() => setDecouche(d => !d)}>

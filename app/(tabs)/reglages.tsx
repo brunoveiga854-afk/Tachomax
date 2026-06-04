@@ -38,7 +38,6 @@ export default function ReglagesScreen() {
   const [rappelAtivo, setRappelAtivo] = useState(true)
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [modoDecrescente, setModoDecrescente] = useState(false)
-  const [mapApp, setMapApp] = useState<'google' | 'waze'>('google')
   const [modeTest, setModeTest] = useState(false)
 
   useEffect(() => {
@@ -56,9 +55,6 @@ export default function ReglagesScreen() {
     })
     AsyncStorage.getItem('modoTacho').then(v => {
       setModoDecrescente(v === 'decrescente')
-    })
-    AsyncStorage.getItem('mapApp').then(v => {
-      if (v === 'waze') setMapApp('waze')
     })
     AsyncStorage.getItem('mode_test').then(v => setModeTest(v === 'true'))
   }, [])
@@ -267,28 +263,6 @@ export default function ReglagesScreen() {
               onPress={() => setLangue('pt')}
             >
               <Text style={[st.langueBtnText, { color: langue === 'pt' ? '#f5a623' : c.text }]}>🇵🇹 Português</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* NAVIGATION */}
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>🗺️ NAVIGATION</Text>
-          <Text style={[st.settingLabel, { color: c.text, marginBottom: 10 }]}>App de cartes pour la route</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity
-              style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', backgroundColor: mapApp === 'google' ? 'rgba(41,128,185,0.15)' : c.bg, borderWidth: 1.5, borderColor: mapApp === 'google' ? '#2980b9' : c.cardBorder }}
-              onPress={async () => { setMapApp('google'); await AsyncStorage.setItem('mapApp', 'google') }}
-            >
-              <Text style={{ fontSize: 22 }}>🗺️</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: mapApp === 'google' ? '#2980b9' : c.text, marginTop: 4 }}>Google Maps</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', backgroundColor: mapApp === 'waze' ? 'rgba(41,128,185,0.15)' : c.bg, borderWidth: 1.5, borderColor: mapApp === 'waze' ? '#2980b9' : c.cardBorder }}
-              onPress={async () => { setMapApp('waze'); await AsyncStorage.setItem('mapApp', 'waze') }}
-            >
-              <Text style={{ fontSize: 22 }}>🔵</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: mapApp === 'waze' ? '#2980b9' : c.text, marginTop: 4 }}>Waze</Text>
             </TouchableOpacity>
           </View>
         </View>

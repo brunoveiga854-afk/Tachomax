@@ -34,6 +34,15 @@ const fmtHM = (seg: number) => {
   const m = Math.floor((seg % 3600) / 60)
   return `${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`
 }
+const calcAmplitudeDe = (debut: string, fin: string) => {
+  const parse = (t: string) => {
+    const [h, m] = t.replace('h', ':').split(':').map(Number)
+    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
+  }
+  let d = parse(debut), f = parse(fin)
+  if (f <= d) f += 24 * 60
+  return Math.max(0, (f - d) * 60)
+}
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const MOIS_COURT = ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
 const MAX_SEMAINE = 56 * 3600
@@ -75,6 +84,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
   const diaNum = dateParts[0] || '—'
   const mesIdx = dateParts[1] ? parseInt(dateParts[1]) - 1 : -1
   const mesNome = mesIdx >= 0 && mesIdx < 12 ? MOIS_COURT[mesIdx] : ''
+  const amplitudeSeg = temServico ? calcAmplitudeDe(jour.debut, jour.fin) : 0
   return (
     <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
       <View style={[st.deleteBg]}>
@@ -90,9 +100,6 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
                 <Text style={[st.jourDayNum, { color: '#f5a623' }]}>{diaNum}</Text>
                 <Text style={[st.jourMonth, { color: c.textSub }]}>{mesNome}</Text>
                 <View style={[st.jourDurLine, { backgroundColor: cfg.color + '30' }]} />
-                <Text style={[st.jourDuracao, { color: temServico ? c.text : c.textSub }]}>
-                  {temServico ? fmtHM(jour.segServico) : '—'}
-                </Text>
               </View>
               <View style={st.jourInfo}>
                 <View style={[st.jourTypeBadge, { backgroundColor: cfg.bg }]}>
@@ -109,6 +116,11 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
                         <Text style={[st.jourTimeLabel, { color: c.textSub }]}>FIN</Text>
                         <Text style={[st.jourTimeVal, { color: c.text }]}>{jour.fin}</Text>
                       </View>
+                    </View>
+                    <View style={st.jourAmpServiceRow}>
+                      <Text style={st.jourAmplitudeText}>amp. {fmtHM(amplitudeSeg)}</Text>
+                      <Text style={[st.jourAmpSep, { color: c.textSub }]}>|</Text>
+                      <Text style={st.jourServiceText}>{fmtHM(jour.segServico)}</Text>
                     </View>
                     {temPausa && (
                       <Text style={[st.jourPauseText, { color: '#f39c12' }]}>⏸ pause {fmtHM(jour.segPausa)}</Text>
@@ -927,7 +939,6 @@ const st = StyleSheet.create({
   jourDayNum: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
   jourMonth: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
   jourDurLine: { width: 28, height: 1, marginVertical: 6 },
-  jourDuracao: { fontSize: 12, fontWeight: '800', letterSpacing: -0.5 },
   jourInfo: { flex: 1, paddingVertical: 12, paddingHorizontal: 10, gap: 6 },
   jourTypeBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   jourTypeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
@@ -935,6 +946,10 @@ const st = StyleSheet.create({
   jourTimeBlock: { gap: 1 },
   jourTimeLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
   jourTimeVal: { fontSize: 15, fontWeight: '800' },
+  jourAmpServiceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -2 },
+  jourAmplitudeText: { fontSize: 11, fontWeight: '700', color: '#2980b9' },
+  jourAmpSep: { fontSize: 10, fontWeight: '600', opacity: 0.5 },
+  jourServiceText: { fontSize: 11, fontWeight: '800', color: '#f39c12' },
   jourPauseText: { fontSize: 11, fontWeight: '600' },
   jourReposText: { fontSize: 12 },
   jourFrais: { paddingVertical: 12, paddingHorizontal: 10, alignItems: 'flex-end', justifyContent: 'space-between' },

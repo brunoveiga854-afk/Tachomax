@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
 import React, { useEffect, useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, Linking, RefreshControl } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
@@ -23,10 +23,12 @@ const PAUSA_MAX = 4.5 * 3600
 const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOMAX_estado'
 const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
-const CONDUCAO_SEGUNDOS_OFF = 8  // consecutive stopped ticks before setEmConducao(false)
-const KM_SALTO_MAX = 1           // ignore GPS jumps > 1 km between ticks
-const GPS_PERDA_DEAD_RECKON_S = 30
-const GPS_SALTO_DEAD_RECKON_MAX_KM = 50
+const CONDUCAO_PARAR_ABAIXO_3_S = 3
+const CONDUCAO_PARAR_ABAIXO_5_S = 12
+const CONDUCAO_PARAR_ABAIXO_7_S = 15
+const GPS_MOVIMENTO_SALTO_MAX_KM = 1
+const GPS_MOVIMENTO_GAP_S = 30
+const GPS_MOVIMENTO_GAP_MAX_KM = 50
 
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
@@ -44,6 +46,9 @@ export default function AujourdhuiScreen() {
   const [segPausa, setSegPausa] = useState(0)
   const [segPausaTotal, setSegPausaTotal] = useState(0)
   const [kmDiarios, setKmDiarios] = useState(0)
+  const [kmInicioTacho, setKmInicioTacho] = useState(0)
+  const [kmInicioInput, setKmInicioInput] = useState('')
+  const [kmFimInput, setKmFimInput] = useState('')
   const [horaInicio, setHoraInicio] = useState('')
   const [dateInicio, setDateInicio] = useState<Date | null>(null)
   const [profil, setProfil] = useState<Profil>('MIXTE')
@@ -70,11 +75,6 @@ export default function AujourdhuiScreen() {
   const [pausas, setPausas] = useState<{dur: number, inicio: number}[]>([])
   const [showPausasModal, setShowPausasModal] = useState(false)
   const pausaInicioRef = useRef<number>(0)
-
-  // GPS track
-  const [gpsTrack, setGpsTrack] = useState<{lat: number, lon: number, ts: number}[]>([])
-  const gpsTrackTimer = useRef<any>(null)
-  const [showKmModal, setShowKmModal] = useState(false)
 
   // Aviso progressivo condução
   const warnAnim = useRef(new Animated.Value(1)).current
@@ -120,9 +120,12 @@ export default function AujourdhuiScreen() {
   const fadeIn = useRef(new Animated.Value(1)).current
   const velocidadeBuffer = useRef<number[]>([])
   const conducaoSegundos = useRef(0)
-  const paradoSegundosGps = useRef(0)
+  const paradoAbaixo3Segundos = useRef(0)
+  const paradoAbaixo5Segundos = useRef(0)
+  const paradoAbaixo7Segundos = useRef(0)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
+  const estadoAtualRef = useRef<any>({})
 
   const MAX_CONDUITE = 9 * 3600
   const MAX_SERVICE = modeNuit ? 10 * 3600 : 12 * 3600
@@ -167,22 +170,63 @@ export default function AujourdhuiScreen() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
-  const adicionarKm = (dist: number) => {
-    if (dist <= 0.001 || dist > KM_SALTO_MAX) return
-    setKmDiarios(k => Math.round((k + dist) * 10) / 10)
-  }
-
-  const adicionarKmDeadReckon = (dist: number) => {
-    if (dist <= 0.001 || dist > GPS_SALTO_DEAD_RECKON_MAX_KM) return
-    setKmDiarios(k => Math.round((k + dist) * 10) / 10)
-  }
-
   const segConducaoHoje = segConducaoDiario + segConducao
 
   const mediaVelocidade = (vel: number) => {
     velocidadeBuffer.current.push(vel)
     if (velocidadeBuffer.current.length > 5) velocidadeBuffer.current.shift()
     return velocidadeBuffer.current.reduce((a, b) => a + b, 0) / velocidadeBuffer.current.length
+  }
+
+  const resetarParagemGps = () => {
+    paradoAbaixo3Segundos.current = 0
+    paradoAbaixo5Segundos.current = 0
+    paradoAbaixo7Segundos.current = 0
+  }
+
+  const pararConducaoGps = () => {
+    conducaoSegundos.current = 0
+    setEmConducao(false)
+  }
+
+  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number) => {
+    const dt = Math.max(1, dtGps)
+
+    paradoAbaixo3Segundos.current = vel < 3 ? paradoAbaixo3Segundos.current + dt : 0
+    paradoAbaixo5Segundos.current = vel < 5 ? paradoAbaixo5Segundos.current + dt : 0
+    paradoAbaixo7Segundos.current = vel < 7 ? paradoAbaixo7Segundos.current + dt : 0
+
+    const deveParar =
+      paradoAbaixo3Segundos.current >= CONDUCAO_PARAR_ABAIXO_3_S ||
+      paradoAbaixo5Segundos.current >= CONDUCAO_PARAR_ABAIXO_5_S ||
+      paradoAbaixo7Segundos.current >= CONDUCAO_PARAR_ABAIXO_7_S
+
+    if (deveParar) {
+      pararConducaoGps()
+      return
+    }
+
+    if (vel >= VELOCIDADE_MIN && velMedia >= VELOCIDADE_MIN) {
+      conducaoSegundos.current += dt
+      if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
+    } else if (vel < VELOCIDADE_MIN) {
+      conducaoSegundos.current = 0
+    }
+  }
+
+  const limparInputKm = (valor: string) => valor.replace(/[^0-9.,]/g, '')
+
+  const parseKmInput = (valor: string) => {
+    const km = parseFloat(valor.replace(',', '.').trim())
+    return Number.isFinite(km) && km > 0 ? km : 0
+  }
+
+  const arredondarKm = (valor: number) => Math.round(Math.max(0, valor) * 10) / 10
+
+  const calcularKmManual = () => {
+    const kmFim = parseKmInput(kmFimInput)
+    if (kmInicioTacho > 0) return arredondarKm(kmFim - kmInicioTacho)
+    return arredondarKm(kmFim)
   }
 
   // PONTO 7 — IA correction history
@@ -215,6 +259,32 @@ export default function AujourdhuiScreen() {
     } catch (e) { console.log('Erro ao guardar estado:', e) }
   }
 
+  const criarEstadoSnapshot = (overrides: any = {}) => {
+    const snap = estadoAtualRef.current
+    return {
+      enService: !!snap.enService,
+      emPausa: !!snap.emPausa,
+      emConducao: !!snap.emConducao,
+      decouche: !!snap.decouche,
+      modeNuit: !!snap.modeNuit,
+      segServico: snap.segServico || 0,
+      segConducao: snap.segConducao || 0,
+      segConducaoDiario: snap.segConducaoDiario || 0,
+      segAmplitude: snap.segAmplitude || 0,
+      segPausa: snap.segPausa || 0,
+      segPausaTotal: snap.segPausaTotal || 0,
+      kmDiarios: snap.kmDiarios || 0,
+      kmInicioTacho: snap.kmInicioTacho || 0,
+      pausaReglementaireOk: !!snap.pausaReglementaireOk,
+      pausas: snap.pausas || [],
+      horaInicio: snap.horaInicio || '',
+      dateInicio: snap.dateInicio?.toISOString(),
+      ultimaLocalizacao: ultimaLocalizacao.current,
+      ultimoGpsCallback: ultimoGpsCallback.current,
+      ...overrides,
+    }
+  }
+
   const aplicarEstadoPersistido = (estado: any, tempoBackground = 0) => {
     setEnService(true)
     setEmPausa(!!estado.emPausa)
@@ -224,12 +294,14 @@ export default function AujourdhuiScreen() {
     setModeNuit(!!estado.modeNuit)
     setHoraInicio(estado.horaInicio || '')
     setKmDiarios(estado.kmDiarios || 0)
+    const kmInicioGuardado = estado.kmInicioTacho || 0
+    setKmInicioTacho(kmInicioGuardado)
+    setKmInicioInput(kmInicioGuardado > 0 ? String(kmInicioGuardado) : '')
+    setKmFimInput('')
     setSegPausaTotal((estado.segPausaTotal || 0) + (estado.emPausa ? tempoBackground : 0))
     setSegConducaoDiario(estado.segConducaoDiario || 0)
     setPausaReglementaireOk(!!estado.pausaReglementaireOk)
     if (estado.pausas) setPausas(estado.pausas)
-    if (estado.gpsTrack) setGpsTrack(estado.gpsTrack)
-    gpsTrackTimer.current = estado.gpsTrackTimer || null
     if (estado.ultimaLocalizacao) ultimaLocalizacao.current = estado.ultimaLocalizacao
     if (estado.ultimoGpsCallback) ultimoGpsCallback.current = estado.ultimoGpsCallback
     if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
@@ -250,11 +322,38 @@ export default function AujourdhuiScreen() {
   const sincronizarEstadoPersistido = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY)
-      if (!data) return
+      if (!data) return false
       const estado = JSON.parse(data)
-      if (!estado.enService) return
-      aplicarEstadoPersistido(estado, 0)
-    } catch (e) { console.log('Erro ao sincronizar estado:', e) }
+      if (!estado.enService) return false
+
+      const agora = Date.now()
+      const tempoBackground = estado.tsBackground
+        ? Math.max(0, Math.min(24 * 3600, Math.floor((agora - estado.tsBackground) / 1000)))
+        : 0
+
+      const estadoAtualizado = {
+        ...estado,
+        tsBackground: null,
+        lastBgTick: agora,
+        segAmplitude: (estado.segAmplitude || 0) + tempoBackground,
+      }
+
+      if (estado.emPausa) {
+        estadoAtualizado.segPausa = (estado.segPausa || 0) + tempoBackground
+        estadoAtualizado.segPausaTotal = (estado.segPausaTotal || 0) + tempoBackground
+      } else {
+        estadoAtualizado.segServico = (estado.segServico || 0) + tempoBackground
+        estadoAtualizado.segPausa = estado.segPausa || 0
+        if (estado.emConducao) estadoAtualizado.segConducao = (estado.segConducao || 0) + tempoBackground
+      }
+
+      await guardarEstado(estadoAtualizado)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
+      return true
+    } catch (e) {
+      console.log('Erro ao sincronizar estado:', e)
+      return false
+    }
   }
 
   const iniciarGPSBackground = async () => {
@@ -416,54 +515,45 @@ export default function AujourdhuiScreen() {
   }, [warnPhase])
 
   useEffect(() => {
+    estadoAtualRef.current = {
+      enService, emPausa, emConducao, decouche, modeNuit,
+      segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
+      segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
+      horaInicio, dateInicio,
+    }
+  })
+
+  useEffect(() => {
     if (!enService) return
     autoGuardarTimer.current = setInterval(async () => {
-      await guardarEstado({
-        enService, emPausa, emConducao, decouche, modeNuit,
-        segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-        segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
-        horaInicio, dateInicio: dateInicio?.toISOString(),
-        ultimaLocalizacao: ultimaLocalizacao.current,
-        ultimoGpsCallback: ultimoGpsCallback.current,
-        gpsTrack,
-        gpsTrackTimer: gpsTrackTimer.current,
-        tsBackground: null,
-      })
+      await guardarEstado(criarEstadoSnapshot({ tsBackground: null }))
     }, 30000)
     return () => clearInterval(autoGuardarTimer.current)
-  }, [enService, emPausa, emConducao, segServico, segConducao, segConducaoDiario, segAmplitude, segPausa, segPausaTotal, kmDiarios, pausaReglementaireOk, pausas, gpsTrack])
+  }, [enService])
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', async nextState => {
       if (nextState.match(/inactive|background/)) {
-        tsBackground.current = Date.now()
-        if (enService) {
-          await guardarEstado({
-            enService, emPausa, emConducao, decouche, modeNuit,
-            segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-            segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
-            horaInicio, dateInicio: dateInicio?.toISOString(),
-            ultimaLocalizacao: ultimaLocalizacao.current,
-            ultimoGpsCallback: ultimoGpsCallback.current,
-            gpsTrack,
-            gpsTrackTimer: gpsTrackTimer.current,
-            lastBgTick: Date.now(),
-            tsBackground: tsBackground.current,
-          })
+        const agora = Date.now()
+        tsBackground.current = agora
+        if (estadoAtualRef.current.enService) {
+          await guardarEstado(criarEstadoSnapshot({
+            lastBgTick: agora,
+            tsBackground: agora,
+          }))
         }
       }
+
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        if (enService && tsBackground.current) {
-          tsBackground.current = null
-          await sincronizarEstadoPersistido()
-          // Re-check GPS subscription after returning from background — PONTO 1C
-          if (!locationSub.current) { iniciarGPS() }
-        }
+        tsBackground.current = null
+        const sincronizado = await sincronizarEstadoPersistido()
+        if (sincronizado && !locationSub.current) { iniciarGPS() }
       }
+
       appState.current = nextState
     })
     return () => sub.remove()
-  }, [enService, emPausa, emConducao, segServico, segAmplitude, segPausa, segPausaTotal, segConducao, segConducaoDiario, decouche, modeNuit, horaInicio, dateInicio, kmDiarios, gpsTrack, pausaReglementaireOk, pausas])
+  }, [])
 
   const carregarStatsSemaine = async () => {
     try {
@@ -764,60 +854,39 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
 
     locationSub.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 5 },
+      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 },
       (loc) => {
-        const vel = (loc.coords.speed || 0) * 3.6
-        setVelocidade(Math.round(vel))
-        const velMedia = mediaVelocidade(vel)
-        const agoraGps = Date.now()
-        const gapGpsS = (agoraGps - ultimoGpsCallback.current) / 1000
+        const agoraGps = loc.timestamp || Date.now()
+        const gapGpsS = Math.max(0, (agoraGps - ultimoGpsCallback.current) / 1000)
         const lat = loc.coords.latitude
         const lon = loc.coords.longitude
-
-        if (!emPausaRef.current) {
-          if (vel === 0) {
-            conducaoSegundos.current = 0
-            paradoSegundosGps.current = CONDUCAO_SEGUNDOS_OFF
-            setEmConducao(false)
-          } else if (velMedia >= VELOCIDADE_MIN) {
-            conducaoSegundos.current += 1
-            paradoSegundosGps.current = 0
-            if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
-          } else {
-            paradoSegundosGps.current += 1
-            conducaoSegundos.current = 0
-            if (paradoSegundosGps.current >= CONDUCAO_SEGUNDOS_OFF) setEmConducao(false)
-          }
-        } else {
-          setEmConducao(false)
-          conducaoSegundos.current = 0
-          paradoSegundosGps.current = 0
-        }
+        let dist = 0
 
         if (ultimaLocalizacao.current && !emPausaRef.current) {
-          const dist = calcularDistancia(
+          dist = calcularDistancia(
             ultimaLocalizacao.current.lat, ultimaLocalizacao.current.lon, lat, lon
           )
-          if (gapGpsS > GPS_PERDA_DEAD_RECKON_S) {
-            adicionarKmDeadReckon(dist)
-          } else {
-            adicionarKm(dist)
-          }
+        }
+
+        const velGps = Math.max(0, (loc.coords.speed || 0) * 3.6)
+        const saltoMax = gapGpsS > GPS_MOVIMENTO_GAP_S ? GPS_MOVIMENTO_GAP_MAX_KM : GPS_MOVIMENTO_SALTO_MAX_KM
+        const velInferida = gapGpsS > 0 && dist > 0.001 && dist <= saltoMax ? (dist / gapGpsS) * 3600 : 0
+        const vel = Math.max(velGps, velInferida)
+        setVelocidade(Math.round(vel))
+        const velMedia = mediaVelocidade(vel)
+        const dtGps = Math.max(1, Math.min(300, Math.floor(gapGpsS)))
+
+        if (!emPausaRef.current) {
+          atualizarConducaoGps(vel, velMedia, dtGps)
+        } else {
+          pararConducaoGps()
+          resetarParagemGps()
         }
 
         ultimaLocalizacao.current = { lat, lon }
         ultimoGpsCallback.current = agoraGps
         ultimoGpsSinal.current = agoraGps
         setGpsOk(true)
-        // PONTO 8 — record GPS waypoint every 30s while driving
-        if (!emPausaRef.current) {
-          const agora = Date.now()
-          if (!gpsTrackTimer.current) gpsTrackTimer.current = agora
-          if (agora - gpsTrackTimer.current >= 30000) {
-            gpsTrackTimer.current = agora
-            setGpsTrack(t => [...t.slice(-200), { lat: loc.coords.latitude, lon: loc.coords.longitude, ts: agora }])
-          }
-        }
       }
     )
   }
@@ -901,7 +970,8 @@ const pararGPS = async () => {
     const rappelAtivo = await AsyncStorage.getItem('rappel_saisie_ativo')
     if (rappelAtivo !== 'false' && notifOk) await agendarRappelSaisie(20, 0)
 
-    // 2. Calcular hora e modo noturno
+    // 2. Calcular hora, modo noturno e km inicial opcional
+    const kmInicial = parseKmInput(kmInicioInput)
     const agora = new Date()
     const h = String(agora.getHours()).padStart(2, '0')
     const m = String(agora.getMinutes()).padStart(2, '0')
@@ -910,6 +980,8 @@ const pararGPS = async () => {
 
     // 3. Atualizar todo o estado de uma vez (React 18 auto-batching)
     setModeNuit(isNuit)
+    setKmInicioTacho(kmInicial)
+    setKmFimInput('')
     setHoraInicio(`${h}h${m}`)
     setDateInicio(agora)
     setEnService(true)
@@ -918,8 +990,6 @@ const pararGPS = async () => {
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0)
     setPausas([]); setPausaReglementaireOk(false)
-    setGpsTrack([])
-    gpsTrackTimer.current = null
     ultimaLocalizacao.current = null
     ultimoGpsCallback.current = Date.now()
 
@@ -927,8 +997,8 @@ const pararGPS = async () => {
     await guardarEstado({
       enService: true, emPausa: false, emConducao: false, decouche, modeNuit: isNuit,
       segServico: 0, segConducao: 0, segConducaoDiario: 0, segAmplitude: 0, segPausa: 0,
-      segPausaTotal: 0, kmDiarios: 0, pausaReglementaireOk: false, pausas: [],
-      ultimaLocalizacao: null, ultimoGpsCallback: Date.now(), gpsTrack: [], gpsTrackTimer: null,
+      segPausaTotal: 0, kmDiarios: 0, kmInicioTacho: kmInicial, pausaReglementaireOk: false, pausas: [],
+      ultimaLocalizacao: null, ultimoGpsCallback: Date.now(),
       lastBgTick: Date.now(),
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
       tsBackground: null,
@@ -961,7 +1031,7 @@ const pararGPS = async () => {
   const handleStopConduiteTest = () => {
     setEmConducao(false)
     conducaoSegundos.current = 0
-    paradoSegundosGps.current = 0
+    resetarParagemGps()
     ultimaVerificacao.current = segConducao
     setShowCorrecao(true)
   }
@@ -997,10 +1067,10 @@ const pararGPS = async () => {
       await guardarEstado({
         enService, emPausa: false, emConducao: false, decouche, modeNuit,
         segServico, segConducao: novoSegConducao, segConducaoDiario: novoSegConducaoDiario,
-        segAmplitude, segPausa: 0, segPausaTotal, kmDiarios,
+        segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmInicioTacho,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
         ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
-        gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
+        lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
       // Reagendar alerta de pausa com tempo restante após retomar
@@ -1019,9 +1089,9 @@ const pararGPS = async () => {
       await guardarEstado({
         enService, emPausa: true, emConducao: false, decouche, modeNuit,
         segServico, segConducao, segConducaoDiario, segAmplitude, segPausa: 0,
-        segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
+        segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
         ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
-        gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
+        lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
       await cancelarTodosAlertas()
@@ -1034,7 +1104,7 @@ const pararGPS = async () => {
     }
   }
 
-  const guardarDia = async (fim: Date) => {
+  const guardarDia = async (fim: Date, kmManual = kmDiarios) => {
     if (!dateInicio) return
     const diasSemana = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
     const jour = diasSemana[dateInicio.getDay()]
@@ -1066,7 +1136,7 @@ const pararGPS = async () => {
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio, fin: fimStr,
-      segServico, segPausa: segPausaTotal, decouche, frais, modeNuit, kmDiarios,
+      segServico, segPausa: segPausaTotal, decouche, frais, modeNuit, kmDiarios: kmManual,
     }
     try {
       lista.unshift(novoDia)
@@ -1074,7 +1144,10 @@ const pararGPS = async () => {
     } catch (e) { console.log('Erro:', e) }
   }
 
-  const handleTerminer = () => setShowTerminerModal(true)
+  const handleTerminer = () => {
+    setKmFimInput('')
+    setShowTerminerModal(true)
+  }
 
   const confirmarRecuperarHora = () => {
     if (!dateInicio) return
@@ -1099,7 +1172,7 @@ const pararGPS = async () => {
     // Capture values before reset for summary modal
     const snapService = segServico
     const snapConduite = segConducaoHoje
-    const snapKm = kmDiarios
+    const snapKm = calcularKmManual()
 
     // Compute frais inline for summary
     const fim = new Date()
@@ -1126,15 +1199,15 @@ const pararGPS = async () => {
       valeurs: fv,
     }).total
 
-    await guardarDia(fim)
+    await guardarDia(fim, snapKm)
     await pararGPS()
     await cancelarTodosAlertas()
     await cancelarRappelSaisie()
     await AsyncStorage.removeItem(STORAGE_KEY)
     setEnService(false); setEmPausa(false); setEmConducao(false); setModeNuit(false)
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
-    setSegPausaTotal(0); setKmDiarios(0); setDecouche(false); setDateInicio(null)
-    setPausas([]); setPausaReglementaireOk(false); setGpsTrack([]); gpsTrackTimer.current = null
+    setSegPausaTotal(0); setKmDiarios(0); setKmInicioTacho(0); setKmInicioInput(''); setKmFimInput(''); setDecouche(false); setDateInicio(null)
+    setPausas([]); setPausaReglementaireOk(false)
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     setShowPausaBandeau(false); setParadoSegundos(0)
@@ -1248,6 +1321,20 @@ const pararGPS = async () => {
                   <Text style={[st.semStat, { color: '#27ae60' }]}>💰 {statsSemaine.frais.toFixed(0)}€</Text>
                 </View>
               )}
+            </View>
+
+            {/* ── KM TACOGRAPHE ── */}
+            <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: c.cardBorder }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM início (tacógrafo)</Text>
+              <TextInput
+                value={kmInicioInput}
+                onChangeText={v => setKmInicioInput(limparInputKm(v))}
+                placeholder="0 (optionnel)"
+                placeholderTextColor={c.textSub}
+                keyboardType="numeric"
+                style={{ backgroundColor: c.bg, borderRadius: 12, padding: 14, color: c.text, fontSize: 18, fontWeight: '800', borderWidth: 1, borderColor: c.cardBorder }}
+              />
+              <Text style={{ fontSize: 11, color: c.textSub, marginTop: 6 }}>Se não preencher, fica 0.</Text>
             </View>
 
             {/* ── DÉMARRER BUTTON ── */}
@@ -1506,11 +1593,11 @@ const pararGPS = async () => {
                         </TouchableOpacity>
                       )
                     })()}
-                    {kmDiarios > 0 && (
-                      <TouchableOpacity onPress={() => setShowKmModal(true)} style={{ flex: 1, backgroundColor: 'rgba(107,115,148,0.10)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: c.textSub }}>📍 {kmDiarios} km</Text>
-                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 1 }}>aujourd'hui · détail</Text>
-                      </TouchableOpacity>
+                    {kmInicioTacho > 0 && (
+                      <View style={{ flex: 1, backgroundColor: 'rgba(107,115,148,0.10)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: c.textSub }}>📍 {kmInicioTacho} km</Text>
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 1 }}>início tacógrafo</Text>
+                      </View>
                     )}
                   </View>
 
@@ -1890,9 +1977,24 @@ const pararGPS = async () => {
               </View>
               <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
                 <Text style={{ fontSize: 22 }}>📍</Text>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{kmDiarios}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{calcularKmManual()}</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
               </View>
+            </View>
+            <View style={{ backgroundColor: c.bg, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.cardBorder }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM fim (tacógrafo)</Text>
+              <TextInput
+                value={kmFimInput}
+                onChangeText={v => setKmFimInput(limparInputKm(v))}
+                placeholder="0"
+                placeholderTextColor={c.textSub}
+                keyboardType="numeric"
+                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, color: c.text, fontSize: 20, fontWeight: '900', borderWidth: 1, borderColor: c.cardBorder }}
+              />
+              <Text style={{ fontSize: 12, color: c.textSub, marginTop: 8 }}>
+                KM calculados : <Text style={{ fontWeight: '900', color: '#2980b9' }}>{calcularKmManual()} km</Text>
+                {kmInicioTacho > 0 ? <Text> · início {kmInicioTacho} km</Text> : <Text> · início não preenchido</Text>}
+              </Text>
             </View>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: decouche ? 'rgba(41,128,185,0.12)' : c.bg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: decouche ? '#2980b9' : c.cardBorder }} onPress={() => setDecouche(d => !d)}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2139,65 +2241,7 @@ const pararGPS = async () => {
         </View>
       </Modal>
 
-      {/* PONTO 8 — MODAL KM DU JOUR */}
-      <Modal visible={showKmModal} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#2980b9', width: '100%' }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📍 Distance du jour</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>GPS tracking actif</Text>
-            <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 48, fontWeight: '800', color: '#2980b9' }}>{kmDiarios}</Text>
-              <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>KM PARCOURUS</Text>
-            </View>
-            <View style={{ backgroundColor: c.bg, borderRadius: 10, padding: 12, marginBottom: 16 }}>
-              <Text style={{ fontSize: 12, color: c.textSub }}>Points GPS : <Text style={{ fontWeight: '800', color: c.text }}>{gpsTrack.length}</Text></Text>
-              {gpsTrack.length > 0 && (
-                <Text style={{ fontSize: 11, color: c.textSub, marginTop: 4 }}>
-                  De {new Date(gpsTrack[0].ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {new Date(gpsTrack[gpsTrack.length - 1].ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              )}
-            </View>
-            {gpsTrack.length >= 2 && (
-              <TouchableOpacity
-                style={{ backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                onPress={async () => {
-                  const appMaps = (await AsyncStorage.getItem('mapApp')) || 'google'
-                  // Amostrar até 20 pontos para não exceder o limite da URL
-                  const step = Math.max(1, Math.floor(gpsTrack.length / 20))
-                  const pontos = gpsTrack.filter((_, i) => i % step === 0)
-                  if (appMaps === 'waze') {
-                    // Waze: abre no primeiro ponto e navega até ao último
-                    const ultimo = gpsTrack[gpsTrack.length - 1]
-                    const url = `waze://?ll=${ultimo.lat},${ultimo.lon}&navigate=yes`
-                    const canOpen = await Linking.canOpenURL(url)
-                    if (canOpen) {
-                      Linking.openURL(url)
-                    } else {
-                      Linking.openURL(`https://www.waze.com/ul?ll=${ultimo.lat},${ultimo.lon}&navigate=yes`)
-                    }
-                  } else {
-                    // Google Maps: rota com waypoints
-                    const origem = `${pontos[0].lat},${pontos[0].lon}`
-                    const destino = `${pontos[pontos.length - 1].lat},${pontos[pontos.length - 1].lon}`
-                    const waypoints = pontos.slice(1, -1).map(p => `${p.lat},${p.lon}`).join('|')
-                    const url = waypoints.length > 0
-                      ? `https://www.google.com/maps/dir/${origem}/${waypoints}/${destino}`
-                      : `https://www.google.com/maps/dir/${origem}/${destino}`
-                    Linking.openURL(url)
-                  }
-                  setShowKmModal(false)
-                }}
-              >
-                <Text style={{ fontSize: 16 }}>🗺️</Text>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Ver rota</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={{ backgroundColor: c.bg, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowKmModal(false)}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>Fermer</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+
 
     </SafeAreaView>
   )

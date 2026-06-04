@@ -21,9 +21,11 @@ const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-const addRoundedKm = (kmAtual: number, dist: number, max: number) => {
-  if (dist <= 0.001 || dist > max) return kmAtual
-  return Math.round((kmAtual + dist) * 10) / 10
+const addKmExact = (estado: any, dist: number, max: number) => {
+  if (dist <= 0.001 || dist > max) return
+  const exact = (estado.kmDiariosExact ?? estado.kmDiarios ?? 0) + dist
+  estado.kmDiariosExact = exact
+  estado.kmDiarios = Math.round(exact * 10) / 10
 }
 
 const media = (vals: number[]) =>
@@ -45,27 +47,26 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       const now = loc.timestamp || Date.now()
       const lastTick = next.lastBgTick || next.tsBackground || now
       const dt = Math.max(0, Math.min(300, Math.floor((now - lastTick) / 1000)))
-      const vel = Math.max(0, (loc.coords.speed || 0) * 3.6)
+      const velGps = Math.max(0, (loc.coords.speed || 0) * 3.6)
       const lat = loc.coords.latitude
       const lon = loc.coords.longitude
+      let dist = 0
+      const gapS = next.ultimoGpsCallback ? Math.max(0, (now - next.ultimoGpsCallback) / 1000) : 0
+      const saltoMax = gapS > GPS_PERDA_DEAD_RECKON_S ? GPS_SALTO_DEAD_RECKON_MAX_KM : KM_SALTO_MAX
 
-      if (dt > 0) {
-        next.segAmplitude = (next.segAmplitude || 0) + dt
-        if (next.emPausa) {
-          next.segPausa = (next.segPausa || 0) + dt
-          next.segPausaTotal = (next.segPausaTotal || 0) + dt
-        } else {
-          next.segServico = (next.segServico || 0) + dt
-          if (next.emConducao) next.segConducao = (next.segConducao || 0) + dt
-        }
+      if (next.ultimaLocalizacao && !next.emPausa) {
+        dist = calcularDistancia(next.ultimaLocalizacao.lat, next.ultimaLocalizacao.lon, lat, lon)
+        addKmExact(next, dist, saltoMax)
       }
 
       if (!next.emPausa) {
-        const buffer = [...(next.bgVelBuffer || []), vel].slice(-5)
+        const velInferida = gapS > 0 && dist > 0.001 && dist <= saltoMax ? (dist / gapS) * 3600 : 0
+        const velMovimento = Math.max(velGps, velInferida)
+        const buffer = [...(next.bgVelBuffer || []), velMovimento].slice(-5)
         const velMedia = media(buffer)
         next.bgVelBuffer = buffer
 
-        if (vel === 0) {
+        if (velMovimento === 0) {
           next.bgConducaoTicks = 0
           next.bgParadoTicks = CONDUCAO_SEGUNDOS_OFF
           next.emConducao = false
@@ -84,14 +85,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
         next.bgParadoTicks = 0
       }
 
-      if (next.ultimaLocalizacao && !next.emPausa) {
-        const dist = calcularDistancia(next.ultimaLocalizacao.lat, next.ultimaLocalizacao.lon, lat, lon)
-        const gapS = next.ultimoGpsCallback ? (now - next.ultimoGpsCallback) / 1000 : 0
-        next.kmDiarios = addRoundedKm(
-          next.kmDiarios || 0,
-          dist,
-          gapS > GPS_PERDA_DEAD_RECKON_S ? GPS_SALTO_DEAD_RECKON_MAX_KM : KM_SALTO_MAX,
-        )
+      if (dt > 0) {
+        next.segAmplitude = (next.segAmplitude || 0) + dt
+        if (next.emPausa) {
+          next.segPausa = (next.segPausa || 0) + dt
+          next.segPausaTotal = (next.segPausaTotal || 0) + dt
+        } else {
+          next.segServico = (next.segServico || 0) + dt
+          if (next.emConducao) next.segConducao = (next.segConducao || 0) + dt
+        }
       }
 
       next.ultimaLocalizacao = { lat, lon }

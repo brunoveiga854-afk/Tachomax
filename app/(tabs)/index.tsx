@@ -111,6 +111,7 @@ export default function AujourdhuiScreen() {
   const ultimaLocalizacao = useRef<{lat: number, lon: number} | null>(null)
   const ultimoGpsSinal = useRef(Date.now())
   const ultimoGpsCallback = useRef(Date.now())
+  const kmDiariosExact = useRef(0)
   const segPausaRef = useRef(0)
   const autoGuardarTimer = useRef<any>(null)
   const paradoTimer = useRef<any>(null)
@@ -169,12 +170,14 @@ export default function AujourdhuiScreen() {
 
   const adicionarKm = (dist: number) => {
     if (dist <= 0.001 || dist > KM_SALTO_MAX) return
-    setKmDiarios(k => Math.round((k + dist) * 10) / 10)
+    kmDiariosExact.current += dist
+    setKmDiarios(Math.round(kmDiariosExact.current * 10) / 10)
   }
 
   const adicionarKmDeadReckon = (dist: number) => {
     if (dist <= 0.001 || dist > GPS_SALTO_DEAD_RECKON_MAX_KM) return
-    setKmDiarios(k => Math.round((k + dist) * 10) / 10)
+    kmDiariosExact.current += dist
+    setKmDiarios(Math.round(kmDiariosExact.current * 10) / 10)
   }
 
   const segConducaoHoje = segConducaoDiario + segConducao
@@ -223,7 +226,8 @@ export default function AujourdhuiScreen() {
     setDecouche(!!estado.decouche)
     setModeNuit(!!estado.modeNuit)
     setHoraInicio(estado.horaInicio || '')
-    setKmDiarios(estado.kmDiarios || 0)
+    kmDiariosExact.current = estado.kmDiariosExact ?? estado.kmDiarios ?? 0
+    setKmDiarios(Math.round(kmDiariosExact.current * 10) / 10)
     setSegPausaTotal((estado.segPausaTotal || 0) + (estado.emPausa ? tempoBackground : 0))
     setSegConducaoDiario(estado.segConducaoDiario || 0)
     setPausaReglementaireOk(!!estado.pausaReglementaireOk)
@@ -421,7 +425,7 @@ export default function AujourdhuiScreen() {
       await guardarEstado({
         enService, emPausa, emConducao, decouche, modeNuit,
         segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-        segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
+        segPausaTotal, kmDiarios, kmDiariosExact: kmDiariosExact.current, pausaReglementaireOk, pausas,
         horaInicio, dateInicio: dateInicio?.toISOString(),
         ultimaLocalizacao: ultimaLocalizacao.current,
         ultimoGpsCallback: ultimoGpsCallback.current,
@@ -441,7 +445,7 @@ export default function AujourdhuiScreen() {
           await guardarEstado({
             enService, emPausa, emConducao, decouche, modeNuit,
             segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-            segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
+            segPausaTotal, kmDiarios, kmDiariosExact: kmDiariosExact.current, pausaReglementaireOk, pausas,
             horaInicio, dateInicio: dateInicio?.toISOString(),
             ultimaLocalizacao: ultimaLocalizacao.current,
             ultimoGpsCallback: ultimoGpsCallback.current,
@@ -764,38 +768,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
 
     locationSub.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 5 },
+      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 },
       (loc) => {
-        const vel = (loc.coords.speed || 0) * 3.6
-        setVelocidade(Math.round(vel))
-        const velMedia = mediaVelocidade(vel)
-        const agoraGps = Date.now()
-        const gapGpsS = (agoraGps - ultimoGpsCallback.current) / 1000
+        const agoraGps = loc.timestamp || Date.now()
+        const gapGpsS = Math.max(0, (agoraGps - ultimoGpsCallback.current) / 1000)
         const lat = loc.coords.latitude
         const lon = loc.coords.longitude
-
-        if (!emPausaRef.current) {
-          if (vel === 0) {
-            conducaoSegundos.current = 0
-            paradoSegundosGps.current = CONDUCAO_SEGUNDOS_OFF
-            setEmConducao(false)
-          } else if (velMedia >= VELOCIDADE_MIN) {
-            conducaoSegundos.current += 1
-            paradoSegundosGps.current = 0
-            if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
-          } else {
-            paradoSegundosGps.current += 1
-            conducaoSegundos.current = 0
-            if (paradoSegundosGps.current >= CONDUCAO_SEGUNDOS_OFF) setEmConducao(false)
-          }
-        } else {
-          setEmConducao(false)
-          conducaoSegundos.current = 0
-          paradoSegundosGps.current = 0
-        }
+        let dist = 0
 
         if (ultimaLocalizacao.current && !emPausaRef.current) {
-          const dist = calcularDistancia(
+          dist = calcularDistancia(
             ultimaLocalizacao.current.lat, ultimaLocalizacao.current.lon, lat, lon
           )
           if (gapGpsS > GPS_PERDA_DEAD_RECKON_S) {
@@ -803,6 +785,34 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           } else {
             adicionarKm(dist)
           }
+        }
+
+        const velGps = Math.max(0, (loc.coords.speed || 0) * 3.6)
+        const saltoMax = gapGpsS > GPS_PERDA_DEAD_RECKON_S ? GPS_SALTO_DEAD_RECKON_MAX_KM : KM_SALTO_MAX
+        const velInferida = gapGpsS > 0 && dist > 0.001 && dist <= saltoMax ? (dist / gapGpsS) * 3600 : 0
+        const vel = Math.max(velGps, velInferida)
+        setVelocidade(Math.round(vel))
+        const velMedia = mediaVelocidade(vel)
+        const dtGps = Math.max(1, Math.min(300, Math.floor(gapGpsS)))
+
+        if (!emPausaRef.current) {
+          if (vel === 0) {
+            conducaoSegundos.current = 0
+            paradoSegundosGps.current = CONDUCAO_SEGUNDOS_OFF
+            setEmConducao(false)
+          } else if (velMedia >= VELOCIDADE_MIN) {
+            conducaoSegundos.current += dtGps
+            paradoSegundosGps.current = 0
+            if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
+          } else {
+            paradoSegundosGps.current += dtGps
+            conducaoSegundos.current = 0
+            if (paradoSegundosGps.current >= CONDUCAO_SEGUNDOS_OFF) setEmConducao(false)
+          }
+        } else {
+          setEmConducao(false)
+          conducaoSegundos.current = 0
+          paradoSegundosGps.current = 0
         }
 
         ultimaLocalizacao.current = { lat, lon }
@@ -921,13 +931,14 @@ const pararGPS = async () => {
     setGpsTrack([])
     gpsTrackTimer.current = null
     ultimaLocalizacao.current = null
+    kmDiariosExact.current = 0
     ultimoGpsCallback.current = Date.now()
 
     // 4. Persistir estado e iniciar GPS
     await guardarEstado({
       enService: true, emPausa: false, emConducao: false, decouche, modeNuit: isNuit,
       segServico: 0, segConducao: 0, segConducaoDiario: 0, segAmplitude: 0, segPausa: 0,
-      segPausaTotal: 0, kmDiarios: 0, pausaReglementaireOk: false, pausas: [],
+      segPausaTotal: 0, kmDiarios: 0, kmDiariosExact: 0, pausaReglementaireOk: false, pausas: [],
       ultimaLocalizacao: null, ultimoGpsCallback: Date.now(), gpsTrack: [], gpsTrackTimer: null,
       lastBgTick: Date.now(),
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
@@ -997,7 +1008,7 @@ const pararGPS = async () => {
       await guardarEstado({
         enService, emPausa: false, emConducao: false, decouche, modeNuit,
         segServico, segConducao: novoSegConducao, segConducaoDiario: novoSegConducaoDiario,
-        segAmplitude, segPausa: 0, segPausaTotal, kmDiarios,
+        segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmDiariosExact: kmDiariosExact.current,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
         ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
         gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
@@ -1019,7 +1030,7 @@ const pararGPS = async () => {
       await guardarEstado({
         enService, emPausa: true, emConducao: false, decouche, modeNuit,
         segServico, segConducao, segConducaoDiario, segAmplitude, segPausa: 0,
-        segPausaTotal, kmDiarios, pausaReglementaireOk, pausas,
+        segPausaTotal, kmDiarios, kmDiariosExact: kmDiariosExact.current, pausaReglementaireOk, pausas,
         ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
         gpsTrack, gpsTrackTimer: gpsTrackTimer.current, lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
@@ -1135,6 +1146,7 @@ const pararGPS = async () => {
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0); setDecouche(false); setDateInicio(null)
     setPausas([]); setPausaReglementaireOk(false); setGpsTrack([]); gpsTrackTimer.current = null
+    kmDiariosExact.current = 0
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     setShowPausaBandeau(false); setParadoSegundos(0)

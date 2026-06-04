@@ -125,6 +125,7 @@ export default function AujourdhuiScreen() {
   const paradoAbaixo7Segundos = useRef(0)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
+  const estadoAtualRef = useRef<any>({})
 
   const MAX_CONDUITE = 9 * 3600
   const MAX_SERVICE = modeNuit ? 10 * 3600 : 12 * 3600
@@ -258,6 +259,32 @@ export default function AujourdhuiScreen() {
     } catch (e) { console.log('Erro ao guardar estado:', e) }
   }
 
+  const criarEstadoSnapshot = (overrides: any = {}) => {
+    const snap = estadoAtualRef.current
+    return {
+      enService: !!snap.enService,
+      emPausa: !!snap.emPausa,
+      emConducao: !!snap.emConducao,
+      decouche: !!snap.decouche,
+      modeNuit: !!snap.modeNuit,
+      segServico: snap.segServico || 0,
+      segConducao: snap.segConducao || 0,
+      segConducaoDiario: snap.segConducaoDiario || 0,
+      segAmplitude: snap.segAmplitude || 0,
+      segPausa: snap.segPausa || 0,
+      segPausaTotal: snap.segPausaTotal || 0,
+      kmDiarios: snap.kmDiarios || 0,
+      kmInicioTacho: snap.kmInicioTacho || 0,
+      pausaReglementaireOk: !!snap.pausaReglementaireOk,
+      pausas: snap.pausas || [],
+      horaInicio: snap.horaInicio || '',
+      dateInicio: snap.dateInicio?.toISOString(),
+      ultimaLocalizacao: ultimaLocalizacao.current,
+      ultimoGpsCallback: ultimoGpsCallback.current,
+      ...overrides,
+    }
+  }
+
   const aplicarEstadoPersistido = (estado: any, tempoBackground = 0) => {
     setEnService(true)
     setEmPausa(!!estado.emPausa)
@@ -295,11 +322,38 @@ export default function AujourdhuiScreen() {
   const sincronizarEstadoPersistido = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY)
-      if (!data) return
+      if (!data) return false
       const estado = JSON.parse(data)
-      if (!estado.enService) return
-      aplicarEstadoPersistido(estado, 0)
-    } catch (e) { console.log('Erro ao sincronizar estado:', e) }
+      if (!estado.enService) return false
+
+      const agora = Date.now()
+      const tempoBackground = estado.tsBackground
+        ? Math.max(0, Math.min(24 * 3600, Math.floor((agora - estado.tsBackground) / 1000)))
+        : 0
+
+      const estadoAtualizado = {
+        ...estado,
+        tsBackground: null,
+        lastBgTick: agora,
+        segAmplitude: (estado.segAmplitude || 0) + tempoBackground,
+      }
+
+      if (estado.emPausa) {
+        estadoAtualizado.segPausa = (estado.segPausa || 0) + tempoBackground
+        estadoAtualizado.segPausaTotal = (estado.segPausaTotal || 0) + tempoBackground
+      } else {
+        estadoAtualizado.segServico = (estado.segServico || 0) + tempoBackground
+        estadoAtualizado.segPausa = estado.segPausa || 0
+        if (estado.emConducao) estadoAtualizado.segConducao = (estado.segConducao || 0) + tempoBackground
+      }
+
+      await guardarEstado(estadoAtualizado)
+      aplicarEstadoPersistido(estadoAtualizado, 0)
+      return true
+    } catch (e) {
+      console.log('Erro ao sincronizar estado:', e)
+      return false
+    }
   }
 
   const iniciarGPSBackground = async () => {
@@ -461,50 +515,45 @@ export default function AujourdhuiScreen() {
   }, [warnPhase])
 
   useEffect(() => {
+    estadoAtualRef.current = {
+      enService, emPausa, emConducao, decouche, modeNuit,
+      segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
+      segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
+      horaInicio, dateInicio,
+    }
+  })
+
+  useEffect(() => {
     if (!enService) return
     autoGuardarTimer.current = setInterval(async () => {
-      await guardarEstado({
-        enService, emPausa, emConducao, decouche, modeNuit,
-        segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-        segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
-        horaInicio, dateInicio: dateInicio?.toISOString(),
-        ultimaLocalizacao: ultimaLocalizacao.current,
-        ultimoGpsCallback: ultimoGpsCallback.current,
-        tsBackground: null,
-      })
+      await guardarEstado(criarEstadoSnapshot({ tsBackground: null }))
     }, 30000)
     return () => clearInterval(autoGuardarTimer.current)
-  }, [enService, emPausa, emConducao, segServico, segConducao, segConducaoDiario, segAmplitude, segPausa, segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas])
+  }, [enService])
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', async nextState => {
       if (nextState.match(/inactive|background/)) {
-        tsBackground.current = Date.now()
-        if (enService) {
-          await guardarEstado({
-            enService, emPausa, emConducao, decouche, modeNuit,
-            segServico, segConducao, segConducaoDiario, segAmplitude, segPausa,
-            segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
-            horaInicio, dateInicio: dateInicio?.toISOString(),
-            ultimaLocalizacao: ultimaLocalizacao.current,
-            ultimoGpsCallback: ultimoGpsCallback.current,
-            lastBgTick: Date.now(),
-            tsBackground: tsBackground.current,
-          })
+        const agora = Date.now()
+        tsBackground.current = agora
+        if (estadoAtualRef.current.enService) {
+          await guardarEstado(criarEstadoSnapshot({
+            lastBgTick: agora,
+            tsBackground: agora,
+          }))
         }
       }
+
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        if (enService && tsBackground.current) {
-          tsBackground.current = null
-          await sincronizarEstadoPersistido()
-          // Re-check GPS subscription after returning from background — PONTO 1C
-          if (!locationSub.current) { iniciarGPS() }
-        }
+        tsBackground.current = null
+        const sincronizado = await sincronizarEstadoPersistido()
+        if (sincronizado && !locationSub.current) { iniciarGPS() }
       }
+
       appState.current = nextState
     })
     return () => sub.remove()
-  }, [enService, emPausa, emConducao, segServico, segAmplitude, segPausa, segPausaTotal, segConducao, segConducaoDiario, decouche, modeNuit, horaInicio, dateInicio, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas])
+  }, [])
 
   const carregarStatsSemaine = async () => {
     try {

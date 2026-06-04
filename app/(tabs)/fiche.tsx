@@ -72,6 +72,7 @@ type CalcResult = {
   totalLiq: number; jours: number; hExtra25: number; hExtra50: number
   mesReceber: string; diaReceber: number; diaFrais: number
   empresa: string; precisao: number; mesAberto: boolean
+  mesHorasLabel: string  // ex: "Mai 2026"
   mesFraisLabel: string  // ex: "Avril 2026"
   salConfirmado?: boolean  // true quando o utilizador confirmou o valor real
 }
@@ -1395,6 +1396,7 @@ export default function MonSalaireScreen() {
         diaReceber: p.diaSalario,
         diaFrais: p.diaFrais,
         empresa, precisao, mesAberto,
+        mesHorasLabel: `${MOIS_NOMS[mesHoras]} ${anoHoras}`,
         mesFraisLabel: `${MOIS_NOMS[mesFrais]} ${anoFrais}`,
       })
       animarContagem(Math.round(totalLiq), mesAberto)
@@ -1897,6 +1899,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
+                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.62)', fontWeight: '600', marginTop: 3 }}>
+                  {calcResult.mesHorasLabel} · {calcResult.jours} jour{calcResult.jours > 1 ? 's' : ''} · {fmtH(calcResult.totalH)}
+                </Text>
                 <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={{ backgroundColor: 'rgba(39,174,96,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
                     <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaReceber}</Text>
@@ -1911,6 +1916,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               >
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.6 }}>✏️</Text></Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
+                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.62)', fontWeight: '600', marginTop: 3 }}>
+                  Frais de {calcResult.mesFraisLabel}
+                </Text>
                 <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={{ backgroundColor: 'rgba(41,128,185,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
                     <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaFrais}</Text>

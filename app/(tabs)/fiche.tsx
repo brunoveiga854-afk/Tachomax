@@ -16,6 +16,7 @@ const DEF_SAL = {
   ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
   valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
 }
+const MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM = 3
 
 type MoisData = {
   periode: string; moisIndex: number; annee: number; fichePages: number
@@ -114,6 +115,18 @@ function sanitizeFraisRegles(raw: any = {}, fallback: any = DEFAULT_FRAIS_REGLES
 const isTravailFrais = (type: string) => TYPES_TRAVAIL.includes(type || '')
 const isSansFrais = (type: string) => TYPES_SANS_FRAIS.includes(type || '')
 const fraisRealConfirme = (d: MoisData) => d.fraisConfirmado ? (d.fraisRecuConfirme || d.remboursementFrais || d.fraisBoletim || 0) : 0
+
+function votoMaisForte(votos: number[]): { valor: number; count: number } | null {
+  if (votos.length === 0) return null
+  const counts: Record<number, number> = {}
+  votos.forEach(v => counts[v] = (counts[v] || 0) + 1)
+  const [valorStr, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  return { valor: parseInt(valorStr), count }
+}
+
+function defasagemProtegida(valor: number, count: number, baseValue: number): number {
+  return valor === baseValue || count >= MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM ? valor : baseValue
+}
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
@@ -331,7 +344,7 @@ function validarHlagComTotais(
   dados: MoisData[], hist: any[], base: Padrao
 ): number {
   const mesesConf = dados.filter(d => d.montantTotalRecu > 0 && contaParaSalarioAprendizagem(d))
-  if (mesesConf.length < 2 || hist.length === 0) return base.hlag
+  if (mesesConf.length < MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM || hist.length === 0) return DEF_SAL.hlag
 
   const erros: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] }
 
@@ -372,14 +385,14 @@ function validarHlagComTotais(
     }
   }
 
-  // Escolhe o lag com menor erro médio (exige ≥2 meses)
-  let melhorLag = base.hlag, melhorErr = Infinity
+  // Escolhe o lag com menor erro médio, mas só contraria o default com confirmações suficientes.
+  let melhorLag = DEF_SAL.hlag, melhorErr = Infinity, melhorCount = 0
   for (let lag = 0; lag <= 3; lag++) {
     if (erros[lag].length < 2) continue
     const med = erros[lag].reduce((a, b) => a + b, 0) / erros[lag].length
-    if (med < melhorErr) { melhorErr = med; melhorLag = lag }
+    if (med < melhorErr) { melhorErr = med; melhorLag = lag; melhorCount = erros[lag].length }
   }
-  return melhorLag
+  return defasagemProtegida(melhorLag, melhorCount, DEF_SAL.hlag)
 }
 
 const diffMeses = (anoA: number, mesA: number, anoB: number, mesB: number) =>
@@ -695,9 +708,10 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
   const confirmadosSal = dados.filter(d => contaParaSalarioAprendizagem(d) && ((d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0))
   const confirmadosFrais = dados.filter(d => contaParaFraisAprendizagem(d))
 
-  const hlagDireto = choisirVoteMajoritaire(aprenderHlagPorConfirmacoes(dados))
+  const hlagDiretos = aprenderHlagPorConfirmacoes(dados)
+  const hlagDireto = votoMaisForte(hlagDiretos)
   if (hlagDireto !== null) {
-    next.hlag = hlagDireto
+    next.hlag = defasagemProtegida(hlagDireto.valor, hlagDireto.count, DEF_SAL.hlag)
   } else {
     const hlagVotos: number[] = []
     for (const fiche of confirmadosSal) {
@@ -728,15 +742,15 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
     }
 
     if (hlagVotos.length > 0) {
-      const melhorHlag = choisirVoteMajoritaire(hlagVotos)
-      const count = hlagVotos.filter(v => v === melhorHlag).length
-      if (melhorHlag !== null && (confirmadosSal.length >= 3 || count >= 2 || next.hlag === DEF_SAL.hlag)) next.hlag = melhorHlag
+      const voto = votoMaisForte(hlagVotos)
+      if (voto) next.hlag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.hlag)
     }
   }
 
-  const flagDireto = choisirVoteMajoritaire(aprenderFlagPorConfirmacoes(dados))
+  const flagDiretos = aprenderFlagPorConfirmacoes(dados)
+  const flagDireto = votoMaisForte(flagDiretos)
   if (flagDireto !== null) {
-    next.flag = flagDireto
+    next.flag = defasagemProtegida(flagDireto.valor, flagDireto.count, DEF_SAL.flag)
   } else {
     const flagVotos: number[] = []
     for (const fiche of confirmadosFrais) {
@@ -771,9 +785,8 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
     }
 
     if (flagVotos.length > 0) {
-      const melhorFlag = choisirVoteMajoritaire(flagVotos)
-      const count = flagVotos.filter(v => v === melhorFlag).length
-      if (melhorFlag !== null && (confirmadosFrais.length >= 3 || count >= 2 || next.flag === DEF_SAL.flag)) next.flag = melhorFlag
+      const voto = votoMaisForte(flagVotos)
+      if (voto) next.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
     }
   }
 
@@ -943,14 +956,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       lagsTestados.push(melhorLag)
     }
     if (lagsTestados.length > 0) {
-      const counts: Record<number, number> = {}
-      lagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      const melhorHlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-      const melhorCount = counts[melhorHlag] || 0
-      // Só muda hlag se: já é esse valor, OU ≥2 meses confirmam, OU ainda é o default de fábrica (nunca foi aprendido)
-      if (melhorHlag === base.hlag || melhorCount >= 2 || base.hlag === DEF_SAL.hlag) {
-        base.hlag = melhorHlag
-      }
+      const voto = votoMaisForte(lagsTestados)
+      if (voto) base.hlag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.hlag)
     }
   }
 
@@ -981,9 +988,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
   if (flagsDiretos.length > 0) {
     // Método directo funcionou — usa este resultado com alta confiança
-    const counts: Record<number, number> = {}
-    flagsDiretos.forEach(l => counts[l] = (counts[l] || 0) + 1)
-    base.flag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+    const voto = votoMaisForte(flagsDiretos)
+    if (voto) base.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
   } else if (fichasComFrais.length >= 1 && hist.length > 0) {
     // Método 2 (fallback): recalcular frais pelo histórico
     const flagsTestados: number[] = []
@@ -1001,14 +1007,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       flagsTestados.push(melhorFlag)
     }
     if (flagsTestados.length > 0) {
-      const counts: Record<number, number> = {}
-      flagsTestados.forEach(l => counts[l] = (counts[l] || 0) + 1)
-      const melhorFlag = +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-      const melhorCount = counts[melhorFlag] || 0
-      // Fallback: exige ≥2 meses para mudar flag (método directo já é fiável por si só)
-      if (melhorFlag === base.flag || melhorCount >= 2) {
-        base.flag = melhorFlag
-      }
+      const voto = votoMaisForte(flagsTestados)
+      if (voto) base.flag = defasagemProtegida(voto.valor, voto.count, DEF_SAL.flag)
     }
   }
 
@@ -1807,7 +1807,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     // Aplicar valores de frais dos boletins se existirem
     const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
-    let padraoBase = { ...padrao }
+    let padraoBase = { ...padrao, hlag: DEF_SAL.hlag, flag: DEF_SAL.flag }
     if (fraisValsRaw) {
       const fv = JSON.parse(fraisValsRaw)
       padraoBase = { ...padraoBase, ptd: fv.ptDej || padraoBase.ptd, dej: fv.dej || padraoBase.dej, din: fv.diner || padraoBase.din, nui: fv.nuit || padraoBase.nui }

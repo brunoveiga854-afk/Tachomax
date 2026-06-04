@@ -1900,7 +1900,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.62)', fontWeight: '600', marginTop: 3 }}>
-                  {calcResult.mesHorasLabel} · {calcResult.jours} jour{calcResult.jours > 1 ? 's' : ''} · {fmtH(calcResult.totalH)}
+                  Horas de {calcResult.mesHorasLabel}
                 </Text>
                 <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={{ backgroundColor: 'rgba(39,174,96,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>

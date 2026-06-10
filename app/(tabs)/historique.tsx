@@ -5,8 +5,8 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share, Alert, Mod
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
-import { calcularFraisJour } from '../../src/frais'
-type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
+import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
+type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
   date: string
@@ -21,7 +21,7 @@ type Jour = {
   kmDiarios?: number
   nota?: { categoria: string; emoji: string; texto?: string }
 }
-const TYPE_CONFIG: Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }> = {
+const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }>> = {
   TRAB:  { label: 'Travail',     color: '#27ae60', bg: 'rgba(39,174,96,0.12)',   bgLight: 'rgba(39,174,96,0.15)',  emoji: '💼' },
   DEC:   { label: 'Découché',    color: '#2980b9', bg: 'rgba(41,128,185,0.12)',  bgLight: 'rgba(41,128,185,0.15)', emoji: '🌙' },
   FER:   { label: 'Férié',       color: '#f39c12', bg: 'rgba(243,156,18,0.12)',  bgLight: 'rgba(243,156,18,0.15)', emoji: '🎉' },
@@ -328,7 +328,7 @@ const getJoursMois = () => {
     const alvo = `${String(atual.getDate()).padStart(2, '0')}/${String(atual.getMonth() + 1).padStart(2, '0')}`
     return historique.some(j => j.id !== jour.id && (j.date || '').startsWith(alvo) && (j.type === 'DEC' || j.decouche))
   }
-  const calcularFraisEdicao = (debut: string, fin: string, servico: string, type: JourType, prevDec = false) => {
+  const calcularFraisEdicao = (debut: string, fin: string, servico: string, type: JourType, prevDec = false, regles: any = DEFAULT_FRAIS_REGLES, valeurs: any = DEFAULT_FRAIS_VALEURS) => {
     const [hS, mS] = servico.replace('h', ':').split(':').map(Number)
     return calcularFraisJour({
       type,
@@ -337,6 +337,8 @@ const getJoursMois = () => {
       segServico: (hS * 3600) + ((mS || 0) * 60),
       decouche: type === 'DEC',
       prevDecouche: prevDec,
+      regles,
+      valeurs,
     }).total
   }
   const abrirNota = (jour: Jour) => {
@@ -366,7 +368,15 @@ const getJoursMois = () => {
     if (!jourEdit) return
     const novoSeg = calcServicoDe(editDebut, editFin, editPausaMin)
     const novoServicoStr = fmtHM(novoSeg)
-    const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit))
+    let regles = DEFAULT_FRAIS_REGLES
+    let valeurs = DEFAULT_FRAIS_VALEURS
+    try {
+      const reglesData = await AsyncStorage.getItem('frais_regles')
+      const valeursData = await AsyncStorage.getItem('frais_valores')
+      regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
+      valeurs = sanitizeFraisValeurs(valeursData ? JSON.parse(valeursData) : {})
+    } catch (e) {}
+    const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit), regles, valeurs)
     const jourAtualizado: Jour = {
       ...jourEdit,
       debut: editDebut,

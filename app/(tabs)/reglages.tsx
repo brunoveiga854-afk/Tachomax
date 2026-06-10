@@ -17,6 +17,7 @@ const BACKUP_KEYS = [
   'monSalaire_v2',
   'monSalaire_padrao',
   'frais_valores',
+  'frais_regles',
   'sal_settings',
   'profil',
 ]

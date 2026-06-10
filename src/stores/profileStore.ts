@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { FraisConfig, FRAIS_DEFAULT } from '../engine/frais'
+import { DEFAULT_FRAIS_VALEURS as FRAIS_DEFAULT, FraisValeurs as FraisConfig } from '../frais'
 
 // ═══════════════════════════════════════
 // FÉRIADOS FRANCE 2024-2027

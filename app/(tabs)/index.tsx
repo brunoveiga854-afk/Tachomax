@@ -1328,14 +1328,14 @@ const pararGPS = async () => {
             {/* ── WEEK SUMMARY CARD ── */}
             <View style={[st.semCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
               <View style={st.semHeader}>
-                <Text style={[st.semTitle, { color: c.textLabel }]}>📊 SEMAINE EN COURS</Text>
+                <Text style={[st.semTitle, { color: c.textLabel }]}>📊 {t.semainEnCours}</Text>
                 <Text style={[st.semHours, { color: semaineColor }]}>{fmtHM(statsSemaine.heures)}<Text style={[st.semMax, { color: c.textSub }]}> / {profil === 'CD' ? '52h' : '56h'}</Text></Text>
               </View>
               <View style={[st.semBarBg, { backgroundColor: c.progressBg }]}>
                 <View style={[st.semBarFill, { width: `${pctSemaine}%` as any, backgroundColor: semaineColor }]} />
               </View>
               {statsSemaine.jours === 0 ? (
-                <Text style={[st.semEmpty, { color: c.textSub }]}>Aucun service cette semaine — bon repos! 😴</Text>
+                <Text style={[st.semEmpty, { color: c.textSub }]}>{t.aucunServiceSemaine}</Text>
               ) : (
                 <View style={st.semStats}>
                   <Text style={[st.semStat, { color: c.textSub }]}>📅 {statsSemaine.jours} jours</Text>
@@ -1543,7 +1543,7 @@ const pararGPS = async () => {
                 )}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '600' }}>Démarré à {horaInicio}</Text>
+                <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '600' }}>{t.debutA} {horaInicio}</Text>
                 <Text style={{ fontSize: 15 }}>{modeNuit ? '🌙' : '☀️'}</Text>
               </View>
             </View>
@@ -1598,8 +1598,8 @@ const pararGPS = async () => {
                     <Text style={[st.timerBig, { color: emConducao ? barColor : c.text, fontSize: 52, letterSpacing: 2 }]}>{fmt(timerPrincipal)}</Text>
                     <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 }}>
                       {emConducao
-                        ? (modoTacho === 'decrescente' ? '↓ avant pause obligatoire' : '↑ temps de conduite')
-                        : 'EN ATTENTE'}
+                        ? (modoTacho === 'decrescente' ? t.avantPauseOblig : t.tempsDConduite)
+                        : t.enAttente}
                     </Text>
                   </View>
 
@@ -1771,7 +1771,7 @@ const pararGPS = async () => {
             {/* ── LIMITES LÉGALES ── */}
             <View style={[st.limites, { backgroundColor: c.card, borderColor: c.cardBorder, borderWidth: 1, borderRadius: 16, padding: 14 }]}>
               <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1.5, marginBottom: 12 }}>
-                LIMITES LÉGALES {modeNuit ? '🌙' : '☀️'}
+                {t.limitesLegales} {modeNuit ? '🌙' : '☀️'}
               </Text>
               {[
                 { label: t.conduiteAujourdhui,  seg: segConducaoHoje,     max: MAX_CONDUITE, maxLabel: '9h00',                             baseColor: '#27ae60' },
@@ -2015,8 +2015,8 @@ const pararGPS = async () => {
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, marginBottom: 16 }} />
-              <Text style={{ fontSize: 22, fontWeight: '800', color: c.text }}>Fin de service</Text>
-              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 4 }}>Confirmes-tu la fin de journée?</Text>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: c.text }}>{t.finDeService}</Text>
+              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 4 }}>{t.confirmerFinJournee}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
               <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
@@ -2054,8 +2054,8 @@ const pararGPS = async () => {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Text style={{ fontSize: 24 }}>🌙</Text>
                 <View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: decouche ? '#2980b9' : c.text }}>Découché ce soir</Text>
-                  <Text style={{ fontSize: 13, color: c.textSub }}>Frais de nuit appliqués automatiquement</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: decouche ? '#2980b9' : c.text }}>{t.decoucheCeSoir}</Text>
+                  <Text style={{ fontSize: 13, color: c.textSub }}>{t.fraisNuitAuto}</Text>
                 </View>
               </View>
               <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: decouche ? '#2980b9' : c.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
@@ -2076,14 +2076,14 @@ const pararGPS = async () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#f5a623', width: '100%' }}>
             <Text style={{ fontSize: 22, textAlign: 'center', marginBottom: 6 }}>🖨️</Text>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 8, textAlign: 'center' }}>Contrôle tacographe</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 8, textAlign: 'center' }}>{t.controleTacho}</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>La conduite enregistrée dans TachoMax correspond-elle à ton tacographe ?</Text>
             <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '700', letterSpacing: 1, marginBottom: 4 }}>CONDUITE ENREGISTRÉE</Text>
+              <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '700', letterSpacing: 1, marginBottom: 4 }}>{t.conduiteEnregistreeLabel}</Text>
               <Text style={{ color: '#27ae60', fontWeight: '800', fontSize: 32 }}>{fmtHM(segConducao)}</Text>
             </View>
             <TouchableOpacity style={{ backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }} onPress={() => setShowCorrecao(false)}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>✅ Oui, c'est correct</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>{t.ouiCestCorrect}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e74c3c' }} onPress={() => {
               const h = Math.floor(segConducao / 3600)
@@ -2093,7 +2093,7 @@ const pararGPS = async () => {
               setShowCorrecao(false)
               setTimeout(() => setShowInputCorrecao(true), 300)
             }}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#e74c3c' }}>❌ Non, corriger</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#e74c3c' }}>{t.nonCorriger}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2103,7 +2103,7 @@ const pararGPS = async () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#e74c3c', width: '100%' }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' }}>✏️ Corriger la conduite</Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 20 }}>Indique le temps réel affiché sur ton tacographe</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 20 }}>{t.indiqueTpsReel}</Text>
 
             <View style={{ backgroundColor: c.bg, borderRadius: 14, borderWidth: 2, borderColor: '#e74c3c', marginBottom: 16, alignItems: 'center', overflow: 'hidden' }}>
               {Platform.OS === 'android' ? (
@@ -2111,7 +2111,7 @@ const pararGPS = async () => {
                   <Text style={{ fontSize: 34, fontWeight: '900', color: c.text }}>
                     {String(correcaoPickerDate.getHours()).padStart(2, '0')}h{String(correcaoPickerDate.getMinutes()).padStart(2, '0')}
                   </Text>
-                  <Text style={{ fontSize: 12, color: c.textSub, marginTop: 4 }}>Toucher pour modifier</Text>
+                  <Text style={{ fontSize: 12, color: c.textSub, marginTop: 4 }}>{t.toucherPourModifier}</Text>
                 </TouchableOpacity>
               ) : (
                 <DateTimePicker
@@ -2133,7 +2133,7 @@ const pararGPS = async () => {
               setSegConducao(novoVal)
               setShowInputCorrecao(false)
             }}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>✅ Confirmer la correction</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>{t.confirmerCorrection}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => setShowInputCorrecao(false)}>
               <Text style={{ fontSize: 14, color: c.textSub }}>Annuler</Text>
@@ -2165,9 +2165,9 @@ const pararGPS = async () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623', width: '100%' }}>
             <Text style={{ fontSize: 26, textAlign: 'center', marginBottom: 8 }}>⏰</Text>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>À quelle heure as-tu terminé ?</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>{t.aQuelleHeure}</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-              Le service sera recalculé à partir de cette heure.{'\n'}Heure de début : <Text style={{ fontWeight: '800', color: c.text }}>{horaInicio}</Text>
+              {t.serviceRecalcule}{'\n'}{t.heureDebut} : <Text style={{ fontWeight: '800', color: c.text }}>{horaInicio}</Text>
             </Text>
 
             <View style={{ backgroundColor: c.bg, borderRadius: 16, padding: 4, marginBottom: 20, alignItems: 'center' }}>
@@ -2184,7 +2184,7 @@ const pararGPS = async () => {
               style={{ backgroundColor: '#f5a623', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }}
               onPress={confirmarRecuperarHora}
             >
-              <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Confirmer et terminer</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{t.confirmerEtTerminer}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
@@ -2202,8 +2202,8 @@ const pararGPS = async () => {
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623', width: '100%' }}>
 
             <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 4 }}>🏁</Text>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>Service terminé !</Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Bonne journée {nomeConducteur} 👋</Text>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>{t.serviceTermineModal}</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>{t.bonneJournee} {nomeConducteur} 👋</Text>
 
             {/* Stats grid */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
@@ -2241,13 +2241,13 @@ const pararGPS = async () => {
 
             {/* Weekly totals */}
             <View style={{ backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)', marginBottom: 20 }}>
-              <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>CUMUL SEMAINE</Text>
+              <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>{t.cumulSemaine}</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 14, color: c.textSub }}>Heures totales</Text>
+                <Text style={{ fontSize: 14, color: c.textSub }}>{t.heuresTotales}</Text>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{summaryData ? fmtHM(summaryData.semHeures) : '—'}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                <Text style={{ fontSize: 14, color: c.textSub }}>Frais totaux</Text>
+                <Text style={{ fontSize: 14, color: c.textSub }}>{t.fraisTotaux}</Text>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>{summaryData ? `${summaryData.semFrais.toFixed(2)}€` : '—'}</Text>
               </View>
             </View>
@@ -2256,7 +2256,7 @@ const pararGPS = async () => {
               style={{ backgroundColor: '#f5a623', borderRadius: 16, padding: 16, alignItems: 'center' }}
               onPress={() => setShowSummaryModal(false)}
             >
-              <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Parfait !</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{t.parfait}</Text>
             </TouchableOpacity>
           </View>
         </View>

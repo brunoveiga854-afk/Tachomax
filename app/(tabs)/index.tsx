@@ -199,6 +199,8 @@ export default function AujourdhuiScreen() {
     paradoAbaixo5Segundos.current = vel < 5 ? paradoAbaixo5Segundos.current + dt : 0
     paradoAbaixo7Segundos.current = vel < 7 ? paradoAbaixo7Segundos.current + dt : 0
 
+    const gpsCongelado = tempoVelCongelada.current >= 4
+
     if (velGps > 20 && velInferida < 5) {
       tempoGpsMentiroso.current += dt
     } else {

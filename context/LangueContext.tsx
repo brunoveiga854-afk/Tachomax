@@ -112,6 +112,13 @@ const T = {
     paradoNao: '❌ Non',
     gpsAlert: '⚠️ GPS sans signal — vérifie la localisation',
     pausasHoje: 'Pauses aujourd\'hui:',
+    semainEnCours: 'SEMAINE EN COURS',
+    kmDebut: 'KM début (optionnel)',
+    kmDebutLabel: 'KM début:',
+    kmDebutTacho: 'KM début tacógrafo',
+    appuieAilleurs: 'Appuie ailleurs pour fermer',
+    distanceParcourue: 'DISTANCE',
+    aucunServiceSemaine: 'Aucun service cette semaine — bon repos! 😴',
   },
   pt: {
     aujourdhui: 'Hoje',
@@ -221,6 +228,13 @@ const T = {
     paradoNao: '❌ Não',
     gpsAlert: '⚠️ GPS sem sinal — verifica a localização',
     pausasHoje: 'Pausas hoje:',
+    semainEnCours: 'SEMANA EM CURSO',
+    kmDebut: 'KM início (opcional)',
+    kmDebutLabel: 'KM início:',
+    kmDebutTacho: 'KM início tacógrafo',
+    appuieAilleurs: 'Toca noutro lado para fechar',
+    distanceParcourue: 'DISTÂNCIA',
+    aucunServiceSemaine: 'Nenhum serviço esta semana — bom descanso! 😴',
   }
 }
 

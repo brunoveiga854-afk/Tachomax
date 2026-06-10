@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as DocumentPicker from 'expo-document-picker'
+import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { useTheme } from '../../context/ThemeContext'
@@ -44,6 +45,10 @@ export default function ReglagesScreen() {
   const [transportFrigo, setTransportFrigo] = useState(false)
   const [transportGrue, setTransportGrue] = useState(false)
   const [transportAdr, setTransportAdr] = useState(false)
+  const [ficheEntrepriseUri, setFicheEntrepriseUri] = useState<string | null>(null)
+  const [showRapportModal, setShowRapportModal] = useState(false)
+  const [rapportData, setRapportData] = useState<any[] | null>(null)
+  const [loadingRapport, setLoadingRapport] = useState(false)
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -67,7 +72,114 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('transport_frigo').then(v => setTransportFrigo(v === 'true'))
     AsyncStorage.getItem('transport_grue').then(v => setTransportGrue(v === 'true'))
     AsyncStorage.getItem('transport_adr').then(v => setTransportAdr(v === 'true'))
+    AsyncStorage.getItem('fiche_entreprise_uri').then(v => { if (v) setFicheEntrepriseUri(v) })
   }, [])
+
+  const importerFicheEntreprise = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.9,
+    })
+    if (result.canceled || !result.assets?.length) return
+    const uri = result.assets[0].uri
+    setFicheEntrepriseUri(uri)
+    await AsyncStorage.setItem('fiche_entreprise_uri', uri)
+  }
+
+  const supprimerFicheEntreprise = async () => {
+    setFicheEntrepriseUri(null)
+    await AsyncStorage.removeItem('fiche_entreprise_uri')
+  }
+
+  const fmtHM = (seg: number) => {
+    const h = Math.floor(seg / 3600)
+    const m = Math.floor((seg % 3600) / 60)
+    return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`
+  }
+
+  const genererRapportSemaine = async () => {
+    setLoadingRapport(true)
+    try {
+      const raw = await AsyncStorage.getItem('historique')
+      const historique: any[] = raw ? JSON.parse(raw) : []
+
+      // Determine Monday and Sunday of current week
+      const today = new Date()
+      const dayOfWeek = (today.getDay() + 6) % 7 // Mon=0 … Sun=6
+      const monday = new Date(today)
+      monday.setDate(today.getDate() - dayOfWeek)
+      monday.setHours(0, 0, 0, 0)
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      sunday.setHours(23, 59, 59, 999)
+
+      const parseJourDate = (dateStr: string): Date | null => {
+        const parts = dateStr.split('/')
+        if (parts.length === 3) {
+          return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
+        } else if (parts.length === 2) {
+          const d = new Date()
+          d.setMonth(parseInt(parts[1]) - 1, parseInt(parts[0]))
+          d.setHours(0, 0, 0, 0)
+          return d
+        }
+        return null
+      }
+
+      const semaine = historique.filter(j => {
+        const d = parseJourDate(j.date || '')
+        return d && d >= monday && d <= sunday
+      }).sort((a, b) => {
+        const da = parseJourDate(a.date)
+        const db = parseJourDate(b.date)
+        return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
+      })
+
+      setRapportData(semaine)
+      setShowRapportModal(true)
+    } catch {}
+    setLoadingRapport(false)
+  }
+
+  const exporterRapport = async (jours: any[]) => {
+    try {
+      const today = new Date()
+      const dayOfWeek = (today.getDay() + 6) % 7
+      const monday = new Date(today)
+      monday.setDate(today.getDate() - dayOfWeek)
+      const lundi = `${String(monday.getDate()).padStart(2, '0')}/${String(monday.getMonth() + 1).padStart(2, '0')}/${monday.getFullYear()}`
+
+      let texte = `RAPPORT SEMAINE — ${lundi}\n`
+      texte += `${'─'.repeat(40)}\n`
+      let totalSeg = 0, totalFrais = 0, totalKm = 0
+      for (const j of jours) {
+        const typeEmoji = j.type === 'TRAB' ? '💼' : j.type === 'DEC' ? '🌙' : j.type === 'FER' ? '🎉' : j.type === 'FERIE' ? '🏖️' : j.type === 'RC' ? '🔄' : '❌'
+        texte += `${typeEmoji} ${j.jour} ${j.date}\n`
+        if (j.debut && j.fin) texte += `   ${j.debut} → ${j.fin}\n`
+        if (j.segServico > 0) texte += `   Service : ${fmtHM(j.segServico)}\n`
+        if (j.frais > 0) texte += `   Frais   : ${j.frais.toFixed(2)}€\n`
+        if (j.kmDiarios > 0) texte += `   KM      : ${j.kmDiarios} km\n`
+        texte += '\n'
+        if (['TRAB', 'DEC'].includes(j.type)) totalSeg += j.segServico || 0
+        totalFrais += j.frais || 0
+        totalKm += j.kmDiarios || 0
+      }
+      texte += `${'─'.repeat(40)}\n`
+      texte += `TOTAL SERVICE : ${fmtHM(totalSeg)}\n`
+      texte += `TOTAL FRAIS   : ${totalFrais.toFixed(2)}€\n`
+      if (totalKm > 0) texte += `TOTAL KM      : ${totalKm} km\n`
+
+      const filename = `rapport_semaine_${lundi.replace(/\//g, '-')}.txt`
+      const path = `${FileSystem.documentDirectory}${filename}`
+      await FileSystem.writeAsStringAsync(path, texte, { encoding: FileSystem.EncodingType.UTF8 })
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(path, { mimeType: 'text/plain', dialogTitle: 'Exporter le rapport' })
+      }
+    } catch (e) {
+      Alert.alert('Erreur', "Impossible d'exporter le rapport.")
+    }
+  }
 
   const apagaHistorique = async () => {
     await AsyncStorage.removeItem('historique')
@@ -311,6 +423,70 @@ export default function ReglagesScreen() {
               thumbColor="white"
             />
           </View>
+        </View>
+
+        {/* MA FICHE ENTREPRISE */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>MA FICHE ENTREPRISE</Text>
+          <Text style={[st.settingSub, { color: c.textSub, marginBottom: 14 }]}>
+            Digitalise la fiche vierge de ton entreprise pour générer automatiquement ton rapport hebdomadaire
+          </Text>
+
+          {/* Status indicator */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: ficheEntrepriseUri ? '#27ae60' : '#f5a623' }}>
+              {ficheEntrepriseUri ? '✅ Fiche configurée' : '⚠️ Aucune fiche'}
+            </Text>
+          </View>
+
+          {/* Thumbnail preview + delete */}
+          {ficheEntrepriseUri && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <Image
+                source={{ uri: ficheEntrepriseUri }}
+                style={{ width: 72, height: 100, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder }}
+                resizeMode="cover"
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: c.text, fontWeight: '600', marginBottom: 6 }}>Fiche importée</Text>
+                <TouchableOpacity
+                  onPress={supprimerFicheEntreprise}
+                  style={{ backgroundColor: 'rgba(231,76,60,0.1)', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#e74c3c', alignSelf: 'flex-start' }}
+                >
+                  <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '700' }}>🗑️ Supprimer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Import button */}
+          <TouchableOpacity
+            style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.08)', borderColor: '#f5a623', marginBottom: 10 }]}
+            onPress={importerFicheEntreprise}
+          >
+            <Text style={{ fontSize: 22 }}>📄</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>
+                {ficheEntrepriseUri ? 'Remplacer la fiche vierge' : 'Importer fiche vierge'}
+              </Text>
+              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>JPG · PNG depuis ta galerie</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Generate rapport button */}
+          <TouchableOpacity
+            style={[st.backupBtn, { backgroundColor: 'rgba(39,174,96,0.08)', borderColor: '#27ae60' }]}
+            onPress={genererRapportSemaine}
+            disabled={loadingRapport}
+          >
+            <Text style={{ fontSize: 22 }}>📊</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>
+                {loadingRapport ? 'Chargement...' : 'Générer rapport semaine'}
+              </Text>
+              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>Résumé hebdomadaire · export PDF</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* APPARENCE */}
@@ -660,6 +836,94 @@ export default function ReglagesScreen() {
             <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalReset(false)}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>{t.annuler}</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL RAPPORT SEMAINE */}
+      <Modal visible={showRapportModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder, maxHeight: '88%' }}>
+            <View style={{ alignItems: 'center', marginBottom: 4 }}>
+              <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, marginBottom: 16 }} />
+              <Text style={{ fontSize: 20, fontWeight: '800', color: c.text }}>📊 Rapport semaine</Text>
+            </View>
+
+            {(() => {
+              const jours = rapportData || []
+              const totalSeg = jours.filter(j => ['TRAB', 'DEC'].includes(j.type)).reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+              const totalFrais = jours.reduce((a: number, j: any) => a + (j.frais || 0), 0)
+              const totalKm = jours.reduce((a: number, j: any) => a + (j.kmDiarios || 0), 0)
+              return (
+                <>
+                  {/* Summary bar */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginVertical: 16 }}>
+                    <View style={{ flex: 1, backgroundColor: c.infoBox, borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>SERVICE</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{fmtHM(totalSeg)}</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: c.infoBox, borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>FRAIS</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{totalFrais.toFixed(0)}€</Text>
+                    </View>
+                    {totalKm > 0 && (
+                      <View style={{ flex: 1, backgroundColor: c.infoBox, borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>KM</Text>
+                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{totalKm}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Day list */}
+                  <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                    {jours.length === 0 ? (
+                      <Text style={{ color: c.textSub, textAlign: 'center', paddingVertical: 24, fontSize: 14 }}>
+                        Aucun service enregistré cette semaine
+                      </Text>
+                    ) : jours.map((j: any, i: number) => {
+                      const typeColor = j.type === 'TRAB' ? '#27ae60' : j.type === 'DEC' ? '#2980b9' : j.type === 'FER' ? '#f39c12' : j.type === 'FERIE' ? '#9b59b6' : j.type === 'RC' ? '#1abc9c' : '#6b7394'
+                      const typeEmoji = j.type === 'TRAB' ? '💼' : j.type === 'DEC' ? '🌙' : j.type === 'FER' ? '🎉' : j.type === 'FERIE' ? '🏖️' : j.type === 'RC' ? '🔄' : '❌'
+                      return (
+                        <View key={j.id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder }}>
+                          <Text style={{ fontSize: 20, marginRight: 10 }}>{typeEmoji}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: typeColor }}>{j.jour} {j.date}</Text>
+                            {j.debut && j.fin && (
+                              <Text style={{ fontSize: 12, color: c.textSub, marginTop: 1 }}>{j.debut} → {j.fin}</Text>
+                            )}
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            {j.segServico > 0 && (
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: c.text }}>{fmtHM(j.segServico)}</Text>
+                            )}
+                            {j.frais > 0 && (
+                              <Text style={{ fontSize: 12, color: '#27ae60' }}>{j.frais.toFixed(2)}€</Text>
+                            )}
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </ScrollView>
+
+                  {/* Actions */}
+                  <View style={{ marginTop: 16, gap: 10 }}>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#2980b9', borderRadius: 16, padding: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                      onPress={() => exporterRapport(jours)}
+                    >
+                      <Text style={{ fontSize: 16 }}>📤</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Exporter / Partager</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                      onPress={() => setShowRapportModal(false)}
+                    >
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Fermer</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )
+            })()}
           </View>
         </View>
       </Modal>

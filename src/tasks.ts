@@ -1,6 +1,7 @@
 import * as TaskManager from 'expo-task-manager'
 import * as Location from 'expo-location'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 
 export const LOCATION_TASK_NAME = 'background-location-task'
 const STORAGE_KEY = 'TACHOMAX_estado'
@@ -27,6 +28,9 @@ const media = (vals: number[]) =>
   vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
+  try {
+    await activateKeepAwakeAsync('tachooffice-location-task')
+  } catch (e) {}
   if (error) { console.log('Background GPS error:', error); return }
   if (!data?.locations?.length) return
 

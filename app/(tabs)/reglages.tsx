@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as DocumentPicker from 'expo-document-picker'
@@ -39,6 +39,11 @@ export default function ReglagesScreen() {
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [modoDecrescente, setModoDecrescente] = useState(false)
   const [modeTest, setModeTest] = useState(false)
+  const [remorqueImmat, setRemorqueImmat] = useState('')
+  const [remorqueParc, setRemorqueParc] = useState('')
+  const [transportFrigo, setTransportFrigo] = useState(false)
+  const [transportGrue, setTransportGrue] = useState(false)
+  const [transportAdr, setTransportAdr] = useState(false)
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -57,6 +62,11 @@ export default function ReglagesScreen() {
       setModoDecrescente(v === 'decrescente')
     })
     AsyncStorage.getItem('mode_test').then(v => setModeTest(v === 'true'))
+    AsyncStorage.getItem('remorque_immat').then(v => { if (v) setRemorqueImmat(v) })
+    AsyncStorage.getItem('remorque_parc').then(v => { if (v) setRemorqueParc(v) })
+    AsyncStorage.getItem('transport_frigo').then(v => setTransportFrigo(v === 'true'))
+    AsyncStorage.getItem('transport_grue').then(v => setTransportGrue(v === 'true'))
+    AsyncStorage.getItem('transport_adr').then(v => setTransportAdr(v === 'true'))
   }, [])
 
   const apagaHistorique = async () => {
@@ -223,6 +233,83 @@ export default function ReglagesScreen() {
               {profil === 'MIXTE' && '🔄 Mixte — surtout local, découché occasionnel'}
               {profil === 'LD' && '🛣️ Longue Distance — découché toute la semaine'}
             </Text>
+          </View>
+        </View>
+
+        {/* REMORQUE */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>REMORQUE</Text>
+          <Text style={[st.label, { color: c.textLabel }]}>Immatriculation</Text>
+          <TextInput
+            value={remorqueImmat}
+            onChangeText={async (v) => {
+              setRemorqueImmat(v)
+              await AsyncStorage.setItem('remorque_immat', v)
+            }}
+            placeholder="ex: AB-123-CD"
+            placeholderTextColor={c.textSub}
+            autoCapitalize="characters"
+            style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 14 }}
+          />
+          <Text style={[st.label, { color: c.textLabel }]}>Numéro de parc</Text>
+          <TextInput
+            value={remorqueParc}
+            onChangeText={async (v) => {
+              setRemorqueParc(v)
+              await AsyncStorage.setItem('remorque_parc', v)
+            }}
+            placeholder="ex: AP2"
+            placeholderTextColor={c.textSub}
+            autoCapitalize="characters"
+            style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
+          />
+        </View>
+
+        {/* TYPE DE TRANSPORT */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>TYPE DE TRANSPORT</Text>
+          <View style={[st.settingRow, { opacity: 0.5 }]}>
+            <Text style={[st.settingLabel, { color: c.text }]}>🚛 Normal</Text>
+            <Switch value={true} disabled trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>❄️ Frigorifique</Text>
+            <Switch
+              value={transportFrigo}
+              onValueChange={async (valor) => {
+                setTransportFrigo(valor)
+                await AsyncStorage.setItem('transport_frigo', String(valor))
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
+              thumbColor="white"
+            />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Grue / Ampliroll</Text>
+            <Switch
+              value={transportGrue}
+              onValueChange={async (valor) => {
+                setTransportGrue(valor)
+                await AsyncStorage.setItem('transport_grue', String(valor))
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
+              thumbColor="white"
+            />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>⚠️ ADR — Matières dangereuses</Text>
+            <Switch
+              value={transportAdr}
+              onValueChange={async (valor) => {
+                setTransportAdr(valor)
+                await AsyncStorage.setItem('transport_adr', String(valor))
+              }}
+              trackColor={{ false: '#d0d5e8', true: '#e74c3c' }}
+              thumbColor="white"
+            />
           </View>
         </View>
 

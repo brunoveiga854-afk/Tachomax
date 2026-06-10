@@ -378,7 +378,7 @@ export default function AujourdhuiScreen() {
       if (bg !== 'granted') {
         Alert.alert(
           'Localisation en arrière-plan',
-          'Active "Toujours autoriser" pour que TachoMax continue à compter conduite et kilomètres écran éteint.',
+          'Active "Toujours autoriser" pour que TachoOffice continue à compter conduite et kilomètres écran éteint.',
           [{ text: t.ok }]
         )
         return
@@ -394,7 +394,7 @@ export default function AujourdhuiScreen() {
         showsBackgroundLocationIndicator: true,
         pausesUpdatesAutomatically: false,
         foregroundService: {
-          notificationTitle: 'TachoMax actif',
+          notificationTitle: 'TachoOffice actif',
           notificationBody: 'Suivi conduite, pauses et kilomètres en cours',
           notificationColor: '#f5a623',
         },
@@ -1312,7 +1312,7 @@ const pararGPS = async () => {
       >
 
         <View style={st.header}>
-          <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>MAX</Text></Text>
+          <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>OFFICE</Text></Text>
           <TouchableOpacity style={[st.badge, { backgroundColor: c.card, borderColor: c.cardBorder }]} onPress={() => setShowProfil(true)}>
             <Text style={st.badgeText}>{profil} ▾</Text>
           </TouchableOpacity>
@@ -2077,7 +2077,7 @@ const pararGPS = async () => {
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#f5a623', width: '100%' }}>
             <Text style={{ fontSize: 22, textAlign: 'center', marginBottom: 6 }}>🖨️</Text>
             <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 8, textAlign: 'center' }}>{t.controleTacho}</Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>La conduite enregistrée dans TachoMax correspond-elle à ton tacographe ?</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>La conduite enregistrée dans TachoOffice correspond-elle à ton tacographe ?</Text>
             <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 20 }}>
               <Text style={{ fontSize: 12, color: c.textSub, fontWeight: '700', letterSpacing: 1, marginBottom: 4 }}>{t.conduiteEnregistreeLabel}</Text>
               <Text style={{ color: '#27ae60', fontWeight: '800', fontSize: 32 }}>{fmtHM(segConducao)}</Text>

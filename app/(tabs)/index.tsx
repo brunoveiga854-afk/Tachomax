@@ -123,6 +123,7 @@ export default function AujourdhuiScreen() {
   const paradoAbaixo3Segundos = useRef(0)
   const paradoAbaixo5Segundos = useRef(0)
   const paradoAbaixo7Segundos = useRef(0)
+  const tempoGpsMentiroso = useRef(0)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})
@@ -196,10 +197,19 @@ export default function AujourdhuiScreen() {
     paradoAbaixo5Segundos.current = vel < 5 ? paradoAbaixo5Segundos.current + dt : 0
     paradoAbaixo7Segundos.current = vel < 7 ? paradoAbaixo7Segundos.current + dt : 0
 
+    if (velGps > 20 && velInferida < 5) {
+      tempoGpsMentiroso.current += dt
+    } else {
+      tempoGpsMentiroso.current = 0
+    }
+    const gpsMentiroso = tempoGpsMentiroso.current >= 5
+
     const deveParar =
       paradoAbaixo3Segundos.current >= CONDUCAO_PARAR_ABAIXO_3_S ||
       paradoAbaixo5Segundos.current >= CONDUCAO_PARAR_ABAIXO_5_S ||
-      paradoAbaixo7Segundos.current >= CONDUCAO_PARAR_ABAIXO_7_S
+      paradoAbaixo7Segundos.current >= CONDUCAO_PARAR_ABAIXO_7_S ||
+      gpsCongelado ||
+      gpsMentiroso
 
     if (deveParar) {
       pararConducaoGps()

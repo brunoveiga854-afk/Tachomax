@@ -190,7 +190,7 @@ export default function AujourdhuiScreen() {
     setEmConducao(false)
   }
 
-  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number) => {
+  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number, velGps = 0, velInferida = 0) => {
     const dt = Math.max(1, dtGps)
 
     paradoAbaixo3Segundos.current = vel < 3 ? paradoAbaixo3Segundos.current + dt : 0
@@ -887,7 +887,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         const dtGps = Math.max(1, Math.min(300, Math.floor(gapGpsS)))
 
         if (!emPausaRef.current) {
-          atualizarConducaoGps(vel, velMedia, dtGps)
+          atualizarConducaoGps(vel, velMedia, dtGps, velGps, velInferida)
         } else {
           pararConducaoGps()
           resetarParagemGps()

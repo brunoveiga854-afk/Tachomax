@@ -101,6 +101,8 @@ export default function AujourdhuiScreen() {
   const [timePickerValue, setTimePickerValue] = useState(new Date())
   const [calMes, setCalMes] = useState(new Date().getMonth())
   const [calAno, setCalAno] = useState(new Date().getFullYear())
+  const [kmSugerido, setKmSugerido] = useState('')
+  const [showKmInicio, setShowKmInicio] = useState(false)
 
   const locationSub = useRef<any>(null)
   const tooltipTimer = useRef<any>(null)
@@ -472,6 +474,18 @@ export default function AujourdhuiScreen() {
   useEffect(() => {
     carregarDiasMes()
   }, [calMes, calAno])
+
+  useEffect(() => {
+    if (!enService) {
+      AsyncStorage.getItem('km_ultimo_fim').then(v => {
+        if (v && parseFloat(v) > 0 && !kmInicioInput) setKmSugerido(v)
+      })
+      setShowKmInicio(false)
+    } else {
+      setKmSugerido('')
+      setShowKmInicio(false)
+    }
+  }, [enService])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1341,6 +1355,50 @@ const pararGPS = async () => {
                   <Text style={st.btnCircularLabel}>{t.demarrer}</Text>
                 </TouchableOpacity>
               </Animated.View>
+            </View>
+
+            {/* ── KM DÉBUT ── */}
+            <View style={{ alignItems: 'center', marginTop: -8, marginBottom: 8 }}>
+              {kmSugerido && !kmInicioInput ? (
+                <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: '#f5a623', fontWeight: '700', fontSize: 13 }}>{t.kmDebutLabel}</Text>
+                  <Text style={{ color: '#f5a623', fontWeight: '800', fontSize: 15 }}>{kmSugerido}</Text>
+                  <TouchableOpacity
+                    onPress={() => { setKmInicioInput(kmSugerido); setKmSugerido('') }}
+                    style={{ backgroundColor: '#f5a623', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>✅</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setKmInicioInput(kmSugerido); setKmSugerido(''); setShowKmInicio(true) }}
+                    style={{ backgroundColor: c.progressBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+                  >
+                    <Text style={{ color: c.textSub, fontWeight: '700', fontSize: 12 }}>✏️</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : showKmInicio ? (
+                <View style={{ backgroundColor: c.card, borderColor: c.cardBorder, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, width: 260 }}>
+                  <TextInput
+                    value={kmInicioInput}
+                    onChangeText={v => setKmInicioInput(limparInputKm(v))}
+                    placeholder={t.kmDebut}
+                    placeholderTextColor={c.textSub}
+                    keyboardType="numeric"
+                    style={{ color: c.text, fontSize: 16, fontWeight: '600', textAlign: 'center' }}
+                    autoFocus
+                    onBlur={() => { if (!kmInicioInput) setShowKmInicio(false) }}
+                  />
+                  <Text style={{ color: c.textSub, fontSize: 11, marginTop: 6, textAlign: 'center' }}>{t.appuieAilleurs}</Text>
+                </View>
+              ) : kmInicioInput ? (
+                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ color: '#f5a623', fontSize: 13, fontWeight: '700' }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 16 }}>
+                  <Text style={{ color: c.textSub, fontSize: 12, opacity: 0.5 }}>+ {t.kmDebut}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* ── INLINE CALENDAR ── */}

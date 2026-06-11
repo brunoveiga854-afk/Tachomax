@@ -2396,7 +2396,7 @@ const pararGPS = async () => {
                           const opening = !statsOpen[k]
                           setStatsOpen(s => ({ ...s, [k]: opening }))
                           if (opening && sectionPositions[k] !== undefined) {
-                            setTimeout(() => statsScrollRef.current?.scrollTo({ y: Math.max(0, sectionPositions[k] - 20), animated: true }), 100)
+                            setTimeout(() => statsScrollRef.current?.scrollTo({ y: sectionPositions[k] + 100, animated: true }), 150)
                           }
                         }}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 2 }}

@@ -38,7 +38,7 @@ type Jour = {
 }
 const PAUSA_MAX = 4.5 * 3600
 const VELOCIDADE_MIN = 8
-const STORAGE_KEY = 'TACHOMAX_estado'
+const STORAGE_KEY = 'TACHOOFFICE_estado'
 const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
 const CONDUCAO_PARAR_ABAIXO_3_S = 5
 const CONDUCAO_PARAR_ABAIXO_5_S = 10
@@ -270,23 +270,23 @@ export default function AujourdhuiScreen() {
   }
 
   // PONTO 7 — IA correction history
-  const guardarCorrecaoHistorico = async (tachomax: number, corrigido: number) => {
+  const guardarCorrecaoHistorico = async (tachooffice: number, corrigido: number) => {
     try {
-      const raw = await AsyncStorage.getItem('tachomax_correcoes')
+      const raw = await AsyncStorage.getItem('tachooffice_correcoes')
       const hist = raw ? JSON.parse(raw) : []
-      hist.push({ ts: Date.now(), tachomax, corrigido, diferenca: corrigido - tachomax, velocidade: velocidade })
-      await AsyncStorage.setItem('tachomax_correcoes', JSON.stringify(hist.slice(-50)))
+      hist.push({ ts: Date.now(), tachooffice, corrigido, diferenca: corrigido - tachooffice, velocidade: velocidade })
+      await AsyncStorage.setItem('tachooffice_correcoes', JSON.stringify(hist.slice(-50)))
     } catch (e) {}
   }
 
   const getCorrecaoPrecisao = async (): Promise<string> => {
     try {
-      const raw = await AsyncStorage.getItem('tachomax_correcoes')
+      const raw = await AsyncStorage.getItem('tachooffice_correcoes')
       if (!raw) return ''
       const hist: any[] = JSON.parse(raw)
       const ultimas = hist.slice(-5)
       if (ultimas.length < 2) return ''
-      const desvios = ultimas.map(c => c.tachomax > 0 ? Math.abs(c.diferenca) / c.tachomax : 0)
+      const desvios = ultimas.map(c => c.tachooffice > 0 ? Math.abs(c.diferenca) / c.tachooffice : 0)
       const media = desvios.reduce((a, b) => a + b, 0) / desvios.length
       const precisao = Math.max(0, Math.round((1 - media) * 100))
       return `Précision actuelle : ${precisao}%`

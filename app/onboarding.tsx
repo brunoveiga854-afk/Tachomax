@@ -36,7 +36,7 @@ export default function OnboardingScreen() {
             <Text style={st.heroEmoji}>🚛</Text>
             <Text style={st.heroTitle}>Bienvenue !</Text>
             <Text style={st.heroText}>
-              TachoMax calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
+              TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
             </Text>
             <Text style={st.heroText2}>
               Minimum de saisie. Maximum de précision.

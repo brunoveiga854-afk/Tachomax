@@ -214,7 +214,7 @@ export default function ReglagesScreen() {
     setLoadingExport(true)
     try {
       const backup: any = {
-        version: 'tachomax-v1',
+        version: 'tachooffice-v1',
         exportedAt: new Date().toISOString(),
         data: {}
       }
@@ -228,7 +228,7 @@ export default function ReglagesScreen() {
 
       const json = JSON.stringify(backup, null, 2)
       const date = new Date().toISOString().slice(0, 10)
-      const filename = `tachomax_backup_${date}.json`
+      const filename = `tachooffice_backup_${date}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
 
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 })
@@ -236,7 +236,7 @@ export default function ReglagesScreen() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(path, {
           mimeType: 'application/json',
-          dialogTitle: 'Sauvegarder TachoMax',
+          dialogTitle: 'Sauvegarder TachoOffice',
           UTI: 'public.json',
         })
       } else {
@@ -267,7 +267,7 @@ export default function ReglagesScreen() {
 
       // Validar formato
       if (!backup.data || !backup.version) {
-        setModalSucessoMsg('❌ Fichier invalide.\nCe fichier ne semble pas être un backup TachoMax.')
+        setModalSucessoMsg('❌ Fichier invalide.\nCe fichier ne semble pas être un backup TachoOffice.')
         setShowModalSucesso(true)
         setLoadingImport(false)
         return
@@ -617,7 +617,7 @@ export default function ReglagesScreen() {
                   if (!ok) {
                     Alert.alert(
                       'Notifications désactivées',
-                      'Active les notifications pour TachoMax dans les Paramètres de ton téléphone.',
+                      'Active les notifications pour TachoOffice dans les Paramètres de ton téléphone.',
                       [{ text: 'OK' }]
                     )
                     return
@@ -691,7 +691,7 @@ export default function ReglagesScreen() {
                   Essai terminé
                 </Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginTop: 4, textAlign: 'center' }}>
-                  Abonne-toi pour continuer à utiliser TachoMax
+                  Abonne-toi pour continuer à utiliser TachoOffice
                 </Text>
               </View>
               <TouchableOpacity style={[st.subscribeBtn, { backgroundColor: '#e74c3c' }]}>
@@ -773,7 +773,7 @@ export default function ReglagesScreen() {
           <View style={{ height: 1, backgroundColor: c.cardBorder }} />
           <View style={{ paddingVertical: 12 }}>
             <Text style={[st.settingLabel, { color: c.text }]}>📦 Version</Text>
-            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoMax v1.0.0 — Bruno Pereira Da Veiga</Text>
+            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoOffice v1.0.0 — Bruno Pereira Da Veiga</Text>
           </View>
         </View>
 
@@ -792,12 +792,12 @@ export default function ReglagesScreen() {
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {[
-                { titre: 'Données collectées', texte: 'TachoMax stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l\'app. Aucune donnée n\'est envoyée vers des serveurs externes.' },
+                { titre: 'Données collectées', texte: 'TachoOffice stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l\'app. Aucune donnée n\'est envoyée vers des serveurs externes.' },
                 { titre: 'Stockage local', texte: 'Toutes tes données sont conservées localement sur ton appareil via AsyncStorage. Elles ne quittent jamais ton téléphone sauf si tu utilises la fonction d\'export manuel.' },
                 { titre: 'Localisation GPS', texte: 'L\'accès à la localisation est utilisé uniquement pour calculer les kilomètres parcourus pendant ton service. Les coordonnées GPS ne sont jamais enregistrées ni transmises.' },
-                { titre: 'Intelligence artificielle', texte: 'La fonctionnalité de lecture de fiche de paie utilise l\'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n\'est conservée par TachoMax.' },
+                { titre: 'Intelligence artificielle', texte: 'La fonctionnalité de lecture de fiche de paie utilise l\'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n\'est conservée par TachoOffice.' },
                 { titre: 'Notifications', texte: 'Les alertes (pause obligatoire, amplitude, rappel de saisie) sont gérées localement par ton appareil. Aucune notification n\'est envoyée depuis un serveur externe.' },
-                { titre: 'Pas de publicité', texte: 'TachoMax ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales.' },
+                { titre: 'Pas de publicité', texte: 'TachoOffice ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales.' },
                 { titre: 'Contact', texte: 'Pour toute question concernant tes données : brunoveiga854@gmail.com' },
               ].map(item => (
                 <View key={item.titre} style={{ marginBottom: 16 }}>

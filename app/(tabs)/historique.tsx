@@ -278,7 +278,7 @@ const getJoursMois = () => {
     const totalFrais = jours.reduce((a, j) => a + (j.frais || 0), 0)
     const nbDecouche = jours.filter(j => j.decouche).length
     const nbTrab = jours.filter(j => j.type === 'TRAB' || j.type === 'DEC').length
-    let texte = `🚛 TACHOMAX — Rapport ${label}\n`
+    let texte = `🚛 TACHOOFFICE — Rapport ${label}\n`
     texte += `${'─'.repeat(30)}\n\n`
     texte += `📊 RÉSUMÉ\n`
     texte += `Jours travaillés: ${nbTrab}\n`
@@ -292,8 +292,8 @@ const getJoursMois = () => {
       if (j.decouche) texte += ` 🌙`
       texte += `\n`
     })
-    texte += `\n${'─'.repeat(30)}\nGénéré par TachoMax`
-    await Share.share({ message: texte, title: `Rapport TachoMax ${label}` })
+    texte += `\n${'─'.repeat(30)}\nGénéré par TachoOffice`
+    await Share.share({ message: texte, title: `Rapport TachoOffice ${label}` })
   }
   const eliminarJour = async (id: string) => {
     const nova = historique.filter(j => j.id !== id)

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 
 export const LOCATION_TASK_NAME = 'background-location-task'
-const STORAGE_KEY = 'TACHOMAX_estado'
+const STORAGE_KEY = 'TACHOOFFICE_estado'
 const VELOCIDADE_MIN = 8
 const CONDUCAO_SEGUNDOS_ON = 8
 const CONDUCAO_PARAR_ABAIXO_3_S = 5

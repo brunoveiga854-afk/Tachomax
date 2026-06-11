@@ -1159,6 +1159,13 @@ export default function MonSalaireScreen() {
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
+  const [onbStep, setOnbStep] = useState(0)
+  const [onbDiaSal, setOnbDiaSal] = useState('5')
+  const [onbDiaFrais, setOnbDiaFrais] = useState('10')
+  const [onbFlag, setOnbFlag] = useState(0)
+  const [onbFraisSepare, setOnbFraisSepare] = useState(false)
+  const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
 
   const breathAnim = useRef(new Animated.Value(1)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -1193,7 +1200,12 @@ export default function MonSalaireScreen() {
     }
   }
 
-  useEffect(() => { charger() }, [])
+  useEffect(() => {
+    AsyncStorage.getItem('onboarding_salaire_done').then(v => {
+      if (!v) setShowOnboardingSalaire(true)
+    })
+    charger()
+  }, [])
 
   const charger = async () => {
     try {
@@ -2307,7 +2319,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               const dadosFicha = (fichaActual.dados || fichaActual) as any
               const verif = buildVerificacaoCruzada(fichaActual, dadosFicha, padrao, histCal, historique)
               const temDiff = temDiferencasVerif(verif)
-              const mesLabel = MESES_PT[fichaActual.moisIndex] || fichaActual.periode
+              const mesLabel = MESES_PT[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
               const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
               const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
 
@@ -2326,24 +2338,31 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                         <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 12, padding: 12, alignItems: 'center' }}
+                          style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'fiche' ? 3 : 0, borderColor: '#1a8c4e' }}
                           onPress={() => {
                             if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
                             if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
+                            setVerifApplied('fiche')
+                            setTimeout(() => setVerifApplied(false), 1500)
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Sim, usar fiche</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>{verifApplied === 'fiche' ? '✓' : '✅'} Sim, usar fiche</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                          style={{ flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 3 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
                             if (verif.salario.app > 0) setInputMontantSalQ(String(Math.round(verif.salario.app)))
                             if (verif.frais.app > 0) setInputMontantFraisQ(String(verif.frais.app))
+                            setVerifApplied('app')
+                            setTimeout(() => setVerifApplied(false), 1500)
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>❌ Não, os meus</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{verifApplied === 'app' ? '✓' : '❌'} Não, os meus</Text>
                         </TouchableOpacity>
                       </View>
+                      {verifApplied && (
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60', textAlign: 'center', marginBottom: 4 }}>✅ Valeurs appliquées</Text>
+                      )}
                       <TouchableOpacity onPress={() => setShowVerifDetalhes(v => !v)} style={{ alignItems: 'center', paddingVertical: 4 }}>
                         <Text style={{ fontSize: 12, color: c.textSub, textDecorationLine: 'underline' }}>
                           {showVerifDetalhes ? 'Ocultar detalhes' : 'Ver detalhes'}
@@ -2723,6 +2742,94 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── ONBOARDING SALAIRE ── */}
+      <Modal visible={showOnboardingSalaire} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#f5a623' }}>
+            {onbStep === 0 && (
+              <>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>💰 Bienvenue</Text>
+                <Text style={{ fontSize: 14, color: c.textSub, textAlign: 'center', marginBottom: 24 }}>3 questions rapides pour configurer ton salaire</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 12 }}>Quel jour reçois-tu ton salaire ?</Text>
+                <TextInput
+                  value={onbDiaSal}
+                  onChangeText={setOnbDiaSal}
+                  keyboardType="numeric"
+                  placeholder="5"
+                  placeholderTextColor={c.textSub}
+                  style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 20 }}
+                />
+                <TouchableOpacity onPress={() => setOnbStep(1)} style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Suivant →</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {onbStep === 1 && (
+              <>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 12 }}>Quel jour reçois-tu tes frais ?</Text>
+                <TextInput
+                  value={onbDiaFrais}
+                  onChangeText={setOnbDiaFrais}
+                  keyboardType="numeric"
+                  placeholder="10"
+                  placeholderTextColor={c.textSub}
+                  style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 }}
+                />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>Mois de réception :</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                  <TouchableOpacity onPress={() => setOnbFlag(0)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: onbFlag === 0 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 0 ? '#f5a623' : c.cardBorder }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: onbFlag === 0 ? '#fff' : c.textSub }}>Même mois</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setOnbFlag(1)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: onbFlag === 1 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 1 ? '#f5a623' : c.cardBorder }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: onbFlag === 1 ? '#fff' : c.textSub }}>Mois suivant</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => setOnbStep(0)} style={{ flex: 1, backgroundColor: c.input, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>← Retour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setOnbStep(2)} style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant →</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+            {onbStep === 2 && (
+              <>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 16 }}>Tes frais arrivent dans le même document que ton salaire ?</Text>
+                <View style={{ gap: 10, marginBottom: 20 }}>
+                  <TouchableOpacity onPress={() => setOnbFraisSepare(false)} style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: !onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: !onbFraisSepare ? '#f5a623' : c.cardBorder }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: !onbFraisSepare ? '#fff' : c.text }}>Oui, même fiche</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setOnbFraisSepare(true)} style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFraisSepare ? '#f5a623' : c.cardBorder }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: onbFraisSepare ? '#fff' : c.text }}>Non, document séparé</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => setOnbStep(1)} style={{ flex: 1, backgroundColor: c.input, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>← Retour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const diaSal = parseInt(onbDiaSal) || 5
+                      const diaFrais = parseInt(onbDiaFrais) || 10
+                      const newPadrao = { ...padrao, diaSalario: diaSal, diaFrais, flag: onbFlag }
+                      setPadrao(newPadrao)
+                      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(newPadrao))
+                      await AsyncStorage.setItem('onboarding_salaire_done', 'true')
+                      setShowOnboardingSalaire(false)
+                    }}
+                    style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 14, padding: 14, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Confirmer</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>

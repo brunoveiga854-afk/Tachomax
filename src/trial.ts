@@ -1,11 +1,11 @@
 /**
- * TachoMax — Sistema de Trial
+ * TachoOffice — Sistema de Trial
  * Gere os 60 dias de trial gratuito
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const TRIAL_KEY = 'tachomax_trial_start'
+const TRIAL_KEY = 'tachooffice_trial_start'
 const TRIAL_DIAS = 60
 
 /**

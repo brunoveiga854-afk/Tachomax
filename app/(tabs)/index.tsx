@@ -123,6 +123,7 @@ export default function AujourdhuiScreen() {
   const [calAno, setCalAno] = useState(new Date().getFullYear())
   const [kmSugerido, setKmSugerido] = useState('')
   const [showKmInicio, setShowKmInicio] = useState(false)
+  const [kmDebutConfirme, setKmDebutConfirme] = useState(false)
 
   const locationSub = useRef<any>(null)
   const tooltipTimer = useRef<any>(null)
@@ -1407,19 +1408,37 @@ const pararGPS = async () => {
                   </TouchableOpacity>
                 </View>
               ) : showKmInicio ? (
-                <View style={{ backgroundColor: c.card, borderColor: c.cardBorder, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, width: 260 }}>
-                  <TextInput
-                    value={kmInicioInput}
-                    onChangeText={v => setKmInicioInput(limparInputKm(v))}
-                    placeholder={t.kmDebut}
-                    placeholderTextColor={c.textSub}
-                    keyboardType="numeric"
-                    style={{ color: c.text, fontSize: 16, fontWeight: '600', textAlign: 'center' }}
-                    autoFocus
-                    onBlur={() => { if (!kmInicioInput) setShowKmInicio(false) }}
-                  />
-                  <Text style={{ color: c.textSub, fontSize: 11, marginTop: 6, textAlign: 'center' }}>{t.appuieAilleurs}</Text>
-                </View>
+                kmDebutConfirme ? (
+                  <View style={{ backgroundColor: 'rgba(39,174,96,0.12)', borderColor: '#27ae60', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, width: 280, alignItems: 'center' }}>
+                    <Text style={{ color: '#27ae60', fontSize: 15, fontWeight: '800' }}>✓ Confirmé — {kmInicioInput} km</Text>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, width: 280, shadowColor: '#f5a623', shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 }}>
+                    <Text style={{ color: '#f5a623', fontSize: 12, fontWeight: '800', letterSpacing: 1, textAlign: 'center', marginBottom: 8 }}>📍 KM DÉBUT</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <TextInput
+                        value={kmInicioInput}
+                        onChangeText={v => setKmInicioInput(limparInputKm(v))}
+                        placeholder={t.kmDebut}
+                        placeholderTextColor={c.textSub}
+                        keyboardType="numeric"
+                        style={{ flex: 1, color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'center', backgroundColor: c.bg, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 }}
+                        autoFocus
+                      />
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (kmInicioInput) {
+                            setKmDebutConfirme(true)
+                            setTimeout(() => { setKmDebutConfirme(false); setShowKmInicio(false) }, 1200)
+                          }
+                        }}
+                        style={{ backgroundColor: kmInicioInput ? '#27ae60' : c.progressBg, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )
               ) : kmInicioInput ? (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: '#f5a623', fontSize: 13, fontWeight: '700' }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
@@ -1555,6 +1574,14 @@ const pararGPS = async () => {
                 </View>
               )
             })()}
+
+            {/* ── STATS — always accessible ── */}
+            <TouchableOpacity
+              onPress={() => setShowStats(true)}
+              style={{ marginTop: 14, marginBottom: 8, backgroundColor: 'rgba(41,128,185,0.08)', borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.25)' }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#2980b9', letterSpacing: 1 }}>📊 STATS DÉTAILLÉES</Text>
+            </TouchableOpacity>
 
           </Animated.View>
         ) : (

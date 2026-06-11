@@ -19,6 +19,8 @@ type Jour = {
   decouche: boolean
   frais: number
   kmDiarios?: number
+  kmInicio?: number
+  kmFim?: number
   nota?: { categoria: string; emoji: string; texto?: string }
 }
 const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }>> = {
@@ -192,6 +194,8 @@ export default function HistoriqueScreen() {
   const [notaDataSel, setNotaDataSel] = useState<string>('')
   const [showNotaDatePicker, setShowNotaDatePicker] = useState(false)
   const [editKm, setEditKm] = useState('')
+  const [editKmInicio, setEditKmInicio] = useState('')
+  const [editKmFim, setEditKmFim] = useState('')
   useFocusEffect(useCallback(() => { setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   const chargerHistorique = async () => {
     try {
@@ -313,6 +317,8 @@ const getJoursMois = () => {
     setEditType(jour.type)
     setEditFrais(jour.frais.toFixed(2))
     setEditKm(String(jour.kmDiarios ?? 0))
+    setEditKmInicio(String(jour.kmInicio ?? 0))
+    setEditKmFim(String(jour.kmFim ?? 0))
     const pausaMin = Math.floor((jour.segPausa || 0) / 60)
     setEditPausaMin(pausaMin)
     setEditServico(fmtHM(calcServicoDe(jour.debut, jour.fin, pausaMin)))
@@ -387,6 +393,8 @@ const getJoursMois = () => {
       segServico: novoSeg,
       segPausa: editPausaMin * 60,
       kmDiarios: parseFloat(editKm) || 0,
+      kmInicio: parseFloat(editKmInicio) || 0,
+      kmFim: parseFloat(editKmFim) || 0,
     }
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
@@ -716,6 +724,30 @@ const getJoursMois = () => {
                     {fmtHM(calcServicoDe(editDebut, editFin, editPausaMin))}
                   </Text>
                 </View>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>KM DÉBUT</Text>
+                <TextInput
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
+                  value={editKmInicio}
+                  onChangeText={setEditKmInicio}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={c.textSub}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>KM FIN</Text>
+                <TextInput
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
+                  value={editKmFim}
+                  onChangeText={setEditKmFim}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={c.textSub}
+                />
               </View>
             </View>
             <View style={{ marginBottom: 16 }}>

@@ -19,6 +19,23 @@ import {
   agendarRappelSaisie,
 } from '../../src/notifications'
 type Profil = 'CD' | 'MIXTE' | 'LD'
+type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
+type Jour = {
+  id: string
+  date: string
+  jour: string
+  type: JourType
+  debut: string
+  fin: string
+  segServico: number
+  segPausa: number
+  decouche: boolean
+  frais: number
+  modeNuit?: boolean
+  kmDiarios?: number
+  kmInicio?: number
+  kmFim?: number
+}
 const PAUSA_MAX = 4.5 * 3600
 const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOMAX_estado'
@@ -89,7 +106,7 @@ export default function AujourdhuiScreen() {
   const [showCalendario, setShowCalendario] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showReglementation, setShowReglementation] = useState(false)
-  const [diasHistorique, setDiasHistorique] = useState<any[]>([])
+  const [diasHistorique, setDiasHistorique] = useState<Jour[]>([])
   const [showAddDia, setShowAddDia] = useState(false)
   const [addDiaStr, setAddDiaStr] = useState('')
   const [addDiaLabel, setAddDiaLabel] = useState('')
@@ -98,7 +115,7 @@ export default function AujourdhuiScreen() {
   const [addServico, setAddServico] = useState('08h00')
   const [addFrais, setAddFrais] = useState('0.00')
   const [editandoDiaId, setEditandoDiaId] = useState<string | null>(null)
-  const [addType, setAddType] = useState<'TRAB'|'DEC'|'FER'|'FERIE'|'RC'|'OFF'>('TRAB')
+  const [addType, setAddType] = useState<JourType>('TRAB')
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [timePickerField, setTimePickerField] = useState<'debut'|'fin'|'servico'>('debut')
   const [timePickerValue, setTimePickerValue] = useState(new Date())
@@ -1164,15 +1181,19 @@ const pararGPS = async () => {
       regles,
       valeurs: fv,
     }).total
-    const novoDia = {
+    const kmInicioGuardado = getKmInicioManual()
+    const kmFimGuardado = parseKmInput(kmFimInput)
+    const novoDia: Jour = {
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio, fin: fimStr,
-      segServico, segPausa: segPausaTotal, decouche, frais, modeNuit, kmDiarios: kmManual,
+      segServico, segPausa: segPausaTotal, decouche, frais, modeNuit,
+      kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
     }
     try {
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
+      await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
     } catch (e) { console.log('Erro:', e) }
   }
 

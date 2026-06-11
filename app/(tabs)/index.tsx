@@ -151,6 +151,7 @@ export default function AujourdhuiScreen() {
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})
+  const statsScrollRef = useRef<any>(null)
 
   const MAX_CONDUITE = 9 * 3600
   const MAX_SERVICE = modeNuit ? 10 * 3600 : 12 * 3600
@@ -2349,7 +2350,7 @@ const pararGPS = async () => {
               </View>
               <View style={{ height: 1, backgroundColor: c.cardBorder }} />
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ padding: 16 }}>
+              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={false} style={{ padding: 16 }}>
                 {(() => {
                   // ── Shared helpers ──────────────────────────────────────────
                   const today = new Date()
@@ -2375,15 +2376,24 @@ const pararGPS = async () => {
                     return (db?.getTime() ?? 0) - (da?.getTime() ?? 0)
                   })
 
-                  // Section accordion header
+                  // Section accordion header with auto-scroll
+                  const sectionPositions: Record<string, number> = {}
                   const AccHeader = ({ label, k }: { label: string; k: keyof typeof statsOpen }) => (
-                    <TouchableOpacity
-                      onPress={() => setStatsOpen(s => ({ ...s, [k]: !s[k] }))}
-                      style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 2 }}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
-                      <Text style={{ fontSize: 12, color: c.textSub }}>{statsOpen[k] ? '▲' : '▼'}</Text>
-                    </TouchableOpacity>
+                    <View onLayout={(e) => { sectionPositions[k] = e.nativeEvent.layout.y }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const opening = !statsOpen[k]
+                          setStatsOpen(s => ({ ...s, [k]: opening }))
+                          if (opening && sectionPositions[k] !== undefined) {
+                            setTimeout(() => statsScrollRef.current?.scrollTo({ y: Math.max(0, sectionPositions[k] - 20), animated: true }), 100)
+                          }
+                        }}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 2 }}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
+                        <Text style={{ fontSize: 12, color: c.textSub }}>{statsOpen[k] ? '▲' : '▼'}</Text>
+                      </TouchableOpacity>
+                    </View>
                   )
                   const SectionWrap = ({ children }: { children: React.ReactNode }) => (
                     <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, marginBottom: 4 }}>{children}</View>

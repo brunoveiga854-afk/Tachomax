@@ -146,6 +146,7 @@ export default function AujourdhuiScreen() {
   const paradoAbaixo5Segundos = useRef(0)
   const paradoAbaixo7Segundos = useRef(0)
   const tempoGpsMentiroso = useRef(0)
+  const tempoVelCongelada = useRef(0)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})

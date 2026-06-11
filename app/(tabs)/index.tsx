@@ -1546,21 +1546,32 @@ const pararGPS = async () => {
                       })}
                     </View>
                   ))}
-                  {/* Legend */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, justifyContent: 'center' }}>
-                    {[
-                      { color: '#27ae60', label: 'TRAV.' },
-                      { color: '#2980b9', label: 'DÉC.' },
-                      { color: '#6b7394', label: 'REPOS' },
-                      { color: '#9b59b6', label: 'CONGÉ' },
-                      { color: '#1abc9c', label: 'R.C.' },
-                      { color: '#f39c12', label: 'FÉRIÉ' },
-                    ].map(item => (
-                      <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: item.color }} />
-                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700' }}>{item.label}</Text>
-                      </View>
-                    ))}
+                  {/* Legend — 2 rows */}
+                  <View style={{ marginTop: 10, gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
+                      {[
+                        { color: '#27ae60', label: 'TRAVAIL' },
+                        { color: '#2980b9', label: 'DÉCOUCHÉ' },
+                        { color: '#6b7394', label: 'REPOS' },
+                      ].map(item => (
+                        <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: item.color }} />
+                          <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700' }}>{item.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
+                      {[
+                        { color: '#9b59b6', label: 'CONGÉ' },
+                        { color: '#1abc9c', label: 'R.COMP.' },
+                        { color: '#f39c12', label: 'FÉRIÉ' },
+                      ].map(item => (
+                        <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: item.color }} />
+                          <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700' }}>{item.label}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                   {/* Hint editar/adicionar */}
                   <View style={{ marginTop: 10, paddingHorizontal: 4, paddingVertical: 7, backgroundColor: 'rgba(245,166,35,0.07)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>

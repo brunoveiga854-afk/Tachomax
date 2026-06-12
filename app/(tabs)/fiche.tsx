@@ -1809,6 +1809,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
       setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
       setShowVerifDetalhes(false)
+      setVerifApplied(false)
       setPerguntaAtual(perguntaAtual + 1)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -2339,31 +2340,26 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                         <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'fiche' ? 3 : 0, borderColor: '#1a8c4e' }}
+                          style={{ flex: 1, backgroundColor: verifApplied === 'fiche' ? 'rgba(39,174,96,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'fiche' ? 1.5 : 1, borderColor: verifApplied === 'fiche' ? '#27ae60' : c.cardBorder }}
                           onPress={() => {
                             if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
                             if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
                             setVerifApplied('fiche')
-                            setTimeout(() => setVerifApplied(false), 1500)
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>{verifApplied === 'fiche' ? '✓' : '✅'} Sim, usar fiche</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'fiche' ? '#27ae60' : c.textSub }}>Sim, usar fiche</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 3 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
+                          style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
                             if (verif.salario.app > 0) setInputMontantSalQ(String(Math.round(verif.salario.app)))
                             if (verif.frais.app > 0) setInputMontantFraisQ(String(verif.frais.app))
                             setVerifApplied('app')
-                            setTimeout(() => setVerifApplied(false), 1500)
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{verifApplied === 'app' ? '✓' : '❌'} Não, os meus</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'app' ? '#2980b9' : c.textSub }}>Não, os meus</Text>
                         </TouchableOpacity>
                       </View>
-                      {verifApplied && (
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60', textAlign: 'center', marginBottom: 4 }}>✅ Valeurs appliquées</Text>
-                      )}
                       <TouchableOpacity onPress={() => setShowVerifDetalhes(v => !v)} style={{ alignItems: 'center', paddingVertical: 4 }}>
                         <Text style={{ fontSize: 12, color: c.textSub, textDecorationLine: 'underline' }}>
                           {showVerifDetalhes ? 'Ocultar detalhes' : 'Ver detalhes'}
@@ -2397,7 +2393,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
                         value={inputMontantSalQ}
-                        onChangeText={setInputMontantSalQ}
+                        onChangeText={(v) => { setInputMontantSalQ(v); setVerifApplied(false) }}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={c.textSub}
@@ -2411,7 +2407,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
                         value={inputMontantFraisQ}
-                        onChangeText={setInputMontantFraisQ}
+                        onChangeText={(v) => { setInputMontantFraisQ(v); setVerifApplied(false) }}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={c.textSub}
@@ -2424,9 +2420,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       style={{ padding: 14, alignItems: 'center' }}
                       onPress={() => {
                         if (perguntaAtual > 0) {
+                          const popped = respostas[respostas.length - 1]
+                          if (popped) {
+                            setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(popped.montantSalReel) : '')
+                            setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(popped.montantFraisReel) : '')
+                          }
                           setPerguntaAtual(perguntaAtual - 1)
                           setRespostas(respostas.slice(0, -1))
                           setShowVerifDetalhes(false)
+                          setVerifApplied(false)
                         } else {
                           setShowModalCancelar(true)
                         }

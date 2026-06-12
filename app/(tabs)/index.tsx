@@ -84,6 +84,7 @@ export default function AujourdhuiScreen() {
   const [paradoSegundos, setParadoSegundos] = useState(0)
   const [showPausaBandeau, setShowPausaBandeau] = useState(false)
   const [showTerminerModal, setShowTerminerModal] = useState(false)
+  const [showKmFimInput, setShowKmFimInput] = useState(false)
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryData, setSummaryData] = useState<{service: number; conduite: number; km: number; frais: number; semHeures: number; semFrais: number} | null>(null)
   const [showRecuperarHoraModal, setShowRecuperarHoraModal] = useState(false)
@@ -1224,6 +1225,7 @@ const pararGPS = async () => {
   const confirmarTerminer = async (comDecouche: boolean) => {
     if (comDecouche) setDecouche(true)
     setShowTerminerModal(false)
+    setShowKmFimInput(false)
 
     // Capture values before reset for summary modal
     const snapService = segServico
@@ -2104,11 +2106,30 @@ const pararGPS = async () => {
                 <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{fmtHM(segServico)}</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>SERVICE</Text>
               </View>
-              <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 22 }}>📍</Text>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{calcularKmManual()}</Text>
-                <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
-              </View>
+              <TouchableOpacity disabled={showKmFimInput} onPress={() => setShowKmFimInput(true)} style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4, borderWidth: showKmFimInput ? 1.5 : 0, borderColor: '#f5a623' }}>
+                {showKmFimInput ? (
+                  <>
+                    <TextInput
+                      value={kmFimInput}
+                      onChangeText={v => setKmFimInput(limparInputKm(v))}
+                      keyboardType="numeric"
+                      autoFocus
+                      placeholder="KM fin"
+                      placeholderTextColor={c.textSub}
+                      onBlur={() => setShowKmFimInput(false)}
+                      style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', width: '100%', padding: 4 }}
+                    />
+                    <Text style={{ fontSize: 10, color: c.textSub }}>início {getKmInicioManual()} km</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 22 }}>📍</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{calcularKmManual()}</Text>
+                    <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
+                    <Text style={{ fontSize: 10, color: c.textSub, opacity: 0.6 }}>✏️ toucher pour saisir</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: decouche ? 'rgba(41,128,185,0.12)' : c.bg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: decouche ? '#2980b9' : c.cardBorder }} onPress={() => setDecouche(d => !d)}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2125,7 +2146,7 @@ const pararGPS = async () => {
             <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }} onPress={() => confirmarTerminer(decouche)}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{decouche ? '🌙 Terminer (Découché)' : '⏹ Terminer le service'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowTerminerModal(false)}>
+            <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => { setShowTerminerModal(false); setShowKmFimInput(false) }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
           </View>

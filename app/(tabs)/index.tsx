@@ -2110,30 +2110,6 @@ const pararGPS = async () => {
                 <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
               </View>
             </View>
-            <View style={{ backgroundColor: c.bg, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM início (tacógrafo)</Text>
-              <TextInput
-                value={kmInicioInput}
-                onChangeText={v => setKmInicioInput(limparInputKm(v))}
-                placeholder="0 (optionnel)"
-                placeholderTextColor={c.textSub}
-                keyboardType="numeric"
-                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, color: c.text, fontSize: 18, fontWeight: '800', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12 }}
-              />
-              <Text style={{ fontSize: 12, fontWeight: '800', color: c.textLabel, letterSpacing: 1, marginBottom: 8 }}>KM fim (tacógrafo)</Text>
-              <TextInput
-                value={kmFimInput}
-                onChangeText={v => setKmFimInput(limparInputKm(v))}
-                placeholder="0"
-                placeholderTextColor={c.textSub}
-                keyboardType="numeric"
-                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, color: c.text, fontSize: 20, fontWeight: '900', borderWidth: 1, borderColor: c.cardBorder }}
-              />
-              <Text style={{ fontSize: 12, color: c.textSub, marginTop: 8 }}>
-                KM calculados : <Text style={{ fontWeight: '900', color: '#2980b9' }}>{calcularKmManual()} km</Text>
-                {getKmInicioManual() > 0 ? <Text> · início {getKmInicioManual()} km</Text> : <Text> · início não preenchido</Text>}
-              </Text>
-            </View>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: decouche ? 'rgba(41,128,185,0.12)' : c.bg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: decouche ? '#2980b9' : c.cardBorder }} onPress={() => setDecouche(d => !d)}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Text style={{ fontSize: 24 }}>🌙</Text>

@@ -1282,10 +1282,11 @@ export default function MonSalaireScreen() {
       const agora = new Date()
       const anoActual = agora.getFullYear()
       const mesActual = agora.getMonth()
-
-      const [anoHoras, mesHoras] = shiftMois(anoActual, mesActual, -p.hlag)
-      const [anoFrais, mesFrais] = shiftMois(anoActual, mesActual, -p.flag)
-      const [anoReceber, mesReceber] = shiftMois(anoActual, mesActual, 0)
+      const diaRollover = Math.max(p.diaSalario || 5, p.diaFrais || 10)
+      const deltaReceber = agora.getDate() > diaRollover ? 1 : 0
+      const [anoReceber, mesReceber] = shiftMois(anoActual, mesActual, deltaReceber)
+      const [anoHoras, mesHoras] = shiftMois(anoReceber, mesReceber, -p.hlag)
+      const [anoFrais, mesFrais] = shiftMois(anoReceber, mesReceber, -p.flag)
       const mesAberto = mesHoras === mesActual && anoHoras === anoActual
 
       // Dias trabalhados do mês das horas

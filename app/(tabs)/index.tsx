@@ -1383,6 +1383,26 @@ const pararGPS = async () => {
               )}
             </View>
 
+            {/* ── STATS STRIP (avant service) ── */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }} contentContainerStyle={{ paddingHorizontal: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
+                </View>
+              </View>
+            </ScrollView>
+
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>
@@ -1768,24 +1788,25 @@ const pararGPS = async () => {
               </View>
             )}
 
-            {/* ── METRIC BOXES ── */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-              <TouchableOpacity onPress={() => showTooltip('conduite')}
-                style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.25)' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 1, marginBottom: 4 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
-                <Text style={{ fontSize: 17, fontWeight: '900', color: emConducao ? '#27ae60' : c.text }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => showTooltip('service')}
-                style={{ flex: 1, backgroundColor: 'rgba(243,156,18,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(243,156,18,0.25)' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#f39c12', letterSpacing: 1, marginBottom: 4 }}>⏱ SERVICE</Text>
-                <Text style={{ fontSize: 17, fontWeight: '900', color: c.text }}>{fmtHM(segServico)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => showTooltip('amplitude')}
-                style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.25)' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#2980b9', letterSpacing: 1, marginBottom: 4 }}>📏 AMPLITUDE</Text>
-                <Text style={{ fontSize: 17, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
-              </TouchableOpacity>
-            </View>
+            {/* ── STATS STRIP ── */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingHorizontal: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
+                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
+                </View>
+              </View>
+            </ScrollView>
 
             {/* ── ACTION BUTTONS ── */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>

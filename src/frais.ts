@@ -122,9 +122,9 @@ export function calcularFraisJour(input: CalculerFraisJourInput): FraisJourResul
     ? Math.max(0, finMin - debutMin)
     : serviceMin + pauseMin
 
-  const ptd = (debutMin !== null && debutMin <= Math.round(regles.ptDejAte * 60)) || input.prevDecouche || isDec ? 1 : 0
-  const dej = amplitudeMin >= Math.round(regles.dejMinAmp * 60) || isDec ? 1 : 0
-  const din = (finMin !== null && finMin >= Math.round(regles.dinerDe * 60)) || isDec ? 1 : 0
+  const ptd = (debutMin !== null && debutMin <= Math.round(regles.ptDejAte * 60)) || input.prevDecouche ? 1 : 0
+  const dej = serviceMin >= Math.round(regles.dejMinAmp * 60) || isDec ? 1 : 0
+  const din = isDec ? 1 : 0
   const nui = isDec ? 1 : 0
 
   const total = roundMoney(

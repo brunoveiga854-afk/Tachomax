@@ -1127,6 +1127,8 @@ export default function MonSalaireScreen() {
   const [editFraisBoletim, setEditFraisBoletim] = useState('')
   const [editMontantTotal, setEditMontantTotal] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState(0)
+  const truckAnim = useRef(new Animated.Value(-40)).current
   const [showPrevision, setShowPrevision] = useState(false)
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
@@ -1207,6 +1209,20 @@ export default function MonSalaireScreen() {
     })
     charger()
   }, [])
+
+  useEffect(() => {
+    if (!loading) { setLoadingMsg(0); truckAnim.setValue(-40); return }
+    const msgs = 4
+    const iv = setInterval(() => setLoadingMsg(i => (i + 1) % msgs), 1500)
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(truckAnim, { toValue: 40, duration: 1200, useNativeDriver: true }),
+        Animated.timing(truckAnim, { toValue: -40, duration: 1200, useNativeDriver: true }),
+      ])
+    )
+    loop.start()
+    return () => { clearInterval(iv); loop.stop() }
+  }, [loading])
 
   const charger = async () => {
     try {
@@ -2056,7 +2072,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           style={[st.uploadBtnGrande, { borderColor: '#f5a623', backgroundColor: c.card }]}
           onPress={importerDocumentos} disabled={loading}
         >
-          {loading ? <ActivityIndicator color="#f5a623" size="large" /> : (
+          {loading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#f5a623', marginBottom: 10, textAlign: 'center' }}>
+                {['📄 Lecture des documents...', '🔍 Analyse en cours...', '🧮 Calcul des montants...', '✨ Presque fini...'][loadingMsg]}
+              </Text>
+              <Animated.Text style={{ fontSize: 56, transform: [{ translateX: truckAnim }] }}>🚛</Animated.Text>
+            </View>
+          ) : (
             <>
               <Text style={{ fontSize: 32, marginBottom: 8 }}>📁</Text>
               <Text style={{ fontSize: 16, fontWeight: '800', color: '#f5a623' }}>Charger les documents</Text>

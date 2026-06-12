@@ -1747,8 +1747,8 @@ const pararGPS = async () => {
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                     <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.conducaoGelada }}>{fmt(segConducao)}</Text>
-                      <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>🚛 CONDUITE</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.conducaoGelada }}>{fmt(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
+                      <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>
                       <Text style={{ fontSize: 18, fontWeight: '800', color: c.conducaoGelada }}>{fmt(segServico)}</Text>
@@ -1786,8 +1786,8 @@ const pararGPS = async () => {
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
               <TouchableOpacity onPress={() => showTooltip('conduite')}
                 style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.25)' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 1, marginBottom: 4 }}>🚛 CONDUITE</Text>
-                <Text style={{ fontSize: 17, fontWeight: '900', color: emConducao ? '#27ae60' : c.text }}>{fmtHM(segConducao)}</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#27ae60', letterSpacing: 1, marginBottom: 4 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: emConducao ? '#27ae60' : c.text }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => showTooltip('service')}
                 style={{ flex: 1, backgroundColor: 'rgba(243,156,18,0.10)', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(243,156,18,0.25)' }}>

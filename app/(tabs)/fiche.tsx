@@ -466,7 +466,7 @@ function aprenderHlagPorConfirmacoes(dados: MoisData[]): number[] {
     .map(d => {
       const [anoPay, mesPay] = mesPagamentoSalDe(d)
       const match = trouverSourceParValeur(dados, d.netPaye || 0, anoPay, mesPay, src => [src.netPaye || 0], true)
-      return match?.lag
+      return match?.lag !== undefined && match.lag > 0 ? match.lag : undefined
     })
     .filter((lag): lag is number => typeof lag === 'number')
 }
@@ -482,7 +482,7 @@ function aprenderFlagPorConfirmacoes(dados: MoisData[]): number[] {
         src.fraisBoletim || 0,
         src.remboursementFrais || 0,
       ], true)
-      return match?.lag
+      return match?.lag !== undefined && match.lag > 0 ? match.lag : undefined
     })
     .filter((lag): lag is number => typeof lag === 'number')
 }

@@ -1384,19 +1384,19 @@ const pararGPS = async () => {
             </View>
 
             {/* ── STATS STRIP (avant service) ── */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }} contentContainerStyle={{ paddingHorizontal: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 4 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
                 </View>
-                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
                 </View>
-                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
                 </View>
@@ -1789,19 +1789,19 @@ const pararGPS = async () => {
             )}
 
             {/* ── STATS STRIP ── */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingHorizontal: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 4 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
                 </View>
-                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
                 </View>
-                <View style={{ width: 1, height: 28, backgroundColor: c.cardBorder }} />
-                <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
                 </View>

@@ -75,10 +75,32 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
         next.bgParadoAbaixo5Ticks = velMovimento < 5 ? (next.bgParadoAbaixo5Ticks || 0) + dtParagem : 0
         next.bgParadoAbaixo7Ticks = velMovimento < 7 ? (next.bgParadoAbaixo7Ticks || 0) + dtParagem : 0
 
+        if (velMovimento >= 1 && velMovimento <= 15) {
+          if (next.bgUltimaVelCongelada == null || Math.abs((next.bgUltimaVelCongelada || 0) - velMovimento) > 2) {
+            next.bgUltimaVelCongelada = velMovimento
+            next.bgTempoVelCongelada = 0
+          } else {
+            next.bgTempoVelCongelada = (next.bgTempoVelCongelada || 0) + dtParagem
+          }
+        } else {
+          next.bgUltimaVelCongelada = null
+          next.bgTempoVelCongelada = 0
+        }
+        const gpsCongelado = (next.bgTempoVelCongelada || 0) >= 4
+
+        if (velGps > 20 && velInferida < 5) {
+          next.bgTempoGpsMentiroso = (next.bgTempoGpsMentiroso || 0) + dtParagem
+        } else {
+          next.bgTempoGpsMentiroso = 0
+        }
+        const gpsMentiroso = (next.bgTempoGpsMentiroso || 0) >= 5
+
         const deveParar =
           next.bgParadoAbaixo3Ticks >= CONDUCAO_PARAR_ABAIXO_3_S ||
           next.bgParadoAbaixo5Ticks >= CONDUCAO_PARAR_ABAIXO_5_S ||
-          next.bgParadoAbaixo7Ticks >= CONDUCAO_PARAR_ABAIXO_7_S
+          next.bgParadoAbaixo7Ticks >= CONDUCAO_PARAR_ABAIXO_7_S ||
+          gpsCongelado ||
+          gpsMentiroso
 
         if (deveParar) {
           next.bgConducaoTicks = 0

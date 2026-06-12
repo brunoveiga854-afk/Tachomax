@@ -2758,31 +2758,31 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
             <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Ton salaire — il tombe quand ?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              <TouchableOpacity onPress={() => setOnbHlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 0 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbHlag === 0 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 0 ? '#fff' : c.textSub }}>Ce mois-ci</Text>
+              <TouchableOpacity onPress={() => setOnbHlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 0 ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbHlag === 0 ? 1.5 : 1, borderColor: onbHlag === 0 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 0 ? '#f5a623' : c.textSub }}>Ce mois-ci</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setOnbHlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 1 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbHlag === 1 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 1 ? '#fff' : c.textSub }}>Le mois suivant</Text>
+              <TouchableOpacity onPress={() => setOnbHlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 1 ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbHlag === 1 ? 1.5 : 1, borderColor: onbHlag === 1 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 1 ? '#f5a623' : c.textSub }}>Le mois suivant</Text>
               </TouchableOpacity>
             </View>
 
             <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Tes frais — ils tombent quand ?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              <TouchableOpacity onPress={() => setOnbFlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 0 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 0 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 0 ? '#fff' : c.textSub }}>Ce mois-ci</Text>
+              <TouchableOpacity onPress={() => setOnbFlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 0 ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbFlag === 0 ? 1.5 : 1, borderColor: onbFlag === 0 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 0 ? '#f5a623' : c.textSub }}>Ce mois-ci</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setOnbFlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 1 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 1 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 1 ? '#fff' : c.textSub }}>Le mois suivant</Text>
+              <TouchableOpacity onPress={() => setOnbFlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 1 ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbFlag === 1 ? 1.5 : 1, borderColor: onbFlag === 1 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 1 ? '#f5a623' : c.textSub }}>Le mois suivant</Text>
               </TouchableOpacity>
             </View>
 
             <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Tes frais apparaissent sur ta fiche de paye ?</Text>
             <View style={{ gap: 8, marginBottom: 20 }}>
-              <TouchableOpacity onPress={() => setOnbFraisSepare(false)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: !onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: !onbFraisSepare ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: !onbFraisSepare ? '#fff' : c.text }}>Oui</Text>
+              <TouchableOpacity onPress={() => setOnbFraisSepare(false)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: !onbFraisSepare ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: !onbFraisSepare ? 1.5 : 1, borderColor: !onbFraisSepare ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: !onbFraisSepare ? '#f5a623' : c.textSub }}>Oui</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setOnbFraisSepare(true)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFraisSepare ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: onbFraisSepare ? '#fff' : c.text }}>Non, document séparé</Text>
+              <TouchableOpacity onPress={() => setOnbFraisSepare(true)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: onbFraisSepare ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbFraisSepare ? 1.5 : 1, borderColor: onbFraisSepare ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: onbFraisSepare ? '#f5a623' : c.textSub }}>Non, document séparé</Text>
               </TouchableOpacity>
             </View>
 

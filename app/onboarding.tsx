@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
@@ -12,6 +12,12 @@ export default function OnboardingScreen() {
   const [etape, setEtape] = useState(0)
   const [nom, setNom] = useState('Bruno')
   const [profil, setProfil] = useState<Profil>('MIXTE')
+  const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
+  const [tracteurValue, setTracteurValue] = useState('')
+  const [remorqueType, setRemorqueType] = useState<'immat' | 'parc'>('immat')
+  const [remorqueValue, setRemorqueValue] = useState('')
+  const [chariotEmbarque, setChariotEmbarque] = useState(false)
+  const [kmInicial, setKmInicial] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -68,7 +74,7 @@ export default function OnboardingScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.page}>
           <View style={st.stepHeader}>
-            <Text style={st.stepNum}>1 / 2</Text>
+            <Text style={st.stepNum}>1 / 3</Text>
             <Text style={st.stepTitle}>Quel est ton profil ?</Text>
             <Text style={st.stepSub}>Tu pourras changer à tout moment dans les Réglages</Text>
           </View>
@@ -137,11 +143,108 @@ export default function OnboardingScreen() {
         </KeyboardAvoidingView>
       )}
 
-      {/* ETAPE 2 — TRIAL */}
+      {/* ETAPE 2 — VÉHICULE */}
       {etape === 2 && (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.page}>
           <View style={st.stepHeader}>
-            <Text style={st.stepNum}>2 / 2</Text>
+            <Text style={st.stepNum}>2 / 3</Text>
+            <Text style={st.stepTitle}>🚛 Ton véhicule</Text>
+            <Text style={st.stepSub}>Optionnel — tu peux le faire plus tard dans Réglages</Text>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {/* TRACTEUR */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🚛 TRACTEUR</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
+              <TouchableOpacity
+                onPress={async () => { setTracteurType('immat'); await AsyncStorage.setItem('tracteur_type', 'immat') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: tracteurType === 'immat' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: tracteurType === 'immat' ? 1.5 : 1, borderColor: tracteurType === 'immat' ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'immat' ? '#f5a623' : '#6b7394' }}>Immatriculation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => { setTracteurType('parc'); await AsyncStorage.setItem('tracteur_type', 'parc') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: tracteurType === 'parc' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: tracteurType === 'parc' ? 1.5 : 1, borderColor: tracteurType === 'parc' ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'parc' ? '#f5a623' : '#6b7394' }}>Numéro de parc</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              value={tracteurValue}
+              onChangeText={async (v) => { setTracteurValue(v); await AsyncStorage.setItem('tracteur_value', v) }}
+              placeholder={tracteurType === 'immat' ? 'ex: AB-123-CD' : 'ex: T042'}
+              placeholderTextColor="#6b7394"
+              autoCapitalize="characters"
+              style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
+            />
+
+            {/* SEMI-REMORQUE */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🔗 SEMI-REMORQUE</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
+              <TouchableOpacity
+                onPress={async () => { setRemorqueType('immat'); await AsyncStorage.setItem('remorque_type', 'immat') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: remorqueType === 'immat' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: remorqueType === 'immat' ? 1.5 : 1, borderColor: remorqueType === 'immat' ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'immat' ? '#f5a623' : '#6b7394' }}>Immatriculation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => { setRemorqueType('parc'); await AsyncStorage.setItem('remorque_type', 'parc') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: remorqueType === 'parc' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: remorqueType === 'parc' ? 1.5 : 1, borderColor: remorqueType === 'parc' ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'parc' ? '#f5a623' : '#6b7394' }}>Numéro de parc</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              value={remorqueValue}
+              onChangeText={async (v) => { setRemorqueValue(v); await AsyncStorage.setItem('remorque_value', v) }}
+              placeholder={remorqueType === 'immat' ? 'ex: AB-123-CD' : 'ex: AP2'}
+              placeholderTextColor="#6b7394"
+              autoCapitalize="characters"
+              style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
+            />
+
+            {/* CHARIOT EMBARQUÉ */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🔧 CHARIOT EMBARQUÉ</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 20, gap: 8 }}>
+              <TouchableOpacity
+                onPress={async () => { setChariotEmbarque(true); await AsyncStorage.setItem('chariot_embarque', 'true') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: chariotEmbarque ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: chariotEmbarque ? 1.5 : 1, borderColor: chariotEmbarque ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: chariotEmbarque ? '#f5a623' : '#6b7394' }}>Oui</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => { setChariotEmbarque(false); await AsyncStorage.setItem('chariot_embarque', 'false') }}
+                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: !chariotEmbarque ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: !chariotEmbarque ? 1.5 : 1, borderColor: !chariotEmbarque ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: !chariotEmbarque ? '#f5a623' : '#6b7394' }}>Non</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* KM INITIAL */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📍 KM AU COMPTEUR (TACOGRAPHE)</Text>
+            <TextInput
+              value={kmInicial}
+              onChangeText={async (v) => { setKmInicial(v); if (v) await AsyncStorage.setItem('km_ultimo_fim', v) }}
+              placeholder="ex: 847320"
+              placeholderTextColor="#6b7394"
+              keyboardType="numeric"
+              style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
+            />
+          </ScrollView>
+
+          <TouchableOpacity style={st.btnNext} onPress={() => setEtape(3)}>
+            <Text style={st.btnNextText}>SUIVANT →</Text>
+          </TouchableOpacity>
+        </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* ETAPE 3 — TRIAL */}
+      {etape === 3 && (
+        <View style={st.page}>
+          <View style={st.stepHeader}>
+            <Text style={st.stepNum}>3 / 3</Text>
             <Text style={st.stepTitle}>60 jours gratuits</Text>
             <Text style={st.stepSub}>Accès complet à toutes les fonctionnalités</Text>
           </View>
@@ -179,7 +282,7 @@ export default function OnboardingScreen() {
 
       {/* DOTS */}
       <View style={st.dots}>
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2, 3].map(i => (
           <View key={i} style={[st.dot, etape === i && st.dotActive]} />
         ))}
       </View>

@@ -2335,9 +2335,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )}
 
                   {temDiff && (
-                    <View style={{ marginBottom: 16, padding: 14, backgroundColor: 'rgba(243,156,18,0.10)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(243,156,18,0.35)' }}>
+                    <View style={{ marginBottom: 16, padding: 14, backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: '#f5a623' }}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, lineHeight: 22, marginBottom: 12 }}>
-                        ⚠️ Encontrei diferenças entre a fiche e os meus cálculos. Usar os valores da fiche?
+                        ⚠️ J'ai trouvé des différences entre la fiche et mes calculs. Utiliser les valeurs de la fiche ?
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                         <TouchableOpacity
@@ -2348,7 +2348,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             setVerifApplied('fiche')
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'fiche' ? '#27ae60' : c.textSub }}>Sim, usar fiche</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'fiche' ? '#27ae60' : c.textSub }}>Oui, utiliser la fiche</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
@@ -2358,24 +2358,24 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             setVerifApplied('app')
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'app' ? '#2980b9' : c.textSub }}>Não, os meus</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'app' ? '#2980b9' : c.textSub }}>Non, les miens</Text>
                         </TouchableOpacity>
                       </View>
                       <TouchableOpacity onPress={() => setShowVerifDetalhes(v => !v)} style={{ alignItems: 'center', paddingVertical: 4 }}>
                         <Text style={{ fontSize: 12, color: c.textSub, textDecorationLine: 'underline' }}>
-                          {showVerifDetalhes ? 'Ocultar detalhes' : 'Ver detalhes'}
+                          {showVerifDetalhes ? 'Masquer détails' : 'Voir détails'}
                         </Text>
                       </TouchableOpacity>
                       {showVerifDetalhes && (
-                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,156,18,0.25)' }}>
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(245,166,35,0.25)' }}>
                           <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
-                            💰 Salário — fiche {Math.round(verif.salario.fiche)}€ · app {Math.round(verif.salario.app)}€
+                            💰 Salaire — fiche {Math.round(verif.salario.fiche)}€ · app {Math.round(verif.salario.app)}€
                           </Text>
                           <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
                             🍽️ Frais — fiche {verif.frais.fiche.toFixed(2)}€ · app {verif.frais.app.toFixed(2)}€
                           </Text>
                           <Text style={{ fontSize: 12, color: c.textSub }}>
-                            ⏱ Horas — fiche {verif.horas.fiche.toFixed(1)}h · calendário {verif.horas.app.toFixed(1)}h
+                            ⏱ Heures — fiche {verif.horas.fiche.toFixed(1)}h · calendrier {verif.horas.app.toFixed(1)}h
                           </Text>
                         </View>
                       )}
@@ -2383,13 +2383,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )}
 
                   <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20, lineHeight: 28 }}>
-                    Em {mesLabel} {fichaActual.annee}, quanto recebeste?
+                    En {mesLabel} {fichaActual.annee}, combien as-tu reçu ?
                   </Text>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        💰 Dia {diaSal} — salário?
+                        💰 Jour {diaSal} — salaire ?
                       </Text>
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
@@ -2403,7 +2403,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        🍽️ Dia {diaFrais} — frais?
+                        🍽️ Jour {diaFrais} — frais ?
                       </Text>
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
@@ -2435,14 +2435,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         }
                       }}
                     >
-                      <Text style={{ fontSize: 14, color: c.textSub }}>{perguntaAtual > 0 ? '←' : 'Cancelar'}</Text>
+                      <Text style={{ fontSize: 14, color: c.textSub }}>{perguntaAtual > 0 ? '←' : 'Annuler'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
                       onPress={responderPergunta}
                     >
                       <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>
-                        {perguntaAtual < fiches.length - 1 ? 'Seguinte →' : 'Guardar'}
+                        {perguntaAtual < fiches.length - 1 ? 'Suivant →' : 'Enregistrer'}
                       </Text>
                     </TouchableOpacity>
                   </View>

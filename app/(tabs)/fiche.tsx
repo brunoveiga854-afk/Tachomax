@@ -13,7 +13,7 @@ const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
   hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
-  hlag: 2, flag: 2, liquidRate: 0.79,
+  hlag: 2, flag: 1, liquidRate: 0.79,
   ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
   valorDiaConges: 136.52, valorDiaFerie: 0, valorDiaRC: 0,
 }

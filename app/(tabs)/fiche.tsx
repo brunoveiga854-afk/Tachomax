@@ -49,7 +49,7 @@ type Padrao = {
   descoberto: boolean; diaSalario: number; diaFrais: number
   defasagemFrais: number; confianca: number
   hbase: number; hval: number; h25: number; lim25: number; h50: number
-  hlag: number; flag: number; liquidRate: number
+  hlag: number; flag: number; liquidRate: number; fraisSepare?: boolean
   horasExtrasMedia: number
   // Valores reais dos frais aprendidos dos boletins
   ptd: number; dej: number; din: number; nui: number
@@ -2752,51 +2752,32 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#f5a623' }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>💰 Mon Salaire</Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Configure tes jours de paiement</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Réponds à 3 questions pour démarrer avec le bon rythme de paiement.</Text>
 
-            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Jour de réception du salaire</Text>
-            <TextInput
-              value={onbDiaSal}
-              onChangeText={setOnbDiaSal}
-              keyboardType="numeric"
-              placeholder="5"
-              placeholderTextColor={c.textSub}
-              style={{ backgroundColor: c.input, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 14 }}
-            />
-
-            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Salaire reçu en quel mois ?</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Ton salaire — il tombe quand ?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              {[0, 1, 2].map(v => (
-                <TouchableOpacity key={v} onPress={() => setOnbHlag(v)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === v ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbHlag === v ? '#f5a623' : c.cardBorder }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: onbHlag === v ? '#fff' : c.textSub }}>{v === 0 ? 'Même mois' : v === 1 ? 'Mois +1' : 'Mois +2'}</Text>
-                </TouchableOpacity>
-              ))}
+              <TouchableOpacity onPress={() => setOnbHlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 0 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbHlag === 0 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 0 ? '#fff' : c.textSub }}>Ce mois-ci</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setOnbHlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbHlag === 1 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbHlag === 1 ? '#f5a623' : c.cardBorder }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbHlag === 1 ? '#fff' : c.textSub }}>Le mois suivant</Text>
+              </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Jour de réception des frais</Text>
-            <TextInput
-              value={onbDiaFrais}
-              onChangeText={setOnbDiaFrais}
-              keyboardType="numeric"
-              placeholder="10"
-              placeholderTextColor={c.textSub}
-              style={{ backgroundColor: c.input, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 14 }}
-            />
-
-            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Frais reçus en quel mois ?</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Tes frais — ils tombent quand ?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
               <TouchableOpacity onPress={() => setOnbFlag(0)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 0 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 0 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 0 ? '#fff' : c.textSub }}>Même mois</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 0 ? '#fff' : c.textSub }}>Ce mois-ci</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setOnbFlag(1)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: onbFlag === 1 ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFlag === 1 ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 1 ? '#fff' : c.textSub }}>Mois suivant</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: onbFlag === 1 ? '#fff' : c.textSub }}>Le mois suivant</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Frais dans le même document que le salaire ?</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Tes frais apparaissent sur ta fiche de paye ?</Text>
             <View style={{ gap: 8, marginBottom: 20 }}>
               <TouchableOpacity onPress={() => setOnbFraisSepare(false)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: !onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: !onbFraisSepare ? '#f5a623' : c.cardBorder }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: !onbFraisSepare ? '#fff' : c.text }}>Oui, même fiche</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: !onbFraisSepare ? '#fff' : c.text }}>Oui</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setOnbFraisSepare(true)} style={{ paddingVertical: 11, borderRadius: 12, backgroundColor: onbFraisSepare ? '#f5a623' : c.input, alignItems: 'center', borderWidth: 1, borderColor: onbFraisSepare ? '#f5a623' : c.cardBorder }}>
                 <Text style={{ fontSize: 13, fontWeight: '800', color: onbFraisSepare ? '#fff' : c.text }}>Non, document séparé</Text>
@@ -2805,9 +2786,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
             <TouchableOpacity
               onPress={async () => {
-                const diaSal = parseInt(onbDiaSal) || 5
-                const diaFrais = parseInt(onbDiaFrais) || 10
-                const newPadrao = { ...padrao, diaSalario: diaSal, diaFrais, flag: onbFlag, hlag: onbHlag }
+                const newPadrao = { ...padrao, hlag: onbHlag, flag: onbFlag, fraisSepare: onbFraisSepare, diaSalario: padrao.diaSalario ?? 5, diaFrais: padrao.diaFrais ?? 10 }
                 setPadrao(newPadrao)
                 await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(newPadrao))
                 await AsyncStorage.setItem('onboarding_salaire_done', 'true')

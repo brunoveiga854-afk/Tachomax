@@ -122,7 +122,7 @@ export default function AujourdhuiScreen() {
   const [timePickerValue, setTimePickerValue] = useState(new Date())
   const [calMes, setCalMes] = useState(new Date().getMonth())
   const [calAno, setCalAno] = useState(new Date().getFullYear())
-  const [kmSugerido, setKmSugerido] = useState('')
+  const [kmInicioAuto, setKmInicioAuto] = useState(false)
   const [showKmInicio, setShowKmInicio] = useState(false)
   const [kmDebutConfirme, setKmDebutConfirme] = useState(false)
 
@@ -507,11 +507,13 @@ export default function AujourdhuiScreen() {
   useEffect(() => {
     if (!enService) {
       AsyncStorage.getItem('km_ultimo_fim').then(v => {
-        if (v && parseFloat(v) > 0 && !kmInicioInput) setKmSugerido(v)
+        if (v && parseFloat(v) > 0 && !kmInicioInput) {
+          setKmInicioInput(v)
+          setKmInicioAuto(true)
+        }
       })
       setShowKmInicio(false)
     } else {
-      setKmSugerido('')
       setShowKmInicio(false)
     }
   }, [enService])
@@ -1393,24 +1395,7 @@ const pararGPS = async () => {
 
             {/* ── KM DÉBUT ── */}
             <View style={{ alignItems: 'center', marginTop: -8, marginBottom: 8 }}>
-              {kmSugerido && !kmInicioInput ? (
-                <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ color: '#f5a623', fontWeight: '700', fontSize: 13 }}>{t.kmDebutLabel}</Text>
-                  <Text style={{ color: '#f5a623', fontWeight: '800', fontSize: 15 }}>{kmSugerido}</Text>
-                  <TouchableOpacity
-                    onPress={() => { setKmInicioInput(kmSugerido); setKmSugerido('') }}
-                    style={{ backgroundColor: '#f5a623', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>✅</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => { setKmInicioInput(kmSugerido); setKmSugerido(''); setShowKmInicio(true) }}
-                    style={{ backgroundColor: c.progressBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-                  >
-                    <Text style={{ color: c.textSub, fontWeight: '700', fontSize: 12 }}>✏️</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : showKmInicio ? (
+              {showKmInicio ? (
                 kmDebutConfirme ? (
                   <View style={{ backgroundColor: 'rgba(39,174,96,0.12)', borderColor: '#27ae60', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, width: 280, alignItems: 'center' }}>
                     <Text style={{ color: '#27ae60', fontSize: 15, fontWeight: '800' }}>✓ Confirmé — {kmInicioInput} km</Text>
@@ -1421,7 +1406,7 @@ const pararGPS = async () => {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                       <TextInput
                         value={kmInicioInput}
-                        onChangeText={v => setKmInicioInput(limparInputKm(v))}
+                        onChangeText={v => { setKmInicioInput(limparInputKm(v)); setKmInicioAuto(false) }}
                         placeholder={t.kmDebut}
                         placeholderTextColor={c.textSub}
                         keyboardType="numeric"
@@ -1431,6 +1416,7 @@ const pararGPS = async () => {
                       <TouchableOpacity
                         onPress={() => {
                           if (kmInicioInput) {
+                            setKmInicioAuto(false)
                             setKmDebutConfirme(true)
                             setTimeout(() => { setKmDebutConfirme(false); setShowKmInicio(false) }, 1200)
                           }
@@ -1444,7 +1430,7 @@ const pararGPS = async () => {
                 )
               ) : kmInicioInput ? (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ color: '#f5a623', fontSize: 13, fontWeight: '700' }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
+                  <Text style={{ color: kmInicioAuto ? c.textSub : '#f5a623', fontSize: 13, fontWeight: '700', opacity: kmInicioAuto ? 0.6 : 1 }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 16 }}>

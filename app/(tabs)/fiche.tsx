@@ -15,7 +15,7 @@ const DEF_SAL = {
   hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
   hlag: 1, flag: 1, liquidRate: 0.79,
   ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
-  valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
+  valorDiaConges: 136.52, valorDiaFerie: 0, valorDiaRC: 0,
 }
 const MIN_CONFIRMACOES_CONTRARIAS_DEFASAGEM = 3
 

@@ -61,7 +61,7 @@ export default function OnboardingScreen() {
             <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
             <Image
               source={require('../assets/images/icon.png')}
-              style={{ width: width, height: Math.round(width * 0.50), resizeMode: 'contain' }}
+              style={{ width: width, height: Math.round(width * 0.60), resizeMode: 'cover' }}
             />
             {/* Fade esquerdo */}
             {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
@@ -109,6 +109,7 @@ export default function OnboardingScreen() {
       {etape === 1 && (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.page}>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={st.stepHeader}>
             <Text style={st.stepNum}>1 / 4</Text>
             <Text style={st.stepTitle}>Quel est ton profil ?</Text>
@@ -183,8 +184,9 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          </ScrollView>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 'auto' as any, marginBottom: 32, paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -199,7 +201,8 @@ export default function OnboardingScreen() {
             {/* ETAPE 2 — CONTRAT & ANCIENNETÉ */}
       {etape === 2 && (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, paddingHorizontal: 24 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 20, paddingBottom: 8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={st.stepHeader}>
             <Text style={st.stepNum}>2 / 4</Text>
             <Text style={st.stepTitle}>📋 Ton contrat</Text>
@@ -273,6 +276,7 @@ export default function OnboardingScreen() {
             <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / mois (légal: 169h)'}</Text>
           </View>
 
+        </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
@@ -281,7 +285,7 @@ export default function OnboardingScreen() {
               <Text style={st.btnNextText}>SUIVANT →</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
         </KeyboardAvoidingView>
       )}
 

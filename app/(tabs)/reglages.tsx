@@ -49,6 +49,7 @@ export default function ReglagesScreen() {
   const [modeTest, setModeTest] = useState(false)
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
+  const [kmTracteurActuel, setKmTracteurActuel] = useState('')
   const [remorqueType, setRemorqueType] = useState<'immat' | 'parc'>('immat')
   const [remorqueValue, setRemorqueValue] = useState('')
   const [transportFrigo, setTransportFrigo] = useState(false)
@@ -81,6 +82,7 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('mode_test').then(v => setModeTest(v === 'true'))
     AsyncStorage.getItem('tracteur_type').then(v => { if (v === 'immat' || v === 'parc') setTracteurType(v) })
     AsyncStorage.getItem('tracteur_value').then(v => { if (v) setTracteurValue(v) })
+    AsyncStorage.getItem('km_ultimo_fim').then(v => { if (v && parseFloat(v) > 0) setKmTracteurActuel(v) })
     AsyncStorage.getItem('remorque_type').then(v => { if (v === 'immat' || v === 'parc') setRemorqueType(v) })
     AsyncStorage.getItem('remorque_value').then(v => { if (v) setRemorqueValue(v) })
     AsyncStorage.getItem('transport_frigo').then(v => setTransportFrigo(v === 'true'))
@@ -356,6 +358,28 @@ export default function ReglagesScreen() {
             autoCapitalize="characters"
             style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
           />
+          <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>KM ACTUEL DU CAMION</Text>
+          <TextInput
+            value={kmTracteurActuel}
+            onChangeText={setKmTracteurActuel}
+            placeholder='ex: 467225'
+            placeholderTextColor={c.textSub}
+            keyboardType='numeric'
+            style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
+          />
+          <Text style={{ fontSize: 10, color: c.textSub, marginTop: 5, fontStyle: 'italic' }}>Modifie ici si tu changes de camion — sera utilisé comme KM début du prochain jour</Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#f5a623', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 8 }}
+            onPress={async () => {
+              const km = kmTracteurActuel.trim()
+              if (!km || parseFloat(km) <= 0) return
+              await AsyncStorage.setItem('km_ultimo_fim', km)
+              setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour\: ' + km + ' km')
+              setShowModalSucesso(true)
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Enregistrer les KM</Text>
+          </TouchableOpacity>
         </View>
 
         {/* SEMI-REMORQUE */}

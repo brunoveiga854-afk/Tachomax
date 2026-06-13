@@ -72,9 +72,9 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
         backgroundColor: '#e74c3c',
         justifyContent: 'center',
         alignItems: 'center',
-        width: 85,
-        marginBottom: 8,
-        marginRight: 20,
+        width: 80,
+        marginBottom: 6,
+        marginRight: 12,
         borderRadius: 16,
       }}
       onPress={() => Alert.alert(
@@ -93,7 +93,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
 
   return (
     <SwipeableGH renderRightActions={renderRightActions} overshootRight={false}>
-      <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
+      <View style={{ marginHorizontal: 12, marginBottom: 6 }}>
         <TouchableOpacity activeOpacity={0.85} onPress={onEdit}>
           <View style={[st.jourCard, { backgroundColor: c.card, borderColor: cfg.color + '30', borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
             <View style={st.jourHeader}>
@@ -1109,8 +1109,8 @@ const st = StyleSheet.create({
   deleteBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 20 },
   deleteIcon: { fontSize: 22 },
   deleteText: { fontSize: 11, fontWeight: '700', color: 'white', marginTop: 2 },
-  jourCard: { borderRadius: 16, borderWidth: 1, marginHorizontal: 20, marginBottom: 8, overflow: 'hidden' },
-  jourHeader: { flexDirection: 'row', padding: 12, gap: 10 },
+  jourCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  jourHeader: { flexDirection: 'row', padding: 10, gap: 10 },
   jourDateBox: { width: 44, alignItems: 'center', justifyContent: 'flex-start', gap: 1 },
   jourDayName: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   jourDayNum: { fontSize: 26, fontWeight: '900', lineHeight: 28 },

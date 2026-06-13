@@ -2373,7 +2373,7 @@ const pararGPS = async () => {
               </View>
               <View style={{ height: 1, backgroundColor: c.cardBorder }} />
 
-              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={false} style={{ padding: 16 }}>
+              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={true} nestedScrollEnabled style={{ padding: 16 }} indicatorStyle="white">
                 {(() => {
                   // ── Shared helpers ──────────────────────────────────────────
                   const today = new Date()

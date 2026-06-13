@@ -1185,6 +1185,11 @@ export default function MonSalaireScreen() {
   const [onbHvalBrut, setOnbHvalBrut] = useState('')
   const [onbVehiculo, setOnbVehiculo] = useState('porteur')
   const [onbCargo, setOnbCargo] = useState('general')
+  // pré-preencher tipo veículo e cargo do onboarding se já definidos
+  React.useEffect(() => {
+    AsyncStorage.getItem('vehicule_type').then(v => { if (v) setOnbVehiculo(v) })
+    AsyncStorage.getItem('cargo_type').then(v => { if (v) setOnbCargo(v) })
+  }, [])
   const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
 
   const breathAnim = useRef(new Animated.Value(1)).current
@@ -2877,82 +2882,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Mon Salaire</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 14 }}>Étape {onbStep} / 7</Text>
             <View style={{ flexDirection: 'row', gap: 4, marginBottom: 22 }}>
-              {[1,2,3,4,5,6,7].map(s => (
+              {[1,2,3,4,5].map(s => (
                 <View key={s} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: s <= onbStep ? '#f5a623' : c.cardBorder }} />
               ))}
             </View>
 
             {/* ── ÉTAPE 1 : type de véhicule ── */}
+            {/* ── ÉTAPE 1 : décalage salaire ── */}
             {onbStep === 1 && (
-              <>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>🚛 Quel véhicule conduis-tu ?</Text>
-                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16, lineHeight: 18 }}>
-                  Aide l'application à adapter les calculs à ton type de travail.
-                </Text>
-                <View style={{ gap: 8, marginBottom: 20 }}>
-                  {[
-                    { val: 'porteur',  label: '🚛 Porteur',         sub: 'camion rigide, benne, citerne...' },
-                    { val: 'semi',     label: '🚚 Semi-remorque',   sub: 'tracteur + semi, ensemble articulé' },
-                    { val: 'train',    label: '🚛🚌 Train routier', sub: 'porteur + remorque' },
-                  ].map(({ val, label, sub }) => (
-                    <TouchableOpacity
-                      key={val}
-                      onPress={() => setOnbVehiculo(val)}
-                      style={{ paddingVertical: 13, paddingHorizontal: 14, borderRadius: 12, backgroundColor: onbVehiculo === val ? 'rgba(245,166,35,0.12)' : c.input, borderWidth: onbVehiculo === val ? 1.5 : 1, borderColor: onbVehiculo === val ? '#f5a623' : c.cardBorder, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: onbVehiculo === val ? '#f5a623' : c.text }}>{label}</Text>
-                      <Text style={{ fontSize: 11, color: onbVehiculo === val ? '#f5a623' : c.textSub }}>{sub}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TouchableOpacity onPress={() => setOnbStep(2)} style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={async () => { await AsyncStorage.setItem('onboarding_salaire_done', 'true'); setShowOnboardingSalaire(false) }} style={{ padding: 10, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: c.textSub }}>Configurer plus tard dans Réglages</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* ── ÉTAPE 2 : type de cargaison ── */}
-            {onbStep === 2 && (
-              <>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📦 Quel type de cargaison ?</Text>
-                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16, lineHeight: 18 }}>
-                  Aide à affiner les règles de frais et les alertes.
-                </Text>
-                <View style={{ gap: 8, marginBottom: 20 }}>
-                  {[
-                    { val: 'general',  label: '📦 Général / Fourgon', sub: 'marchandise générale, rideaux' },
-                    { val: 'benne',    label: '🏗 Benne / TP',         sub: 'travaux publics, matériaux' },
-                    { val: 'frigo',    label: '🧊 Frigo / Temp. dir.', sub: 'denrées périssables' },
-                    { val: 'citerne',  label: '🛢 Citerne',            sub: 'liquides, produits en vrac' },
-                    { val: 'plateau',  label: '🪵 Plateau / Hayon',    sub: 'charges encombrantes, bois' },
-                    { val: 'adr',      label: '☢️ ADR — Dangereux',    sub: 'matières dangereuses' },
-                  ].map(({ val, label, sub }) => (
-                    <TouchableOpacity
-                      key={val}
-                      onPress={() => setOnbCargo(val)}
-                      style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: onbCargo === val ? 'rgba(245,166,35,0.12)' : c.input, borderWidth: onbCargo === val ? 1.5 : 1, borderColor: onbCargo === val ? '#f5a623' : c.cardBorder, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: onbCargo === val ? '#f5a623' : c.text }}>{label}</Text>
-                      <Text style={{ fontSize: 11, color: onbCargo === val ? '#f5a623' : c.textSub }}>{sub}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(1)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* ── ÉTAPE 3 : décalage salaire ── */}
-            {onbStep === 3 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📅 Les heures de Janvier — tu les reçois quel mois ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16, lineHeight: 18 }}>
@@ -2976,10 +2913,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   ))}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(2)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                  <TouchableOpacity onPress={async () => { await AsyncStorage.setItem('onboarding_salaire_done','true'); setShowOnboardingSalaire(false) }} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => setOnbStep(2)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -2987,7 +2924,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             )}
 
             {/* ── ÉTAPE 4 : jour du salaire ── */}
-            {onbStep === 4 && (
+            {onbStep === 2 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📆 Quel jour tombe ton salaire ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16 }}>Le jour du mois où l'argent arrive sur ton compte.</Text>
@@ -3007,7 +2944,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(5)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -3015,7 +2952,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             )}
 
             {/* ── ÉTAPE 5 : décalage frais + jour ── */}
-            {onbStep === 5 && (
+            {onbStep === 3 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>🚛 Les frais de Janvier — tu les reçois quel mois ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 12, lineHeight: 18 }}>
@@ -3051,10 +2988,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où tes frais arrivent.'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                  <TouchableOpacity onPress={() => setOnbStep(2)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(6)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -3062,7 +2999,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             )}
 
             {/* ── ÉTAPE 6 : frais sur fiche ou séparé ── */}
-            {onbStep === 6 && (
+            {onbStep === 4 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>{'📄'} Comment arrivent tes frais ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16, lineHeight: 18 }}>
@@ -3085,10 +3022,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   </TouchableOpacity>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(5)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                  <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(7)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => setOnbStep(5)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -3096,7 +3033,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             )}
 
             {/* ── ÉTAPE 7 : contrat + salaire ── */}
-            {onbStep === 7 && (
+            {onbStep === 5 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>{'📊'} Ton contrat et ton salaire</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 14, lineHeight: 18 }}>
@@ -3180,7 +3117,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 )}
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(6)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<- Retour'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity

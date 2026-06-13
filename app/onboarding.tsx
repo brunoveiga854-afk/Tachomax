@@ -17,6 +17,8 @@ export default function OnboardingScreen() {
   const [remorqueType, setRemorqueType] = useState<'immat' | 'parc'>('immat')
   const [remorqueValue, setRemorqueValue] = useState('')
   const [chariotEmbarque, setChariotEmbarque] = useState(false)
+  const [typeVehicule, setTypeVehicule] = useState('semi')
+  const [typeCargo, setTypeCargo] = useState('general')
   const [kmInicial, setKmInicial] = useState('')
   // Contrato (etapa 2)
   const [ancienneteAns, setAncienneteAns] = useState('')
@@ -32,6 +34,8 @@ export default function OnboardingScreen() {
     if (coefficient) await AsyncStorage.setItem('coefficient', coefficient)
     if (salBaseEstime) await AsyncStorage.setItem('sal_base_estime', salBaseEstime)
     if (heuresMensuel) await AsyncStorage.setItem('heures_mensuel', heuresMensuel)
+    await AsyncStorage.setItem('vehicule_type', typeVehicule)
+    await AsyncStorage.setItem('cargo_type', typeCargo)
     await AsyncStorage.setItem('profil', profil)
     await AsyncStorage.setItem('nom', nom)
     await AsyncStorage.setItem('conducteur_nom', nom)
@@ -259,6 +263,47 @@ export default function OnboardingScreen() {
           </View>
 
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {/* TYPE DE VÉHICULE */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🚛 TYPE DE VÉHICULE</Text>
+            <View style={{ gap: 8, marginBottom: 20 }}>
+              {[
+                { val: 'semi',    label: '🚚 Semi-remorque',    sub: 'tracteur + semi, ensemble articulé' },
+                { val: 'porteur', label: '🚛 Porteur',           sub: 'camion rigide, benne, citerne...' },
+                { val: 'train',   label: '🚛🚌 Train routier',   sub: 'porteur + remorque' },
+              ].map(({ val, label, sub }) => (
+                <TouchableOpacity
+                  key={val}
+                  onPress={async () => { setTypeVehicule(val); await AsyncStorage.setItem('vehicule_type', val) }}
+                  style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: typeVehicule === val ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: typeVehicule === val ? 1.5 : 1, borderColor: typeVehicule === val ? '#f5a623' : '#2a3045', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: typeVehicule === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
+                  <Text style={{ fontSize: 11, color: typeVehicule === val ? '#f5a623' : '#6b7394' }}>{sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* TYPE DE CARGAISON */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📦 TYPE DE CARGAISON</Text>
+            <View style={{ gap: 8, marginBottom: 20 }}>
+              {[
+                { val: 'general',  label: '📦 Général / Fourgon', sub: 'marchandise générale, rideaux' },
+                { val: 'benne',    label: '🏗 Benne / TP',         sub: 'travaux publics, matériaux' },
+                { val: 'frigo',    label: '🧊 Frigo / Temp. dir.', sub: 'denrées périssables' },
+                { val: 'citerne',  label: '🛢 Citerne',            sub: 'liquides, produits en vrac' },
+                { val: 'plateau',  label: '🪵 Plateau / Hayon',    sub: 'charges encombrantes, bois' },
+                { val: 'adr',      label: '☢️ ADR — Dangereux',    sub: 'matières dangereuses' },
+              ].map(({ val, label, sub }) => (
+                <TouchableOpacity
+                  key={val}
+                  onPress={async () => { setTypeCargo(val); await AsyncStorage.setItem('cargo_type', val) }}
+                  style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: typeCargo === val ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: typeCargo === val ? 1.5 : 1, borderColor: typeCargo === val ? '#f5a623' : '#2a3045', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: typeCargo === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
+                  <Text style={{ fontSize: 11, color: typeCargo === val ? '#f5a623' : '#6b7394' }}>{sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {/* TRACTEUR */}
             <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🚛 TRACTEUR</Text>
             <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>

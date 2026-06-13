@@ -1334,7 +1334,6 @@ const pararGPS = async () => {
 
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView
         ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
@@ -1900,7 +1899,6 @@ const pararGPS = async () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-      </KeyboardAvoidingView>
 
       <Modal visible={showCalendario} transparent animationType="fade">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 }} activeOpacity={1} onPress={() => setShowCalendario(false)}>

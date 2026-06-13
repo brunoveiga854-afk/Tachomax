@@ -1140,6 +1140,7 @@ export default function MonSalaireScreen() {
   const [editMontantTotal, setEditMontantTotal] = useState('')
   const [editMoisIndex, setEditMoisIndex] = useState(0)
   const [editAnnee, setEditAnnee] = useState(new Date().getFullYear())
+  const [editInteressement, setEditInteressement] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const truckAnim = useRef(new Animated.Value(-40)).current
@@ -2785,6 +2786,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 setEditMontantTotal(String(modalDetail.montantTotalRecu))
                 setEditMoisIndex(modalDetail.moisIndex)
                 setEditAnnee(modalDetail.annee)
+                setEditInteressement(String(modalDetail.interessement || 0))
                 setShowModalEdit(true)
               }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>✏️ Modifier</Text>
@@ -3052,6 +3054,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>TOTAL REÇU (€)</Text>
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editMontantTotal} onChangeText={setEditMontantTotal} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
+              <View>
+                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>INTÉRESSEMENT (€) — 0 pour effacer</Text>
+                <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editInteressement} onChangeText={setEditInteressement} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} />
+              </View>
             </View>
             <View style={{ marginBottom: 16 }}>
               <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>PÉRIODE</Text>
@@ -3084,6 +3090,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const totalEdit = parseFloat(editMontantTotal) || 0
                 const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
                 const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
+                const interessEdit = parseFloat(editInteressement) || 0
                 const updated = {
                   ...modalDetail,
                   periode: novePeriode,
@@ -3096,6 +3103,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   remboursementFrais: fraisEdit > 0 ? fraisEdit : modalDetail.remboursementFrais,
                   fraisRecuConfirme: fraisEdit > 0 ? fraisEdit : modalDetail.fraisRecuConfirme,
                   montantTotalRecu: totalEdit,
+                  interessement: interessEdit,
                   salarioConfirmado: netEdit > 0,
                   fraisConfirmado: fraisEdit > 0,
                   pagamentoSalMesIndex: modalDetail.pagamentoSalMesIndex ?? editMoisIndex,

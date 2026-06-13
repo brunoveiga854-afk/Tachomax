@@ -1,3 +1,4 @@
+import { TachoLogo } from '../../src/TachoLogo'
 import React, { useState, useEffect } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -327,9 +328,7 @@ export default function ReglagesScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
 
         <View style={st.header}>
-          <Text style={[st.appName, { color: c.text }]}>
-            TACHO<Text style={st.accent}>MAX</Text>
-          </Text>
+          <TachoLogo textColor={c.text} size={26} />
         </View>
 
         <View style={st.titleSection}>

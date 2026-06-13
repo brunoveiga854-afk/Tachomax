@@ -123,7 +123,9 @@ export function calcularFraisJour(input: CalculerFraisJourInput): FraisJourResul
     : serviceMin + pauseMin
 
   const ptd = (debutMin !== null && debutMin <= Math.round(regles.ptDejAte * 60)) || input.prevDecouche ? 1 : 0
-  const dej = serviceMin >= Math.round(regles.dejMinAmp * 60) || isDec ? 1 : 0
+  // Usa serviceMin se disponível (segServico passado), senão amplitude como fallback
+  const effectiveMin = serviceMin > 0 ? serviceMin : amplitudeMin
+  const dej = effectiveMin >= Math.round(regles.dejMinAmp * 60) || isDec ? 1 : 0
   const din = isDec ? 1 : 0
   const nui = isDec ? 1 : 0
 

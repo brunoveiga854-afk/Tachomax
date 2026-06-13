@@ -1,7 +1,8 @@
+import { TachoLogo } from '../../src/TachoLogo'
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
 import React, { useEffect, useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, Dimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
@@ -37,6 +38,8 @@ type Jour = {
   kmFim?: number
 }
 const PAUSA_MAX = 4.5 * 3600
+const SCREEN_W = Dimensions.get('window').width
+const STAT_W = Math.floor((SCREEN_W - 32) / 3)   // 3 colunas visíveis, margem 16px cada lado
 const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOOFFICE_estado'
 const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
@@ -153,6 +156,7 @@ export default function AujourdhuiScreen() {
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})
   const statsScrollRef = useRef<any>(null)
+  const mainScrollRef = useRef<any>(null)
 
   const MAX_CONDUITE = 9 * 3600
   const MAX_SERVICE = modeNuit ? 10 * 3600 : 12 * 3600
@@ -1330,8 +1334,11 @@ const pararGPS = async () => {
 
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView
+        ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1348,7 +1355,7 @@ const pararGPS = async () => {
       >
 
         <View style={st.header}>
-          <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>OFFICE</Text></Text>
+          <TachoLogo textColor={c.text} size={26} />
           <TouchableOpacity style={[st.badge, { backgroundColor: c.card, borderColor: c.cardBorder }]} onPress={() => setShowProfil(true)}>
             <Text style={st.badgeText}>{profil} ▾</Text>
           </TouchableOpacity>
@@ -1383,26 +1390,6 @@ const pararGPS = async () => {
               )}
             </View>
 
-            {/* ── STATS STRIP (avant service) ── */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 4 }}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
-                </View>
-                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
-                </View>
-                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
-                </View>
-              </View>
-            </ScrollView>
-
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>
@@ -1414,23 +1401,27 @@ const pararGPS = async () => {
             </View>
 
             {/* ── KM DÉBUT ── */}
-            <View style={{ alignItems: 'center', marginTop: -8, marginBottom: 8 }}>
+            <View style={{ marginHorizontal: 20, marginTop: -4, marginBottom: 10 }}>
               {showKmInicio ? (
                 kmDebutConfirme ? (
-                  <View style={{ backgroundColor: 'rgba(39,174,96,0.12)', borderColor: '#27ae60', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, width: 280, alignItems: 'center' }}>
-                    <Text style={{ color: '#27ae60', fontSize: 15, fontWeight: '800' }}>✓ Confirmé — {kmInicioInput} km</Text>
+                  <View style={{ backgroundColor: 'rgba(39,174,96,0.12)', borderColor: '#27ae60', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}>
+                    <Text style={{ color: '#27ae60', fontSize: 15, fontWeight: '800' }}>✓ {kmInicioInput} km enregistré</Text>
                   </View>
                 ) : (
-                  <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, width: 280, shadowColor: '#f5a623', shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 }}>
-                    <Text style={{ color: '#f5a623', fontSize: 12, fontWeight: '800', letterSpacing: 1, textAlign: 'center', marginBottom: 8 }}>📍 KM DÉBUT</Text>
+                  <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, elevation: 3 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ fontSize: 20 }}>📍</Text>
                       <TextInput
                         value={kmInicioInput}
                         onChangeText={v => { setKmInicioInput(limparInputKm(v)); setKmInicioAuto(false) }}
                         placeholder={t.kmDebut}
                         placeholderTextColor={c.textSub}
                         keyboardType="numeric"
-                        style={{ flex: 1, color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'center', backgroundColor: c.bg, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 }}
+                        returnKeyType="done"
+                        onSubmitEditing={() => {
+                          if (kmInicioInput) { setKmInicioAuto(false); setKmDebutConfirme(true); setTimeout(() => { setKmDebutConfirme(false); setShowKmInicio(false) }, 1200) }
+                        }}
+                        style={{ flex: 1, color: c.text, fontSize: 20, fontWeight: '700', backgroundColor: c.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 }}
                         autoFocus
                       />
                       <TouchableOpacity
@@ -1439,21 +1430,23 @@ const pararGPS = async () => {
                             setKmInicioAuto(false)
                             setKmDebutConfirme(true)
                             setTimeout(() => { setKmDebutConfirme(false); setShowKmInicio(false) }, 1200)
+                          } else {
+                            setShowKmInicio(false)
                           }
                         }}
-                        style={{ backgroundColor: kmInicioInput ? '#27ae60' : c.progressBg, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}
+                        style={{ backgroundColor: kmInicioInput ? '#27ae60' : 'rgba(180,180,180,0.2)', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>→</Text>
+                        <Text style={{ color: kmInicioInput ? '#fff' : c.textSub, fontSize: 16, fontWeight: '800' }}>{kmInicioInput ? '✓' : '✕'}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 )
               ) : kmInicioInput ? (
-                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => { setShowKmInicio(true); setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 150) }} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: kmInicioAuto ? c.textSub : '#f5a623', fontSize: 13, fontWeight: '700', opacity: kmInicioAuto ? 0.6 : 1 }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 16 }}>
+                <TouchableOpacity onPress={() => { setShowKmInicio(true); setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 150) }} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
                   <Text style={{ color: c.textSub, fontSize: 12, opacity: 0.5 }}>+ {t.kmDebut}</Text>
                 </TouchableOpacity>
               )}
@@ -1789,21 +1782,38 @@ const pararGPS = async () => {
             )}
 
             {/* ── STATS STRIP ── */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 4 }}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1, alignItems: 'center' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
                 </View>
                 <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
+                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
                 </View>
                 <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
+                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
+                </View>
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏸ PAUSE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#9b59b6' }}>{fmtHM(segPausaTotal + (emPausa ? segPausa : 0))}</Text>
+                </View>
+                {kmDiarios > 0 && <>
+                  <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                  <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>🛣 KM</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: c.text }}>{kmDiarios} km</Text>
+                  </View>
+                </>}
+                <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
+                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📅 SEMAINE</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: semaineColor }}>{fmtHM(statsSemaine.heures)}</Text>
                 </View>
               </View>
             </ScrollView>
@@ -1890,6 +1900,7 @@ const pararGPS = async () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <Modal visible={showCalendario} transparent animationType="fade">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 }} activeOpacity={1} onPress={() => setShowCalendario(false)}>

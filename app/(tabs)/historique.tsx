@@ -1,3 +1,4 @@
+import { TachoLogo } from '../../src/TachoLogo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
@@ -480,7 +481,7 @@ const getJoursMois = () => {
         }
       >
         <View style={st.header}>
-          <Text style={[st.appName, { color: c.text }]}>TACHO<Text style={st.accent}>MAX</Text></Text>
+          <TachoLogo textColor={c.text} size={26} />
           <TouchableOpacity onPress={() => { setSemaine(0); setMoisOffset(0) }} style={[st.resetBtn, { backgroundColor: c.navBtn, borderColor: c.navBtnBorder }]}>
             <Text style={[st.resetBtnText, { color: c.textSub }]}>🏠 Aujourd'hui</Text>
           </TouchableOpacity>

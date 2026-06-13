@@ -42,10 +42,10 @@ const SCREEN_W = Dimensions.get('window').width
 const STAT_W = Math.floor((SCREEN_W - 32) / 3)   // 3 colunas visíveis, margem 16px cada lado
 const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOOFFICE_estado'
-const CONDUCAO_SEGUNDOS_ON = 8   // consecutive GPS ticks at speed before setEmConducao(true)
-const CONDUCAO_PARAR_ABAIXO_3_S = 5
-const CONDUCAO_PARAR_ABAIXO_5_S = 10
-const CONDUCAO_PARAR_ABAIXO_7_S = 20
+const CONDUCAO_SEGUNDOS_ON = 15  // consecutive GPS ticks at speed before setEmConducao(true)
+const CONDUCAO_PARAR_ABAIXO_3_S = 8
+const CONDUCAO_PARAR_ABAIXO_5_S = 16
+const CONDUCAO_PARAR_ABAIXO_7_S = 28
 const GPS_MOVIMENTO_SALTO_MAX_KM = 1
 const GPS_MOVIMENTO_GAP_S = 30
 const GPS_MOVIMENTO_GAP_MAX_KM = 50
@@ -205,7 +205,7 @@ export default function AujourdhuiScreen() {
 
   const mediaVelocidade = (vel: number) => {
     velocidadeBuffer.current.push(vel)
-    if (velocidadeBuffer.current.length > 5) velocidadeBuffer.current.shift()
+    if (velocidadeBuffer.current.length > 7) velocidadeBuffer.current.shift()
     return velocidadeBuffer.current.reduce((a, b) => a + b, 0) / velocidadeBuffer.current.length
   }
 
@@ -915,6 +915,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     locationSub.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 },
       (loc) => {
+        // ignorar leituras com precisão fraca (>30m) — evita falsos arranques em cidade
+        if ((loc.coords.accuracy ?? 999) > 30) return
         const agoraGps = loc.timestamp || Date.now()
         const gapGpsS = Math.max(0, (agoraGps - ultimoGpsCallback.current) / 1000)
         const lat = loc.coords.latitude

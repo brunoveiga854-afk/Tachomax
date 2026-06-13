@@ -1171,6 +1171,8 @@ export default function MonSalaireScreen() {
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
+  const [inputInteressementQ, setInputInteressementQ] = useState('')
+  const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
   const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
@@ -1808,6 +1810,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const pf = fiches[0]?.dados || fiches[0] as any
     setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
     setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+    setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
+    setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
     setInputMoisAtipico(false)
     setShowPerguntas(true)
@@ -1846,6 +1850,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       anoFraisTrabalho,
       autoDetectado: false,
       moisAtipico: inputMoisAtipico,
+      interessementQ: parseFloat(inputInteressementQ.replace(',','.')) || 0,
+      primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
     }
     const novasRespostas = [...respostas, novaResposta]
     setRespostas(novasRespostas)
@@ -1854,6 +1860,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const pf = fiches[perguntaAtual + 1]?.dados || fiches[perguntaAtual + 1] as any
       setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
       setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+      setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
+      setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
       setShowVerifDetalhes(false)
       setVerifApplied(false)
       setInputMoisAtipico(false)
@@ -1895,7 +1903,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         totalCotisations: fiche.totalCotisations || 0,
         remboursementFrais: fraisFiche,
         fraisBoletim: frais?.totalFrais > 0 ? frais.totalFrais : 0,
-        interessement: fiche.interessement || 0,
+        interessement: (resp.interessementQ || 0) > 0 ? resp.interessementQ : (fiche.interessement || 0),
+        primeNonAccident: (resp.primeNonAccQ || 0) > 0 ? resp.primeNonAccQ : (fiche.primeNonAccident || 0),
         primeExceptionnelle: fiche.primeExceptionnelle || 0,
         participationSalariale: fiche.participationSalariale || 0,
         autresPrimes: fiche.autresPrimes || 0,
@@ -2491,7 +2500,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     En {mesLabel} {fichaActual.annee}, combien as-tu reçu ?
                   </Text>
 
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
                         💰 Jour {diaSal} — salaire ?
@@ -2514,6 +2523,31 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
                         value={inputMontantFraisQ}
                         onChangeText={(v) => { setInputMontantFraisQ(v); setVerifApplied(false) }}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={c.textSub}
+                      />
+                    </View>
+                  </View>
+                  {/* Primes (pré-preenchidas pela IA, editáveis) */}
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>🤝 INTÉRESSEMENT</Text>
+                      <TextInput
+                        style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
+                        value={inputInteressementQ}
+                        onChangeText={setInputInteressementQ}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={c.textSub}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>🛡 NON-ACCIDENT</Text>
+                      <TextInput
+                        style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
+                        value={inputPrimeNonAccQ}
+                        onChangeText={setInputPrimeNonAccQ}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={c.textSub}
@@ -2558,6 +2592,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(popped.montantSalReel) : '')
                             setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(popped.montantFraisReel) : '')
                           setInputMoisAtipico(popped.moisAtipico || false)
+                          setInputInteressementQ((popped.interessementQ || 0) > 0 ? String(popped.interessementQ) : '')
+                          setInputPrimeNonAccQ((popped.primeNonAccQ || 0) > 0 ? String(popped.primeNonAccQ) : '')
                           }
                           setPerguntaAtual(perguntaAtual - 1)
                           setRespostas(respostas.slice(0, -1))
@@ -2601,10 +2637,22 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ color: c.textSub, fontSize: 13 }}>Net payé récurrent</Text>
                 <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.netPaye || 0)}</Text>
               </View>
-              {totalPrimesExceptionnelles(modalDetail) > 0 && (
+              {(modalDetail?.interessement || 0) > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: c.textSub, fontSize: 13 }}>Primes non récurrentes</Text>
-                  <Text style={{ color: '#9b59b6', fontWeight: '700', fontSize: 13 }}>{fmt(totalPrimesExceptionnelles(modalDetail))}</Text>
+                  <Text style={{ color: c.textSub, fontSize: 13 }}>🤝 Intéressement</Text>
+                  <Text style={{ color: '#9b59b6', fontWeight: '700', fontSize: 13 }}>+{fmt(modalDetail?.interessement || 0)}</Text>
+                </View>
+              )}
+              {(modalDetail?.primeNonAccident || 0) > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: c.textSub, fontSize: 13 }}>🛡 Prime non-accident</Text>
+                  <Text style={{ color: '#27ae60', fontWeight: '700', fontSize: 13 }}>+{fmt(modalDetail?.primeNonAccident || 0)}</Text>
+                </View>
+              )}
+              {(modalDetail?.primeExceptionnelle || 0) > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: c.textSub, fontSize: 13 }}>🎁 Prime exceptionnelle</Text>
+                  <Text style={{ color: '#9b59b6', fontWeight: '700', fontSize: 13 }}>+{fmt(modalDetail?.primeExceptionnelle || 0)}</Text>
                 </View>
               )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

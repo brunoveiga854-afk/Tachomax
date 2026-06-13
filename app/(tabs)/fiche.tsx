@@ -2521,24 +2521,30 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                   </View>
 
-                  {/* ── Normal / Atypique ── */}
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  {/* ── Ce mois était-il normal ? ── */}
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 8 }}>Ce mois était-il habituel ?</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
                     <TouchableOpacity
                       onPress={() => setInputMoisAtipico(false)}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: !inputMoisAtipico ? 'rgba(39,174,96,0.12)' : c.input, borderWidth: !inputMoisAtipico ? 1.5 : 1, borderColor: !inputMoisAtipico ? '#27ae60' : c.cardBorder }}
                     >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Normal</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Oui, normal</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setInputMoisAtipico(true)}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: inputMoisAtipico ? 'rgba(231,76,60,0.12)' : c.input, borderWidth: inputMoisAtipico ? 1.5 : 1, borderColor: inputMoisAtipico ? '#e74c3c' : c.cardBorder }}
                     >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Atypique</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Non, exceptionnel</Text>
                     </TouchableOpacity>
                   </View>
+                  {!inputMoisAtipico && (
+                    <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
+                      Mois classique — sera utilisé pour calibrer les estimations.
+                    </Text>
+                  )}
                   {inputMoisAtipico && (
                     <Text style={{ fontSize: 11, color: '#e74c3c', textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
-                      Ce mois ne sera pas utilisé pour les estimations futures.
+                      Ex : congés, maladie, prime annuelle, acompte… Ce mois ne calibrera pas les estimations.
                     </Text>
                   )}
 

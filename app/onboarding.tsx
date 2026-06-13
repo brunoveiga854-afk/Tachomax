@@ -34,7 +34,7 @@ export default function OnboardingScreen() {
       {etape === 0 && (
         <View style={st.page}>
           <View style={st.logoSection}>
-            <Text style={st.logo}>TACHO<Text style={st.accent}>MAX</Text></Text>
+            <Text style={st.logo}>Tacho<Text style={st.accent}>Office</Text></Text>
             <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
           </View>
 
@@ -136,9 +136,14 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={st.btnNext} onPress={() => setEtape(2)}>
-            <Text style={st.btnNextText}>SUIVANT →</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 'auto' as any, marginBottom: 8 }}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
+              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(2)}>
+              <Text style={st.btnNextText}>SUIVANT →</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         </KeyboardAvoidingView>
       )}
@@ -233,9 +238,14 @@ export default function OnboardingScreen() {
             />
           </ScrollView>
 
-          <TouchableOpacity style={st.btnNext} onPress={() => setEtape(3)}>
-            <Text style={st.btnNextText}>SUIVANT →</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(1)}>
+              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(3)}>
+              <Text style={st.btnNextText}>SUIVANT →</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         </KeyboardAvoidingView>
       )}
@@ -274,9 +284,14 @@ export default function OnboardingScreen() {
             <Text style={st.trialPrixSub}>Annulable à tout moment</Text>
           </View>
 
-          <TouchableOpacity style={st.btnStart} onPress={terminerOnboarding}>
-            <Text style={st.btnStartText}>🚛 DÉMARRER GRATUITEMENT</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
+              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[st.btnStart, { flex: 2 }]} onPress={terminerOnboarding}>
+              <Text style={st.btnStartText}>🚛 DÉMARRER</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 

@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl } from 'react-native'
@@ -1139,6 +1140,7 @@ export default function MonSalaireScreen() {
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const truckAnim = useRef(new Animated.Value(-40)).current
+  const wheelAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
@@ -1246,8 +1248,11 @@ export default function MonSalaireScreen() {
         Animated.timing(truckAnim, { toValue: -40, duration: 1200, useNativeDriver: true }),
       ])
     )
-    loop.start()
-    return () => { clearInterval(iv); loop.stop() }
+    const wheelLoop = Animated.loop(
+      Animated.timing(wheelAnim, { toValue: 1, duration: 600, useNativeDriver: true })
+    )
+    loop.start(); wheelLoop.start()
+    return () => { clearInterval(iv); loop.stop(); wheelLoop.stop() }
   }, [loading])
 
   const charger = async () => {
@@ -2136,6 +2141,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </View>
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>
             </View>
+            {historique.length < 6 && (
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8, textAlign: 'center' }}>
+                {historique.length === 0
+                  ? '📊 Charge tes fiches pour démarrer les estimations'
+                  : `📊 Encore ${6 - historique.length} mois de fiches pour atteindre 95% de précision`}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
 
@@ -2144,11 +2156,69 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           onPress={importerDocumentos} disabled={loading}
         >
           {loading ? (
-            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#f5a623', marginBottom: 10, textAlign: 'center' }}>
+            <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#f5a623', marginBottom: 14, textAlign: 'center', letterSpacing: 0.5 }}>
                 {['📄 Lecture des documents...', '🔍 Analyse en cours...', '🧮 Calcul des montants...', '✨ Presque fini...'][loadingMsg]}
               </Text>
-              <Animated.Text style={{ fontSize: 56, transform: [{ translateX: truckAnim }] }}>🚛</Animated.Text>
+              {/* Camião SVG animado com tema da app */}
+              <View style={{ width: 220, height: 70, overflow: 'hidden' }}>
+                {/* Estrada */}
+                <View style={{ position: 'absolute', bottom: 8, left: 0, right: 0, height: 2, backgroundColor: 'rgba(245,166,35,0.15)' }} />
+                {/* Tracejados da estrada */}
+                {[0,1,2,3,4].map(i => (
+                  <Animated.View key={i} style={{
+                    position: 'absolute', bottom: 6, height: 1, width: 20, backgroundColor: 'rgba(245,166,35,0.35)',
+                    transform: [{ translateX: Animated.add(
+                      new Animated.Value(i * 44),
+                      Animated.multiply(truckAnim, -0.6)
+                    )}]
+                  }} />
+                ))}
+                {/* Camião */}
+                <Animated.View style={{ position: 'absolute', bottom: 10, transform: [{ translateX: truckAnim }], left: 50 }}>
+                  <Svg width={110} height={48} viewBox="0 0 110 48">
+                    {/* Reboque */}
+                    <Rect x="0" y="8" width="68" height="30" rx="3" fill="#f5a623" opacity={0.9} />
+                    {/* Detalhes reboque */}
+                    <Rect x="4" y="12" width="60" height="8" rx="1" fill="rgba(0,0,0,0.2)" />
+                    <Rect x="4" y="23" width="60" height="1" fill="rgba(255,255,255,0.15)" />
+                    <Rect x="4" y="27" width="60" height="1" fill="rgba(255,255,255,0.1)" />
+                    {/* Engate */}
+                    <Rect x="66" y="20" width="8" height="4" rx="1" fill="#cc8800" />
+                    {/* Cabine */}
+                    <Rect x="72" y="4" width="36" height="34" rx="4" fill="#e6950f" />
+                    {/* Janela cabine */}
+                    <Rect x="80" y="9" width="22" height="14" rx="2" fill="#0f1117" opacity={0.85} />
+                    {/* Reflexo janela */}
+                    <Rect x="82" y="11" width="6" height="10" rx="1" fill="rgba(255,255,255,0.07)" />
+                    {/* Grelha frontal */}
+                    <Rect x="105" y="16" width="4" height="18" rx="1" fill="#cc8800" />
+                    <Line x1="106" y1="19" x2="108" y2="19" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                    <Line x1="106" y1="23" x2="108" y2="23" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                    <Line x1="106" y1="27" x2="108" y2="27" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                    {/* Farol */}
+                    <Rect x="106" y="13" width="3" height="4" rx="1" fill="#ffe066" />
+                    {/* Rodas reboque */}
+                    <Circle cx="16" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
+                    <Circle cx="16" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
+                    <Circle cx="48" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
+                    <Circle cx="48" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
+                    {/* Rodas cabine */}
+                    <Circle cx="83" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
+                    <Circle cx="83" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
+                    <Circle cx="99" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
+                    <Circle cx="99" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
+                  </Svg>
+                </Animated.View>
+              </View>
+              {/* Barra de progresso */}
+              <View style={{ width: 180, height: 3, backgroundColor: 'rgba(245,166,35,0.15)', borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
+                <Animated.View style={{
+                  height: '100%', backgroundColor: '#f5a623', borderRadius: 2,
+                  width: `${[25, 50, 75, 95][loadingMsg]}%` as any,
+                  opacity: 0.85
+                }} />
+              </View>
             </View>
           ) : (
             <>

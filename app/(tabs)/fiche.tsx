@@ -42,6 +42,7 @@ type MoisData = {
   hbase?: number; hval?: number; h25?: number; lim25?: number; h50?: number
   // Confirmações reais dadas pelo motorista (mês/dia em que recebeu)
   salarioConfirmado?: boolean; fraisConfirmado?: boolean
+  moisAtipico?: boolean
   fraisRecuConfirme?: number
   pagamentoSalMesIndex?: number; pagamentoSalAno?: number
   pagamentoFraisMesIndex?: number; pagamentoFraisAno?: number
@@ -470,7 +471,7 @@ function trouverSourceParValeur(
 
 function aprenderHlagPorConfirmacoes(dados: MoisData[]): number[] {
   return dados
-    .filter(d => d.salarioConfirmado && (d.netPaye || 0) > 0)
+    .filter(d => d.salarioConfirmado && (d.netPaye || 0) > 0 && !d.moisAtipico)
     .map(d => {
       const [anoPay, mesPay] = mesPagamentoSalDe(d)
       const match = trouverSourceParValeur(dados, d.netPaye || 0, anoPay, mesPay, src => [src.netPaye || 0], true)
@@ -481,7 +482,7 @@ function aprenderHlagPorConfirmacoes(dados: MoisData[]): number[] {
 
 function aprenderFlagPorConfirmacoes(dados: MoisData[]): number[] {
   return dados
-    .filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0)
+    .filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0 && !d.moisAtipico)
     .map(d => {
       const [anoPay, mesPay] = mesPagamentoFraisDe(d)
       const valor = fraisRealConfirme(d)
@@ -1191,6 +1192,7 @@ export default function MonSalaireScreen() {
     AsyncStorage.getItem('cargo_type').then(v => { if (v) setOnbCargo(v) })
   }, [])
   const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
+  const [inputMoisAtipico, setInputMoisAtipico] = useState(false)
 
   const breathAnim = useRef(new Animated.Value(1)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -1807,6 +1809,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
     setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
     setShowVerifDetalhes(false)
+    setInputMoisAtipico(false)
     setShowPerguntas(true)
   }
 
@@ -1842,6 +1845,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       mesFraisTrabalhoIndex,
       anoFraisTrabalho,
       autoDetectado: false,
+      moisAtipico: inputMoisAtipico,
     }
     const novasRespostas = [...respostas, novaResposta]
     setRespostas(novasRespostas)
@@ -1852,6 +1856,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
       setShowVerifDetalhes(false)
       setVerifApplied(false)
+      setInputMoisAtipico(false)
       setPerguntaAtual(perguntaAtual + 1)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -1905,6 +1910,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         pagamentoFraisMesIndex: resp.pagamentoFraisMesIndex ?? resp.fiche.moisIndex,
         pagamentoFraisAno: resp.pagamentoFraisAno ?? resp.fiche.annee,
         // Campos novos das fiches
+        moisAtipico: resp.moisAtipico || false,
         joursConges: fiche.joursConges || 0, montantConges: fiche.montantConges || 0,
         joursFeries: fiche.joursFeries || 0, montantFeries: fiche.montantFeries || 0,
         joursRC: fiche.joursRC || 0, montantRC: fiche.montantRC || 0, totalHeures: fiche.totalHeures || 0,
@@ -1912,7 +1918,34 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         hbase: fiche.hbase || 0, hval: fiche.hval || 0,
         h25: fiche.h25 || 0, lim25: fiche.lim25 || 0, h50: fiche.h50 || 0,
       }
-      if (existenteIdx >= 0) novoHist[existenteIdx] = novoDado; else novoHist.push(novoDado)
+      if (existenteIdx >= 0) {
+        const ex = novoHist[existenteIdx]
+        const merged: MoisData = {
+          ...novoDado,
+          // salário — só substituir se NÃO confirmado antes
+          netPaye: ex.salarioConfirmado ? ex.netPaye : novoDado.netPaye,
+          salairebrut: ex.salarioConfirmado ? ex.salairebrut : novoDado.salairebrut,
+          salarioConfirmado: ex.salarioConfirmado || novoDado.salarioConfirmado,
+          // primes extras — preservar se já confirmadas
+          interessement: (ex.salarioConfirmado && (ex.interessement || 0) > 0) ? ex.interessement : novoDado.interessement,
+          primeNonAccident: (ex.salarioConfirmado && (ex.primeNonAccident || 0) > 0) ? ex.primeNonAccident : novoDado.primeNonAccident,
+          primeExceptionnelle: (ex.salarioConfirmado && (ex.primeExceptionnelle || 0) > 0) ? ex.primeExceptionnelle : novoDado.primeExceptionnelle,
+          // frais — só substituir se NÃO confirmado antes
+          fraisRecuConfirme: ex.fraisConfirmado ? (ex.fraisRecuConfirme ?? novoDado.fraisRecuConfirme) : novoDado.fraisRecuConfirme,
+          fraisBoletim: ex.fraisConfirmado ? (ex.fraisBoletim || novoDado.fraisBoletim) : novoDado.fraisBoletim,
+          fraisConfirmado: ex.fraisConfirmado || novoDado.fraisConfirmado,
+          // montant total — preservar se > 0
+          montantTotalRecu: ex.montantTotalRecu > 0 ? ex.montantTotalRecu : novoDado.montantTotalRecu,
+          // fonte e confiança — upgradar para confirmado se aplicável
+          fonte: (ex.salarioConfirmado || ex.fraisConfirmado) ? 'confirmado' : novoDado.fonte,
+          confiancaAprendizagem: (ex.salarioConfirmado || ex.fraisConfirmado) ? 1 : novoDado.confiancaAprendizagem,
+          // atipico — só atualizar se novo valor foi explicitamente definido
+          moisAtipico: novoDado.moisAtipico !== undefined ? novoDado.moisAtipico : ex.moisAtipico,
+        }
+        novoHist[existenteIdx] = merged
+      } else {
+        novoHist.push(novoDado)
+      }
     }
     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
     setHistorique(novoHist)
@@ -2488,6 +2521,27 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                   </View>
 
+                  {/* ── Normal / Atypique ── */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                    <TouchableOpacity
+                      onPress={() => setInputMoisAtipico(false)}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: !inputMoisAtipico ? 'rgba(39,174,96,0.12)' : c.input, borderWidth: !inputMoisAtipico ? 1.5 : 1, borderColor: !inputMoisAtipico ? '#27ae60' : c.cardBorder }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Normal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setInputMoisAtipico(true)}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: inputMoisAtipico ? 'rgba(231,76,60,0.12)' : c.input, borderWidth: inputMoisAtipico ? 1.5 : 1, borderColor: inputMoisAtipico ? '#e74c3c' : c.cardBorder }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Atypique</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {inputMoisAtipico && (
+                    <Text style={{ fontSize: 11, color: '#e74c3c', textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
+                      Ce mois ne sera pas utilisé pour les estimations futures.
+                    </Text>
+                  )}
+
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={{ padding: 14, alignItems: 'center' }}
@@ -2497,6 +2551,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           if (popped) {
                             setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(popped.montantSalReel) : '')
                             setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(popped.montantFraisReel) : '')
+                          setInputMoisAtipico(popped.moisAtipico || false)
                           }
                           setPerguntaAtual(perguntaAtual - 1)
                           setRespostas(respostas.slice(0, -1))

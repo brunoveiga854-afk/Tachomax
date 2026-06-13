@@ -1,5 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
-import * as FileSystem from 'expo-file-system'
+import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -479,10 +479,9 @@ const getJoursMois = () => {
         totalKms: totalKms > 0 ? String(totalKms) : '',
         totalHeures: fmtSec(totalSec),
       })
-      const fileUri = FileSystem.cacheDirectory + `fiche_semaine_${numSemana}.html`
-      await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 })
+      const { uri } = await Print.printToFileAsync({ html, base64: false })
       setFicheLoading(false)
-      await Sharing.shareAsync(fileUri, { mimeType: 'text/html', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'public.html' })
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
     } catch (e) {
       setFicheLoading(false)
       Alert.alert('Erreur', String(e))

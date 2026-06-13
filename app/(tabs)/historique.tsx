@@ -1,4 +1,7 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
+import { gerarHtmlFiche, getNumeroSemaine, getLundiDaSemana } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
@@ -196,6 +199,8 @@ export default function HistoriqueScreen() {
   const [showNotaDatePicker, setShowNotaDatePicker] = useState(false)
   const [editKm, setEditKm] = useState('')
   const [editKmInicio, setEditKmInicio] = useState('')
+  const [showFicheHebdo, setShowFicheHebdo] = useState(false)
+  const [ficheLoading, setFicheLoading] = useState(false)
   const [editKmFim, setEditKmFim] = useState('')
   useFocusEffect(useCallback(() => { setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   const chargerHistorique = async () => {
@@ -405,6 +410,84 @@ const getJoursMois = () => {
   }
   const jousSemaine = getJoursSemaine()
   const joursMois = getJoursMois()
+  const gerarFicheHebdo = async () => {
+    setFicheLoading(true)
+    try {
+      const maintenant = new Date()
+      const lundi = new Date(maintenant)
+      lundi.setDate(maintenant.getDate() - maintenant.getDay() + 1 + (semaine * 7))
+      lundi.setHours(0, 0, 0, 0)
+      const sabado = new Date(lundi); sabado.setDate(lundi.getDate() + 5)
+      const numSemana = getNumeroSemaine(lundi)
+      const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+      const fmtSec = (s: number) => { if (!s || s<=0) return ''; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h${String(m).padStart(2,'0')}` }
+      const [nom, prenom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
+        AsyncStorage.getItem('user_nom'), AsyncStorage.getItem('user_prenom'),
+        AsyncStorage.getItem('tracteur_value'), AsyncStorage.getItem('remorque_value'),
+        AsyncStorage.getItem('transport_adr'),
+      ])
+      const JOURS_LABELS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
+      const JOURS_COURTS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
+            const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
+      const fraisVals = fraisValsRaw ? JSON.parse(fraisValsRaw) : {}
+      const reglesRaw = await AsyncStorage.getItem('frais_regles')
+      const regles = reglesRaw ? JSON.parse(reglesRaw) : {}
+      const jours = JOURS_LABELS.map((label, i) => {
+        const dataJour = new Date(lundi); dataJour.setDate(lundi.getDate() + i)
+        const ddmm = `${String(dataJour.getDate()).padStart(2,'0')}/${String(dataJour.getMonth()+1).padStart(2,'0')}`
+        const ddmmyyyy = fmt(dataJour)
+        const entry = historique.find(j => {
+          const parts = j.date.split('/')
+          const m2 = parseInt(parts[1])-1; const d2 = parseInt(parts[0])
+          const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+          return d2 === dataJour.getDate() && m2 === dataJour.getMonth() && a2 === dataJour.getFullYear()
+        })
+        const fraisJ = entry ? (() => {
+          try { return calcularFraisJour({ date: entry.date, debut: entry.debut, fin: entry.fin, type: entry.type, decouche: entry.decouche, modeNuit: entry.modeNuit }, regles, fraisVals) } catch { return { ptDej: false, repas: false, nuit: false } }
+        })() : { ptDej: false, repas: false, nuit: false }
+        const kmI = entry?.kmInicio || 0; const kmF = entry?.kmFim || 0
+        const amp = entry ? (() => { const [dh,dm]=(entry.debut||'0:0').split(':').map(Number); const [fh,fm]=(entry.fin||'0:0').split(':').map(Number); let diff=(fh*60+fm)-(dh*60+dm); if(diff<0)diff+=1440; return fmtSec(diff*60) })() : ''
+        return {
+          date: entry ? ddmmyyyy : '',
+          jourLabel: label, jourCourt: JOURS_COURTS[i],
+          debut: entry?.debut || '', fin: entry?.fin || '',
+          amplitude: amp,
+          pauseTotal: entry ? fmtSec(entry.segPausa) : '',
+          travailTotal: entry ? fmtSec(entry.segServico) : '',
+          kmDepart: kmI > 0 ? String(kmI) : '',
+          kmArrivee: kmF > 0 ? String(kmF) : '',
+          kmTotal: (kmI > 0 && kmF > 0) ? String(kmF - kmI) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
+          petitDej: (fraisJ as any).ptDej || false,
+          repas: (fraisJ as any).repas || false,
+          nuit: entry?.decouche || false,
+          adr: adrVal === 'true',
+          vehicule: tracteurVal || '',
+          remorque: remorqueVal || '',
+          commentaire: (entry as any)?.nota?.texto || '',
+        }
+      })
+      const totalKms = jours.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
+      const totalSec = historique.filter(j => {
+        const parts = j.date.split('/'); const m2=parseInt(parts[1])-1; const d2=parseInt(parts[0]); const a2=parts[2]?parseInt(parts[2]):new Date(parseInt(j.id)).getFullYear()
+        const dj=new Date(a2,m2,d2); return dj>=lundi && dj<=sabado
+      }).reduce((s, j) => s + (j.segServico || 0), 0)
+      const html = gerarHtmlFiche({
+        nom: nom || '', prenom: prenom || '',
+        semaine: numSemana,
+        dateDebut: fmt(lundi), dateFin: fmt(sabado),
+        jours,
+        totalKms: totalKms > 0 ? String(totalKms) : '',
+        totalHeures: fmtSec(totalSec),
+      })
+      const { uri } = await Print.printToFileAsync({ html, base64: false })
+      setFicheLoading(false)
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
+    } catch (e) {
+      setFicheLoading(false)
+      Alert.alert('Erreur', String(e))
+    }
+  }
+
   const joursActuels = vue === 'semaine' ? jousSemaine : joursMois
   const totalService = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
@@ -604,13 +687,25 @@ const getJoursMois = () => {
               </View>
             )
           })()}
-          <TouchableOpacity
-            style={{ backgroundColor: 'rgba(41,128,185,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#2980b9', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}
-            onPress={() => exportarRelatorio(joursActuels, vue === 'semaine' ? getSemaineLabel() : getMoisLabel())}
-          >
-            <Text style={{ fontSize: 16 }}>📤</Text>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: '#2980b9' }}>Partager ce rapport</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#2980b9', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              onPress={() => exportarRelatorio(joursActuels, vue === 'semaine' ? getSemaineLabel() : getMoisLabel())}
+            >
+              <Text style={{ fontSize: 15 }}>📤</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9' }}>Rapport</Text>
+            </TouchableOpacity>
+            {vue === 'semaine' && (
+              <TouchableOpacity
+                style={{ flex: 1.3, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                onPress={gerarFicheHebdo}
+                disabled={ficheLoading}
+              >
+                <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#f5a623' }}>{ficheLoading ? 'Génération...' : 'Fiche semaine PDF'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         {invalidos.length > 0 && (
           <View style={st.avisoBox}>

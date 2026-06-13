@@ -25,6 +25,7 @@
     "expo-localization": "16.1.6",
     "expo-location": "18.1.6",
     "expo-notifications": "0.31.5",
+    "expo-print": "^56.0.4",
     "expo-router": "5.1.11",
     "expo-secure-store": "14.2.4",
     "expo-sensors": "14.1.4",

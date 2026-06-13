@@ -1431,7 +1431,10 @@ export default function MonSalaireScreen() {
       const acertosReais = mesesComReal.map(m => {
         const est = calcEstimativaMes(m)
         if (est === 0 || m.montantTotalRecu === 0) return null
-        return 100 - Math.min(100, Math.abs(est - m.montantTotalRecu) / m.montantTotalRecu * 100)
+        const diff6 = Math.abs(est - m.montantTotalRecu)
+        // Tolerância realista: ≤30€=100%, ≤70€=98%, ≤120€=95%, ≤200€=88%
+        return diff6 <= 30 ? 100 : diff6 <= 70 ? 98 : diff6 <= 120 ? 95 : diff6 <= 200 ? 88
+          : Math.max(60, Math.round(100 - Math.min(38, diff6 / m.montantTotalRecu * 100)))
       }).filter(v => v !== null) as number[]
       const precisao = acertosReais.length >= 2
         ? Math.round(acertosReais.reduce((a, b) => a + b, 0) / acertosReais.length)
@@ -2057,6 +2060,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </View>
             <View style={{ marginTop: 12, alignItems: 'center', gap: 4 }}>
               <Text style={st.previsionConfianca}>{calcResult.precisao}% de précision · {historique.length} mois de données</Text>
+              <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 5, paddingHorizontal: 12, fontStyle: 'italic' }}>
+                Estimation indicative basée sur tes données. Les résultats réels varient selon ton contrat et ton employeur — même les entreprises se trompent parfois. TachoOffice n'assume aucune responsabilité pour les écarts avec ton bulletin de salaire.
+              </Text>
               {calcResult.empresa ? (
                 <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)' }}>* basé sur ton historique · {calcResult.empresa}</Text>
               ) : (
@@ -2114,7 +2120,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           const precisoes = mesesComReal.map(m => {
             const est = calcEstimativaMes(m)
             if (est === 0 || m.montantTotalRecu === 0) return null
-            return 100 - Math.min(100, Math.abs(est - m.montantTotalRecu) / m.montantTotalRecu * 100)
+            const diff6 = Math.abs(est - m.montantTotalRecu)
+        // Tolerância realista: ≤30€=100%, ≤70€=98%, ≤120€=95%, ≤200€=88%
+        return diff6 <= 30 ? 100 : diff6 <= 70 ? 98 : diff6 <= 120 ? 95 : diff6 <= 200 ? 88
+          : Math.max(60, Math.round(100 - Math.min(38, diff6 / m.montantTotalRecu * 100)))
           }).filter(v => v !== null) as number[]
           const precisaoGlobal = precisoes.length > 0
             ? Math.round(precisoes.reduce((a, b) => a + b, 0) / precisoes.length)

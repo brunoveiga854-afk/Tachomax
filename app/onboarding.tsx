@@ -233,8 +233,7 @@ export default function OnboardingScreen() {
               maxLength={2}
               style={{ flex: 1, backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
             />
-            <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / semaine
-(légal = 35h)'}</Text>
+            <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / semaine (légal: 35h)'}</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>

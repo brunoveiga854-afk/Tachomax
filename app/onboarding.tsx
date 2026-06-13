@@ -23,6 +23,7 @@ export default function OnboardingScreen() {
   const [ancienneteMois, setAncienneteMois] = useState('')
   const [coefficient, setCoefficient] = useState('')
   const [salBaseEstime, setSalBaseEstime] = useState('')
+  const [heuresSemaine, setHeuresSemaine] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -30,6 +31,7 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`)
     if (coefficient) await AsyncStorage.setItem('coefficient', coefficient)
     if (salBaseEstime) await AsyncStorage.setItem('sal_base_estime', salBaseEstime)
+    if (heuresSemaine) await AsyncStorage.setItem('heures_semaine', heuresSemaine)
     await AsyncStorage.setItem('profil', profil)
     await AsyncStorage.setItem('nom', nom)
     await AsyncStorage.setItem('conducteur_nom', nom)
@@ -218,6 +220,22 @@ export default function OnboardingScreen() {
             maxLength={5}
             style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 18, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 28 }}
           />
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⏱️ HEURES TRAVAILLÉES PAR SEMAINE</Text>
+          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Base légale : 35h (169h/mois). Au-delà → heures supp. Laisse vide si tu ne sais pas.</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+            <TextInput
+              value={heuresSemaine}
+              onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setHeuresSemaine(n <= 90 ? String(n || '') : '90') }}
+              placeholder="ex: 45"
+              placeholderTextColor="#6b7394"
+              keyboardType="number-pad"
+              maxLength={2}
+              style={{ flex: 1, backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+            />
+            <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / semaine
+(légal = 35h)'}</Text>
+          </View>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>

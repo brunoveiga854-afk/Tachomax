@@ -22,6 +22,7 @@ type Jour = {
   segPausa: number
   decouche: boolean
   frais: number
+  modeNuit?: boolean
   kmDiarios?: number
   kmInicio?: number
   kmFim?: number
@@ -202,6 +203,7 @@ export default function HistoriqueScreen() {
   const [showFicheHebdo, setShowFicheHebdo] = useState(false)
   const [ficheLoading, setFicheLoading] = useState(false)
   const [editKmFim, setEditKmFim] = useState('')
+  const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
   useFocusEffect(useCallback(() => { setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   const chargerHistorique = async () => {
     try {
@@ -317,14 +319,26 @@ const getJoursMois = () => {
   }
   const abrirEdicao = (jour: Jour) => {
     setJourEdit(jour)
-    setEditDebut(jour.debut)
-    setEditFin(jour.fin)
-    setEditDecouche(jour.decouche)
-    setEditType(jour.type)
+    setEditDebut(jour.debut); setEditFin(jour.fin)
+    setEditDecouche(jour.decouche); setEditType(jour.type)
     setEditFrais(jour.frais.toFixed(2))
-    setEditKm(String(jour.kmDiarios ?? 0))
-    setEditKmInicio(String(jour.kmInicio ?? 0))
-    setEditKmFim(String(jour.kmFim ?? 0))
+    const kmI = jour.kmInicio ?? 0
+    const kmF = jour.kmFim ?? 0
+    let kmInicioFinal = kmI
+    let autoInicio = false
+    if (!kmI) {
+      const idx = historique.findIndex(j => j.id === jour.id)
+      const prevJour = idx >= 0 && idx + 1 < historique.length ? historique[idx + 1] : null
+      if (prevJour && prevJour.kmFim && prevJour.kmFim > 0) {
+        kmInicioFinal = prevJour.kmFim
+        autoInicio = true
+      }
+    }
+    setEditKmInicio(kmInicioFinal > 0 ? String(kmInicioFinal) : '0')
+    setEditKmFim(kmF > 0 ? String(kmF) : '0')
+    setEditKmInicioAuto(autoInicio)
+    const kmDia = kmF > 0 && kmInicioFinal > 0 ? Math.abs(Math.round(kmF - kmInicioFinal)) : (jour.kmDiarios ?? 0)
+    setEditKm(String(kmDia > 0 ? kmDia : (jour.kmDiarios ?? 0)))
     const pausaMin = Math.floor((jour.segPausa || 0) / 60)
     setEditPausaMin(pausaMin)
     setEditServico(fmtHM(calcServicoDe(jour.debut, jour.fin, pausaMin)))
@@ -398,9 +412,14 @@ const getJoursMois = () => {
       frais: fraisCalculado,
       segServico: novoSeg,
       segPausa: editPausaMin * 60,
-      kmDiarios: parseFloat(editKm) || 0,
       kmInicio: parseFloat(editKmInicio) || 0,
       kmFim: parseFloat(editKmFim) || 0,
+      kmDiarios: (() => {
+        const i = parseFloat(editKmInicio) || 0
+        const f = parseFloat(editKmFim) || 0
+        if (i > 0 && f > 0) return Math.abs(Math.round(f - i))
+        return parseFloat(editKm) || 0
+      })(),
     }
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
@@ -421,11 +440,14 @@ const getJoursMois = () => {
       const numSemana = getNumeroSemaine(lundi)
       const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
       const fmtSec = (s: number) => { if (!s || s<=0) return ''; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h${String(m).padStart(2,'0')}` }
-      const [nom, prenom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
-        AsyncStorage.getItem('user_nom'), AsyncStorage.getItem('user_prenom'),
+      const [conducteurPrenom, conducteurNom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
+        AsyncStorage.getItem('conducteur_prenom'),
+        AsyncStorage.getItem('conducteur_nom'),
         AsyncStorage.getItem('tracteur_value'), AsyncStorage.getItem('remorque_value'),
         AsyncStorage.getItem('transport_adr'),
       ])
+      const prenom = conducteurPrenom || conducteurNom || ''
+      const nom = conducteurPrenom ? (conducteurNom || '') : ''
       const JOURS_LABELS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
       const JOURS_COURTS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
             const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
@@ -443,10 +465,14 @@ const getJoursMois = () => {
           return d2 === dataJour.getDate() && m2 === dataJour.getMonth() && a2 === dataJour.getFullYear()
         })
         const fraisJ = entry ? (() => {
-          try { return calcularFraisJour({ date: entry.date, debut: entry.debut, fin: entry.fin, type: entry.type, decouche: entry.decouche, modeNuit: entry.modeNuit }, regles, fraisVals) } catch { return { ptDej: false, repas: false, nuit: false } }
+          try {
+            const r = calcularFraisJour({ debut: entry.debut, fin: entry.fin, type: entry.type as any, decouche: entry.decouche, regles, valeurs: fraisVals })
+            return { ptDej: r.ptd > 0, repas: (r.dej > 0 || r.din > 0), nuit: entry.decouche || false }
+          } catch { return { ptDej: false, repas: false, nuit: false } }
         })() : { ptDej: false, repas: false, nuit: false }
         const kmI = entry?.kmInicio || 0; const kmF = entry?.kmFim || 0
-        const amp = entry ? (() => { const [dh,dm]=(entry.debut||'0:0').split(':').map(Number); const [fh,fm]=(entry.fin||'0:0').split(':').map(Number); let diff=(fh*60+fm)-(dh*60+dm); if(diff<0)diff+=1440; return fmtSec(diff*60) })() : ''
+        const parseFicheHM = (t: string) => { const [h,m]=(t||'0h0').replace('h',':').split(':').map(Number); return (isNaN(h)?0:h)*60+(isNaN(m)?0:m) }
+        const amp = entry ? (() => { const dMin=parseFicheHM(entry.debut); const fMin=parseFicheHM(entry.fin); let diff=fMin-dMin; if(diff<0)diff+=1440; return fmtSec(diff*60) })() : ''
         return {
           date: entry ? ddmmyyyy : '',
           jourLabel: label, jourCourt: JOURS_COURTS[i],
@@ -456,7 +482,7 @@ const getJoursMois = () => {
           travailTotal: entry ? fmtSec(entry.segServico) : '',
           kmDepart: kmI > 0 ? String(kmI) : '',
           kmArrivee: kmF > 0 ? String(kmF) : '',
-          kmTotal: (kmI > 0 && kmF > 0) ? String(kmF - kmI) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
+          kmTotal: (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
           petitDej: (fraisJ as any).ptDej || false,
           repas: (fraisJ as any).repas || false,
           nuit: entry?.decouche || false,
@@ -822,13 +848,20 @@ const getJoursMois = () => {
                 </View>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>KM DÉBUT</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+                  <Text style={{ fontSize: 13, color: editKmInicioAuto ? '#f5a623' : c.textSub, fontWeight: '600' }}>KM DÉBUT</Text>
+                  {editKmInicioAuto && <Text style={{ fontSize: 10, color: '#f5a623', fontWeight: '700' }}>↑ hier</Text>}
+                </View>
                 <TextInput
-                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1.5, borderColor: editKmInicioAuto ? '#f5a623' : c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
                   value={editKmInicio}
-                  onChangeText={setEditKmInicio}
+                  onChangeText={v => {
+                    setEditKmInicio(v); setEditKmInicioAuto(false)
+                    const i = parseFloat(v) || 0; const f = parseFloat(editKmFim) || 0
+                    if (i > 0 && f > 0) setEditKm(String(Math.abs(Math.round(f - i))))
+                  }}
                   keyboardType="numeric"
                   placeholder="0"
                   placeholderTextColor={c.textSub}
@@ -839,7 +872,11 @@ const getJoursMois = () => {
                 <TextInput
                   style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
                   value={editKmFim}
-                  onChangeText={setEditKmFim}
+                  onChangeText={v => {
+                    setEditKmFim(v)
+                    const i = parseFloat(editKmInicio) || 0; const f = parseFloat(v) || 0
+                    if (i > 0 && f > 0) setEditKm(String(Math.abs(Math.round(f - i))))
+                  }}
                   keyboardType="numeric"
                   placeholder="0"
                   placeholderTextColor={c.textSub}
@@ -847,15 +884,19 @@ const getJoursMois = () => {
               </View>
             </View>
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>KM DU JOUR</Text>
-              <TextInput
-                style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#2980b9', fontSize: 16, fontWeight: '700', color: '#2980b9', textAlign: 'center' }}
-                value={editKm}
-                onChangeText={setEditKm}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={c.textSub}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+                <Text style={{ fontSize: 13, color: '#2980b9', fontWeight: '600' }}>🛣 KM DU JOUR</Text>
+                <Text style={{ fontSize: 10, color: '#2980b9', opacity: 0.7 }}>= FIN − DÉBUT (auto)</Text>
+              </View>
+              <View style={{ backgroundColor: 'rgba(41,128,185,0.10)', borderRadius: 10, padding: 12, borderWidth: 1.5, borderColor: '#2980b9', alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, fontWeight: '900', color: '#2980b9' }}>
+                  {(() => {
+                    const i = parseFloat(editKmInicio) || 0; const f = parseFloat(editKmFim) || 0
+                    if (i > 0 && f > 0) return `${Math.abs(Math.round(f - i))} km`
+                    return editKm ? `${editKm} km` : '— km'
+                  })()}
+                </Text>
+              </View>
             </View>
             <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 8, fontWeight: '600' }}>TYPE DE JOUR</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -1069,33 +1110,33 @@ const st = StyleSheet.create({
   emptyBox: { alignItems: 'center', padding: 40, gap: 8 },
   emptyIcon: { fontSize: 40 },
   emptyText: { fontSize: 15, fontWeight: '700' },
-  emptySub: { fontSize: 14, textAlign: 'center' },
-  jourCard: { borderRadius: 14, borderWidth: 1 },
-  jourHeader: { flexDirection: 'row', alignItems: 'stretch', gap: 0 },
-  jourDateBox: { width: 68, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', gap: 1 },
-  jourDayName: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  jourDayNum: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
-  jourMonth: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
-  jourDurLine: { width: 28, height: 1, marginVertical: 6 },
-  jourInfo: { flex: 1, paddingVertical: 12, paddingHorizontal: 10, gap: 6 },
-  jourTypeBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  jourTypeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  jourTimesRow: { flexDirection: 'row', gap: 14 },
-  jourTimeBlock: { gap: 1 },
-  jourTimeLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  emptySub: { fontSize: 13 },
+  deleteBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 20, borderRadius: 16 },
+  deleteIcon: { fontSize: 22 },
+  deleteText: { fontSize: 11, fontWeight: '700', color: 'white', marginTop: 2 },
+  jourCard: { borderRadius: 16, borderWidth: 1, marginHorizontal: 20, marginBottom: 8, overflow: 'hidden' },
+  jourHeader: { flexDirection: 'row', padding: 12, gap: 10 },
+  jourDateBox: { width: 44, alignItems: 'center', justifyContent: 'flex-start', gap: 1 },
+  jourDayName: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  jourDayNum: { fontSize: 26, fontWeight: '900', lineHeight: 28 },
+  jourMonth: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  jourDurLine: { height: 3, width: '100%', borderRadius: 2, marginTop: 4 },
+  jourInfo: { flex: 1, gap: 4 },
+  jourTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  jourTypeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  jourTimesRow: { flexDirection: 'row', gap: 12 },
+  jourTimeBlock: { alignItems: 'center' },
+  jourTimeLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   jourTimeVal: { fontSize: 15, fontWeight: '800' },
-  jourAmpServiceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -2 },
-  jourAmplitudeText: { fontSize: 11, fontWeight: '700', color: '#2980b9' },
-  jourAmpSep: { fontSize: 10, fontWeight: '600', opacity: 0.5 },
-  jourServiceText: { fontSize: 11, fontWeight: '800', color: '#f39c12' },
-  jourPauseText: { fontSize: 11, fontWeight: '600' },
-  jourReposText: { fontSize: 12 },
-  jourFrais: { paddingVertical: 12, paddingHorizontal: 10, alignItems: 'flex-end', justifyContent: 'space-between' },
-  jourFraisLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  jourFraisVal: { fontSize: 16, fontWeight: '800' },
-  deleteBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#e74c3c', borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 20, gap: 8 },
-  deleteIcon: { fontSize: 20 },
-  deleteText: { fontSize: 13, fontWeight: '800', color: 'white' },
-  swipeHint: { fontSize: 10, marginTop: 2, opacity: 0.6 },
-  editHint: { fontSize: 11, opacity: 0.7 },
+  jourAmpServiceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  jourAmplitudeText: { fontSize: 11, fontWeight: '600', color: '#9b59b6' },
+  jourAmpSep: { fontSize: 11 },
+  jourServiceText: { fontSize: 11, fontWeight: '800', color: '#27ae60' },
+  jourPauseText: { fontSize: 10, fontWeight: '600' },
+  jourReposText: { fontSize: 13, fontWeight: '600', fontStyle: 'italic' },
+  swipeHint: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  jourFrais: { paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
+  jourFraisLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  jourFraisVal: { fontSize: 18, fontWeight: '900' },
+  editHint: { fontSize: 9, fontWeight: '600', marginTop: 4 },
 })

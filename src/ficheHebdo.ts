@@ -1,16 +1,17 @@
-// ─── Fiche Hebdomadaire — gerador de PDF ────────────────────────────────────
-// Fonte manuscrita azul = "Caveat" (Google Fonts, carregada inline)
-// Layout: 2 páginas A4 — página 1: Lun/Mar/Mer, página 2: Jeu/Ven/Sam + Total
+// ─── Fiche Hebdomadaire — gerador de PDF ─────────────────────────────────────
+// Layout identique au formulaire papier de l'entreprise
+// Police : Montserrat (saisie machine), bleu foncé #1a3a8f
+// Jours sans saisie : raye en diagonale
 
 export interface JourFiche {
-  date: string        // "DD/MM/YYYY"
-  jourLabel: string   // "LUNDI" etc.
-  jourCourt: string   // "L\nU\nN\nD\nI" etc.
-  debut: string       // "06:30"
-  fin: string         // "18:45"
-  amplitude: string   // "12h15"
-  pauseTotal: string  // "0h45"
-  travailTotal: string // "11h30"
+  date: string          // "DD/MM/YYYY"
+  jourLabel: string     // "LUNDI" etc.
+  jourCourt: string     // "LUNDI" etc. (utilisé pour le sidebar)
+  debut: string         // "06h30"
+  fin: string           // "18h45"
+  amplitude: string     // "12h15"
+  pauseTotal: string    // "0h45"
+  travailTotal: string  // "11h30"
   kmDepart: string
   kmArrivee: string
   kmTotal: string
@@ -34,74 +35,101 @@ export interface InfoFiche {
   totalHeures: string
 }
 
-function fmtSec(s: number): string {
-  if (!s || s <= 0) return ''
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  return `${h}h${String(m).padStart(2, '0')}`
+// Sidebar letters for each day
+const SIDEBAR: Record<string, string[]> = {
+  LUNDI:     ['L','U','N','D','I'],
+  MARDI:     ['M','A','R','D','I'],
+  MERCREDI:  ['M','E','R','C','R','E','D','I'],
+  JEUDI:     ['J','E','U','D','I'],
+  VENDREDI:  ['V','E','N','D','R','E','D','I'],
+  SAMEDI:    ['S','A','M','E','D','I'],
 }
 
-function dayBlock(j: JourFiche, idx: number): string {
-  const bg = idx % 2 === 0 ? '#fafafa' : '#fff'
-  const [d, m, y] = j.date ? j.date.split('/') : ['', '', '']
-  const dateVal = j.date ? `${d} / ${m} / ${y || ''}` : '&nbsp;&nbsp; / &nbsp;&nbsp; / &nbsp;&nbsp;&nbsp;&nbsp;'
-  const chk = (v: boolean) => v ? '&#9746;' : '&#9744;'  // ☒ or ☐
+function chk(v: boolean): string {
+  // Real checkbox look
+  return v
+    ? `<span style="display:inline-block;width:11px;height:11px;border:1.5px solid #333;background:#1a3a8f;vertical-align:middle;position:relative;"><span style="color:white;font-size:9px;font-weight:900;position:absolute;top:-1px;left:1px;">✓</span></span>`
+    : `<span style="display:inline-block;width:11px;height:11px;border:1.5px solid #333;background:white;vertical-align:middle;"></span>`
+}
 
-  return `
-  <div class="day-block" style="background:${bg}">
-    <div class="day-row">
-      <div class="day-label"><span class="day-vert">${j.jourCourt}</span></div>
-      <div class="day-content">
-        <div class="top-row">
-          <div class="left-col">
-            <div class="field-row">
-              <span class="label">DATE :</span>
-              <span class="hand">${dateVal}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">Véhicule :</span>
-              <span class="hand">${j.vehicule}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">Remorque :</span>
-              <span class="hand">${j.remorque}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">KM Arrivée :</span>
-              <span class="hand">${j.kmArrivee}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">KM Départ :</span>
-              <span class="hand">${j.kmDepart}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">TOTAL :</span>
-              <span class="hand">${j.kmTotal}</span>
-            </div>
-            <div class="field-row">
-              <span class="label">ADR</span>
-              <span class="check">${chk(j.adr)}</span>
-            </div>
-            <div class="frais-row">
-              <span class="label-sm">Petit Déjeuner :</span><span class="check">${chk(j.petitDej)}</span>
-              <span class="label-sm">Repas :</span><span class="check">${chk(j.repas)}</span>
-              <span class="label-sm">Nuit :</span><span class="check">${chk(j.nuit)}</span>
-            </div>
+function val(v: string): string {
+  if (!v) return ''
+  return `<span class="filled">${v}</span>`
+}
+
+function underline(label: string, content: string, minWidth = '60px'): string {
+  return `<span class="field-label">${label}</span><span class="underline" style="min-width:${minWidth}">${val(content)}</span>`
+}
+
+function dayBlock(j: JourFiche): string {
+  const isEmpty = !j.date && !j.debut && !j.fin
+  const letters = SIDEBAR[j.jourLabel] || j.jourLabel.split('')
+  const sidebarHtml = letters.map(l =>
+    `<div style="font-size:8px;font-weight:800;line-height:1.3;text-align:center;letter-spacing:0">${l}</div>`
+  ).join('')
+
+  const [dd, mm, yy] = j.date ? j.date.split('/') : ['', '', '']
+
+  const innerContent = `
+    <div style="position:relative;">
+      ${isEmpty ? `<div style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10;background:linear-gradient(to bottom right,transparent calc(50% - 0.7px),#999 calc(50% - 0.7px),#999 calc(50% + 0.7px),transparent calc(50% + 0.7px))"></div>` : ''}
+
+      <!-- DATE row - full width -->
+      <div style="border-bottom:1px solid #bbb;padding:2px 3mm;display:flex;align-items:baseline;gap:6px;">
+        <span class="field-label">DATE :</span>
+        <span class="filled" style="letter-spacing:1px">${dd ? `${dd} / ${mm} / ${yy}` : ''}</span>
+      </div>
+
+      <!-- Main grid: 3 columns -->
+      <div style="display:flex;min-height:68px;">
+
+        <!-- Col LEFT: Véhicule / Remorque / ADR / frais -->
+        <div style="flex:1.15;padding:2px 3mm;border-right:1px solid #bbb;">
+          <div class="row-field">${underline('Véhicule :', j.vehicule, '70px')}</div>
+          <div class="row-field">${underline('Remorque :', j.remorque, '70px')}</div>
+          <div class="row-field" style="align-items:center;">
+            <span class="field-label">ADR</span>&nbsp;${chk(j.adr)}
           </div>
-          <div class="right-col">
-            <div class="field-row-r"><span class="label">Heure Fin :</span><span class="hand">${j.fin}</span></div>
-            <div class="field-row-r"><span class="label">Heure Début :</span><span class="hand">${j.debut}</span></div>
-            <div class="field-row-r"><span class="label">Amplitude :</span><span class="hand">${j.amplitude}</span></div>
-            <div class="field-row-r"><span class="label">TOTAL Pause :</span><span class="hand">${j.pauseTotal}</span></div>
-            <div class="field-row-r"><span class="label">TOTAL Travail :</span><span class="hand">${j.travailTotal}</span></div>
+          <div class="row-field" style="align-items:center;flex-wrap:wrap;gap:4px;margin-top:2px;">
+            <span class="field-label-sm">Petit Déjeuner :</span>${chk(j.petitDej)}
+            &nbsp;<span class="field-label-sm">Repas :</span>${chk(j.repas)}
+            &nbsp;<span class="field-label-sm">Nuit :</span>${chk(j.nuit)}
           </div>
         </div>
+
+        <!-- Col MIDDLE: KMs -->
+        <div style="flex:0.85;padding:2px 3mm;border-right:1px solid #bbb;">
+          <div class="row-field">${underline('KM Arrivée :', j.kmArrivee, '55px')}</div>
+          <div class="row-field">${underline('KM Départ :', j.kmDepart, '55px')}</div>
+          <div class="row-field">${underline('TOTAL :', j.kmTotal, '55px')}</div>
+        </div>
+
+        <!-- Col RIGHT: Heures -->
+        <div style="flex:1.05;padding:2px 3mm;">
+          <div class="row-field">${underline('Heure Fin :', j.fin, '65px')}</div>
+          <div class="row-field">${underline('Heure Début :', j.debut, '65px')}</div>
+          <div class="row-field">${underline('Amplitude :', j.amplitude, '65px')}</div>
+          <div class="row-field">${underline('TOTAL Pause :', j.pauseTotal, '65px')}</div>
+          <div class="row-field">${underline('TOTAL Travail :', j.travailTotal, '65px')}</div>
+        </div>
+
       </div>
-    </div>
-    <div class="comment-row">
-      <span class="label">*COMMENTAIRES :</span>
-      <span class="hand comment-text">${j.commentaire}</span>
-    </div>
+    </div>`
+
+  return `
+  <div class="day-wrap">
+    <!-- Sidebar -->
+    <div class="day-sidebar">${sidebarHtml}</div>
+    <!-- Content box -->
+    <div class="day-box">${innerContent}</div>
+  </div>
+  <!-- Comment lines -->
+  <div class="comment-area">
+    <span class="field-label-sm">*COMMENTAIRES :</span>
+    <span class="filled" style="font-size:11px;margin-left:4px">${j.commentaire || ''}</span>
+    <div class="comment-line"></div>
+    <div class="comment-line"></div>
+    <div class="comment-line" style="margin-bottom:4mm"></div>
   </div>`
 }
 
@@ -110,84 +138,117 @@ export function gerarHtmlFiche(info: InfoFiche): string {
   const page2Jours = info.jours.slice(3, 6)  // Jeu, Ven, Sam
 
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; }
-    .hand { font-family: 'Caveat', cursive; font-size: 15px; color: #1a3a8f; font-weight: 600; }
-    .page { width: 210mm; min-height: 297mm; padding: 8mm 8mm 6mm 8mm; page-break-after: always; }
-    .page:last-child { page-break-after: auto; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 4mm; border-bottom: 1px solid #333; padding-bottom: 2mm; }
-    .header-left { font-weight: bold; font-size: 13px; }
-    .nom-row { display: flex; gap: 12mm; margin-bottom: 3mm; }
-    .nom-field { display: flex; align-items: baseline; gap: 4px; }
-    .day-block { border: 1px solid #555; margin-bottom: 3mm; }
-    .day-row { display: flex; }
-    .day-label { width: 12px; background: #e8e8e8; display: flex; align-items: center; justify-content: center; border-right: 1px solid #555; padding: 2px; }
-    .day-vert { font-weight: bold; font-size: 8px; letter-spacing: 1px; writing-mode: vertical-rl; text-orientation: upright; }
-    .day-content { flex: 1; padding: 2mm; }
-    .top-row { display: flex; gap: 4mm; }
-    .left-col { flex: 1.2; }
-    .right-col { flex: 1; border-left: 1px solid #ccc; padding-left: 3mm; }
-    .field-row { display: flex; align-items: baseline; margin-bottom: 1.5mm; gap: 3px; }
-    .field-row-r { display: flex; align-items: baseline; margin-bottom: 2mm; gap: 3px; }
-    .label { font-size: 9.5px; font-weight: bold; white-space: nowrap; }
-    .label-sm { font-size: 8.5px; font-weight: bold; }
-    .check { font-size: 13px; margin: 0 3px; }
-    .frais-row { display: flex; align-items: center; gap: 2px; margin-top: 1mm; flex-wrap: wrap; }
-    .comment-row { border-top: 1px solid #ccc; padding: 1mm 2mm; display: flex; align-items: baseline; gap: 4px; min-height: 7mm; }
-    .comment-text { flex: 1; }
-    .total-box { border: 1.5px solid #333; margin-top: 3mm; display: flex; }
-    .total-left { flex: 1; padding: 2mm; border-right: 1px solid #333; }
-    .total-right { flex: 1; padding: 2mm; }
-    .total-title { font-weight: bold; font-size: 11px; margin-bottom: 2mm; }
-    .obs-title { font-weight: bold; font-size: 11px; margin-bottom: 2mm; }
-    .legend { font-size: 8px; margin-top: 3mm; border: 1px solid #333; padding: 1.5mm 2mm; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #111; background: white; }
+    .filled { font-family: 'Montserrat', sans-serif; font-size: 11px; color: #1a3a8f; font-weight: 600; }
+    .page { width: 210mm; height: 297mm; padding: 8mm 7mm 5mm 7mm; position: relative; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; }
+    .page-break { page-break-before: always; break-before: page; }
+    .days-area { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .signature { position: absolute; bottom: 4mm; right: 7mm; font-size: 7px; color: #bbb; letter-spacing: 0.3px; font-family: 'Montserrat', sans-serif; }
+
+    /* Header */
+    .fiche-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3mm; }
+    .fiche-title { font-weight: 800; font-size: 12px; letter-spacing: 0.5px; }
+    .sem-box { display: inline-block; border: 1.5px solid #333; min-width: 28px; height: 16px; text-align: center; vertical-align: middle; padding: 0 4px; }
+    .nom-row { display: flex; gap: 10mm; margin-bottom: 3mm; align-items: baseline; }
+    .nom-field { display: flex; align-items: baseline; gap: 3px; flex: 1; }
+    .nom-underline { flex: 1; border-bottom: 1px solid #333; min-width: 50px; height: 16px; padding-bottom: 1px; }
+
+    /* Regulation block */
+    .reglement { border: 1.5px solid #444; padding: 2mm 3mm; margin-bottom: 3mm; font-size: 8.5px; line-height: 1.5; }
+    .reglement strong { font-size: 8.5px; }
+
+    /* Day wrapper */
+    .day-wrap { display: flex; border: 1.5px solid #444; margin-bottom: 0; }
+    .day-sidebar { width: 13px; background: #f0f0f0; border-right: 1.5px solid #444; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 3px 0; }
+    .day-box { flex: 1; }
+
+    /* Comment area */
+    .comment-area { padding: 1mm 3mm 0 3mm; }
+    .comment-line { border-bottom: 0.5px solid #555; margin-top: 5mm; height: 0; }
+
+    /* Field rows inside day */
+    .row-field { display: flex; align-items: baseline; gap: 2px; margin-bottom: 2.5px; }
+    .field-label { font-size: 9px; font-weight: 700; white-space: nowrap; color: #222; }
+    .field-label-sm { font-size: 8px; font-weight: 700; white-space: nowrap; color: #222; }
+    .underline { border-bottom: 0.5px solid #555; display: inline-block; vertical-align: baseline; }
+
+    /* Total box */
+    .total-box { border: 1.5px solid #333; display: flex; margin-top: 3mm; }
+    .total-left { flex: 1; padding: 2.5mm; border-right: 1.5px solid #333; }
+    .total-right { flex: 1; padding: 2.5mm; }
+    .total-title { font-weight: 800; font-size: 11px; margin-bottom: 3mm; letter-spacing: 0.5px; }
+    .total-field { display: flex; align-items: baseline; gap: 3px; margin-bottom: 2.5mm; }
+
+    /* Legend */
+    .legend { border: 1.5px solid #333; padding: 1.5mm 2mm; margin-top: 3mm; font-size: 8px; font-weight: 700; }
   `
 
-  const headerP1 = `
-    <div class="header">
-      <div class="header-left">FICHE HEBDOMADAIRE &nbsp; Semaine N° <span class="hand">${info.semaine}</span></div>
-      <div>Du : <span class="hand">${info.dateDebut}</span> &nbsp;&nbsp; Au : <span class="hand">${info.dateFin}</span></div>
+  const makeHeader = () => `
+    <div class="fiche-header">
+      <div class="fiche-title">FICHE HEBDOMADAIRE &nbsp;&nbsp; Semaine N°&nbsp;<span class="sem-box"><span class="filled" style="font-size:12px;font-weight:700">${info.semaine}</span></span></div>
+      <div style="font-size:10px;font-weight:700">
+        Du :&nbsp;<span class="filled">${info.dateDebut.split('/').join(' / ')}</span>
+        &nbsp;&nbsp;&nbsp;Au :&nbsp;<span class="filled">${info.dateFin.split('/').join(' / ')}</span>
+      </div>
     </div>
     <div class="nom-row">
-      <div class="nom-field"><span class="label">NOM :</span>&nbsp;<span class="hand">${info.nom}</span></div>
-      <div class="nom-field"><span class="label">PRÉNOM :</span>&nbsp;<span class="hand">${info.prenom}</span></div>
+      <div class="nom-field">
+        <span style="font-weight:700;font-size:10px">NOM :</span>
+        <div class="nom-underline"><span class="filled" style="font-size:12px">${info.nom.toUpperCase()}</span></div>
+      </div>
+      <div class="nom-field">
+        <div class="nom-underline"><span class="filled" style="font-size:12px">${info.prenom}</span></div>
+      </div>
     </div>`
 
-  const totalBlock = `
-    <div class="total-box">
-      <div class="total-left">
-        <div class="total-title">TOTAL SEMAINE</div>
-        <div class="field-row"><span class="label">KMS :</span>&nbsp;<span class="hand">${info.totalKms}</span></div>
-        <div class="field-row"><span class="label">HEURES :</span>&nbsp;<span class="hand">${info.totalHeures}</span></div>
-      </div>
-      <div class="total-right">
-        <div class="obs-title">OBSERVATIONS :</div>
-      </div>
-    </div>
-    <div class="legend">*COMMENTAIRES = Changements de véhicule / Panne / Temps Atelier / Temps Clio / Visite médicale / AUTRES</div>`
-
   const reglementBlock = `
-    <div style="border:1px solid #555; padding:2mm; margin-bottom:3mm; font-size:9px;">
+    <div class="reglement">
       <strong>Pour ma sécurité et celle des autres je m'engage à respecter la réglementation,</strong><br>
       - 4H30 de temps de conduite : 45 minutes de pause ou fractionné en 15 + 30 minutes<br>
       - &gt; 6H de temps de service : 30 minutes de pause - &gt; 9H de temps de service : 45 minutes de pause<br>
       Temps de service sur 1 semaine : 52/56 Heures – Temps de service journalier : 12 Heures maximum
     </div>`
 
+  const totalBlock = `
+    <div class="total-box">
+      <div class="total-left">
+        <div class="total-title">TOTAL SEMAINE</div>
+        <div class="total-field">
+          <span class="field-label" style="font-size:10px">KMS :</span>
+          <span class="underline" style="flex:1;min-width:80px"><span class="filled">${info.totalKms}</span></span>
+        </div>
+        <div class="total-field">
+          <span class="field-label" style="font-size:10px">HEURES :</span>
+          <span class="underline" style="flex:1;min-width:80px"><span class="filled">${info.totalHeures}</span></span>
+        </div>
+      </div>
+      <div class="total-right">
+        <div class="total-title">OBSERVATIONS :</div>
+      </div>
+    </div>
+    <div class="legend">*COMMENTAIRES = Changements de vehicule / Panne / Temps Atelier / Temps Clio / Visite medicale / AUTRES</div>`
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>${css}</style></head>
 <body>
   <div class="page">
-    ${headerP1}
+    ${makeHeader()}
     ${reglementBlock}
-    ${page1Jours.map((j, i) => dayBlock(j, i)).join('')}
+    <div class="days-area">
+      ${page1Jours.map(j => dayBlock(j)).join('')}
+    </div>
+    <div class="signature">TachoOffice &copy; ${new Date().getFullYear()} &mdash; D&eacute;velopp&eacute; par Bruno Veiga</div>
   </div>
-  <div class="page">
-    ${headerP1}
-    ${page2Jours.map((j, i) => dayBlock(j, i)).join('')}
+  <div class="page page-break">
+    ${makeHeader()}
+    <div class="days-area">
+      ${page2Jours.map(j => dayBlock(j)).join('')}
+    </div>
     ${totalBlock}
+    <div class="signature">TachoOffice &copy; ${new Date().getFullYear()} &mdash; D&eacute;velopp&eacute; par Bruno Veiga</div>
   </div>
 </body></html>`
 }

@@ -1138,10 +1138,14 @@ export default function MonSalaireScreen() {
   const [editNetPaye, setEditNetPaye] = useState('')
   const [editFraisBoletim, setEditFraisBoletim] = useState('')
   const [editMontantTotal, setEditMontantTotal] = useState('')
+  const [editMoisIndex, setEditMoisIndex] = useState(0)
+  const [editAnnee, setEditAnnee] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const truckAnim = useRef(new Animated.Value(-40)).current
   const wheelAnim = useRef(new Animated.Value(0)).current
+  const scrollAnim = useRef(new Animated.Value(0)).current
+  const dustAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
@@ -1240,20 +1244,17 @@ export default function MonSalaireScreen() {
   }, [])
 
   useEffect(() => {
-    if (!loading) { setLoadingMsg(0); truckAnim.setValue(-40); return }
+    if (!loading) { setLoadingMsg(0); scrollAnim.setValue(0); dustAnim.setValue(0); return }
     const msgs = 4
     const iv = setInterval(() => setLoadingMsg(i => (i + 1) % msgs), 1500)
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(truckAnim, { toValue: 40, duration: 1200, useNativeDriver: true }),
-        Animated.timing(truckAnim, { toValue: -40, duration: 1200, useNativeDriver: true }),
-      ])
+    const scrollLoop = Animated.loop(
+      Animated.timing(scrollAnim, { toValue: 240, duration: 2400, useNativeDriver: true, easing: Easing.linear })
     )
-    const wheelLoop = Animated.loop(
-      Animated.timing(wheelAnim, { toValue: 1, duration: 600, useNativeDriver: true })
+    const dustLoop = Animated.loop(
+      Animated.timing(dustAnim, { toValue: 1, duration: 950, useNativeDriver: true })
     )
-    loop.start(); wheelLoop.start()
-    return () => { clearInterval(iv); loop.stop(); wheelLoop.stop() }
+    scrollLoop.start(); dustLoop.start()
+    return () => { clearInterval(iv); scrollLoop.stop(); dustLoop.stop() }
   }, [loading])
 
   const charger = async () => {
@@ -2174,57 +2175,81 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#f5a623', marginBottom: 14, textAlign: 'center', letterSpacing: 0.5 }}>
                 {['📄 Lecture des documents...', '🔍 Analyse en cours...', '🧮 Calcul des montants...', '✨ Presque fini...'][loadingMsg]}
               </Text>
-              {/* Camião SVG animado com tema da app */}
-              <View style={{ width: 220, height: 70, overflow: 'hidden' }}>
-                {/* Estrada */}
-                <View style={{ position: 'absolute', bottom: 8, left: 0, right: 0, height: 2, backgroundColor: 'rgba(245,166,35,0.15)' }} />
-                {/* Tracejados da estrada */}
-                {[0,1,2,3,4].map(i => (
-                  <Animated.View key={i} style={{
-                    position: 'absolute', bottom: 6, height: 1, width: 20, backgroundColor: 'rgba(245,166,35,0.35)',
-                    transform: [{ translateX: Animated.add(
-                      new Animated.Value(i * 44),
-                      Animated.multiply(truckAnim, -0.6)
-                    )}]
-                  }} />
-                ))}
-                {/* Camião */}
-                <Animated.View style={{ position: 'absolute', bottom: 10, transform: [{ translateX: truckAnim }], left: 50 }}>
-                  <Svg width={110} height={48} viewBox="0 0 110 48">
-                    {/* Reboque */}
-                    <Rect x="0" y="8" width="68" height="30" rx="3" fill="#f5a623" opacity={0.9} />
-                    {/* Detalhes reboque */}
-                    <Rect x="4" y="12" width="60" height="8" rx="1" fill="rgba(0,0,0,0.2)" />
-                    <Rect x="4" y="23" width="60" height="1" fill="rgba(255,255,255,0.15)" />
-                    <Rect x="4" y="27" width="60" height="1" fill="rgba(255,255,255,0.1)" />
-                    {/* Engate */}
-                    <Rect x="66" y="20" width="8" height="4" rx="1" fill="#cc8800" />
-                    {/* Cabine */}
-                    <Rect x="72" y="4" width="36" height="34" rx="4" fill="#e6950f" />
-                    {/* Janela cabine */}
-                    <Rect x="80" y="9" width="22" height="14" rx="2" fill="#0f1117" opacity={0.85} />
-                    {/* Reflexo janela */}
-                    <Rect x="82" y="11" width="6" height="10" rx="1" fill="rgba(255,255,255,0.07)" />
-                    {/* Grelha frontal */}
-                    <Rect x="105" y="16" width="4" height="18" rx="1" fill="#cc8800" />
-                    <Line x1="106" y1="19" x2="108" y2="19" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                    <Line x1="106" y1="23" x2="108" y2="23" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                    <Line x1="106" y1="27" x2="108" y2="27" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                    {/* Farol */}
-                    <Rect x="106" y="13" width="3" height="4" rx="1" fill="#ffe066" />
-                    {/* Rodas reboque */}
-                    <Circle cx="16" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                    <Circle cx="16" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                    <Circle cx="48" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                    <Circle cx="48" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                    {/* Rodas cabine */}
-                    <Circle cx="83" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                    <Circle cx="83" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
-                    <Circle cx="99" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                    <Circle cx="99" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
-                  </Svg>
-                </Animated.View>
-              </View>
+              {/* Cena animada — camião da direita para a esquerda */}
+              {(() => {
+                const SCENE_W = 240
+                const neg = Animated.multiply(scrollAnim, -1)
+                const dustOpacity = dustAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.55, 0.25, 0] })
+                const dustScale  = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.8] })
+                const dust2Opacity = dustAnim.interpolate({ inputRange: [0, 0.25, 0.65, 1], outputRange: [0, 0.45, 0.15, 0] })
+                const dust2Scale   = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.2] })
+                const dust3Opacity = dustAnim.interpolate({ inputRange: [0, 0.15, 0.5, 1], outputRange: [0, 0.35, 0.1, 0] })
+                const dust3Scale   = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.8] })
+                const trees: [number, number, number][] = [
+                  [195, 435, 52], [148, 388, 36], [105, 345, 26], [60, 300, 44], [22, 262, 20],
+                ]
+                const roadMarks: number[] = [8, 68, 128, 188]
+                const renderTree = (x: number, h: number, key: string) => {
+                  const w = h * 0.46
+                  return (
+                    <Animated.View key={key} style={{ position: 'absolute', bottom: 18, transform: [{ translateX: Animated.add(new Animated.Value(x), neg) }] }}>
+                      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+                        <Rect x={(w - 4) / 2} y={h * 0.67} width={4} height={h * 0.33} fill="#3a2010" />
+                        <Path d={`M ${w/2} 0 L ${w} ${h*0.67} L 0 ${h*0.67} Z`} fill="#0a240a" />
+                        <Path d={`M ${w/2} ${h*0.18} L ${w*0.85} ${h*0.55} L ${w*0.15} ${h*0.55} Z`} fill="#0e300e" />
+                      </Svg>
+                    </Animated.View>
+                  )
+                }
+                return (
+                  <View style={{ width: SCENE_W, height: 118, overflow: 'hidden', backgroundColor: '#07090f', borderRadius: 14, marginBottom: 6 }}>
+                    {[[18,8,3],[55,5,2],[90,12,2],[140,4,3],[185,9,2],[210,6,3]].map(([x,y,r],i) => (
+                      <View key={i} style={{ position: 'absolute', top: y, left: x, width: r, height: r, borderRadius: r/2, backgroundColor: 'rgba(255,255,220,0.45)' }} />
+                    ))}
+                    {trees.map(([x1, x2, h], i) => [renderTree(x1, h, `ta${i}`), renderTree(x2, h, `tb${i}`)])}
+                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 18, backgroundColor: '#10131c' }} />
+                    <View style={{ position: 'absolute', bottom: 17, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+                    {roadMarks.map((x, i) => [
+                      <Animated.View key={`ra${i}`} style={{ position: 'absolute', bottom: 7, height: 2, width: 24, backgroundColor: '#f5a623', opacity: 0.35, borderRadius: 1, transform: [{ translateX: Animated.add(new Animated.Value(x), neg) }] }} />,
+                      <Animated.View key={`rb${i}`} style={{ position: 'absolute', bottom: 7, height: 2, width: 24, backgroundColor: '#f5a623', opacity: 0.35, borderRadius: 1, transform: [{ translateX: Animated.add(new Animated.Value(x + SCENE_W), neg) }] }} />,
+                    ])}
+                    {/* Peira (atras do camiao, lado esquerdo) */}
+                    <Animated.View style={{ position: 'absolute', bottom: 22, left: 45, width: 12, height: 8, borderRadius: 6, backgroundColor: 'rgba(180,165,140,0.5)', opacity: dustOpacity, transform: [{ scale: dustScale }] }} />
+                    <Animated.View style={{ position: 'absolute', bottom: 26, left: 38, width: 9, height: 6, borderRadius: 5, backgroundColor: 'rgba(170,155,130,0.4)', opacity: dust2Opacity, transform: [{ scale: dust2Scale }] }} />
+                    <Animated.View style={{ position: 'absolute', bottom: 20, left: 35, width: 7, height: 5, borderRadius: 4, backgroundColor: 'rgba(160,145,120,0.35)', opacity: dust3Opacity, transform: [{ scale: dust3Scale }] }} />
+                    {/* Camiao laranja original, virado a direita */}
+                    <View style={{ position: 'absolute', bottom: 18, left: 65 }}>
+                      <Svg width={110} height={48} viewBox="0 0 110 48">
+                        {/* Reboque */}
+                        <Rect x="0" y="8" width="68" height="30" rx="3" fill="#f5a623" opacity={0.9} />
+                        <Rect x="4" y="12" width="60" height="8" rx="1" fill="rgba(0,0,0,0.2)" />
+                        <Rect x="4" y="23" width="60" height="1" fill="rgba(255,255,255,0.15)" />
+                        <Rect x="4" y="27" width="60" height="1" fill="rgba(255,255,255,0.1)" />
+                        <Rect x="66" y="20" width="8" height="4" rx="1" fill="#cc8800" />
+                        {/* Cabine */}
+                        <Rect x="72" y="4" width="36" height="34" rx="4" fill="#e6950f" />
+                        <Rect x="80" y="9" width="22" height="14" rx="2" fill="#0f1117" opacity={0.85} />
+                        <Rect x="82" y="11" width="6" height="10" rx="1" fill="rgba(255,255,255,0.07)" />
+                        <Rect x="105" y="16" width="4" height="18" rx="1" fill="#cc8800" />
+                        <Line x1="106" y1="19" x2="108" y2="19" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                        <Line x1="106" y1="23" x2="108" y2="23" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                        <Line x1="106" y1="27" x2="108" y2="27" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                        <Rect x="106" y="13" width="3" height="4" rx="1" fill="#ffe066" />
+                        {/* Rodas reboque */}
+                        <Circle cx="16" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
+                        <Circle cx="16" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
+                        <Circle cx="48" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
+                        <Circle cx="48" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
+                        {/* Rodas cabine */}
+                        <Circle cx="83" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
+                        <Circle cx="83" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
+                        <Circle cx="99" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
+                        <Circle cx="99" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
+                      </Svg>
+                    </View>
+                  </View>
+                )
+              })()}
               {/* Barra de progresso */}
               <View style={{ width: 180, height: 3, backgroundColor: 'rgba(245,166,35,0.15)', borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
                 <Animated.View style={{
@@ -2758,6 +2783,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 setEditNetPaye(String(modalDetail.netPaye))
                 setEditFraisBoletim(String(modalDetail.fraisBoletim))
                 setEditMontantTotal(String(modalDetail.montantTotalRecu))
+                setEditMoisIndex(modalDetail.moisIndex)
+                setEditAnnee(modalDetail.annee)
                 setShowModalEdit(true)
               }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>✏️ Modifier</Text>
@@ -3026,6 +3053,26 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editMontantTotal} onChangeText={setEditMontantTotal} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
             </View>
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>PÉRIODE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <TouchableOpacity onPress={() => {
+                  setEditMoisIndex(editMoisIndex - 1 < 0 ? 11 : editMoisIndex - 1)
+                  setEditAnnee(editMoisIndex - 1 < 0 ? editAnnee - 1 : editAnnee)
+                }} style={{ padding: 10 }}>
+                  <Text style={{ fontSize: 22, color: '#f5a623' }}>◀</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, minWidth: 140, textAlign: 'center' }}>
+                  {['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][editMoisIndex]} {editAnnee}
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  setEditMoisIndex(editMoisIndex + 1 > 11 ? 0 : editMoisIndex + 1)
+                  setEditAnnee(editMoisIndex + 1 > 11 ? editAnnee + 1 : editAnnee)
+                }} style={{ padding: 10 }}>
+                  <Text style={{ fontSize: 22, color: '#f5a623' }}>▶</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalEdit(false)}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
@@ -3035,8 +3082,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const netEdit = parseFloat(editNetPaye) || 0
                 const fraisEdit = parseFloat(editFraisBoletim) || 0
                 const totalEdit = parseFloat(editMontantTotal) || 0
+                const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+                const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
                 const updated = {
                   ...modalDetail,
+                  periode: novePeriode,
+                  moisIndex: editMoisIndex,
+                  annee: editAnnee,
+                  mesFicheIndex: editMoisIndex,
+                  anoFiche: editAnnee,
                   netPaye: netEdit,
                   fraisBoletim: fraisEdit,
                   remboursementFrais: fraisEdit > 0 ? fraisEdit : modalDetail.remboursementFrais,
@@ -3044,12 +3098,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   montantTotalRecu: totalEdit,
                   salarioConfirmado: netEdit > 0,
                   fraisConfirmado: fraisEdit > 0,
-                  pagamentoSalMesIndex: modalDetail.pagamentoSalMesIndex ?? modalDetail.moisIndex,
-                  pagamentoSalAno: modalDetail.pagamentoSalAno ?? modalDetail.annee,
-                  pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? modalDetail.moisIndex,
-                  pagamentoFraisAno: modalDetail.pagamentoFraisAno ?? modalDetail.annee,
+                  pagamentoSalMesIndex: modalDetail.pagamentoSalMesIndex ?? editMoisIndex,
+                  pagamentoSalAno: modalDetail.pagamentoSalAno ?? editAnnee,
+                  pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? editMoisIndex,
+                  pagamentoFraisAno: modalDetail.pagamentoFraisAno ?? editAnnee,
                 }
-                const nova = historique.map(h => h.periode === modalDetail.periode ? updated : h)
+                // Remove old entry (old periode), insert updated, re-sort
+                const nova = historique.filter(h => h.periode !== modalDetail.periode)
+                nova.push(updated)
+                nova.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                 setHistorique(nova)
                 await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
                 const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')

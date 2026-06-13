@@ -27,6 +27,11 @@ export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
   const [profil, setProfil] = useState<'CD' | 'MIXTE' | 'LD'>('MIXTE')
+  const [conducteurPrenom, setConducteurPrenom] = useState('')
+  const [conducteurNom, setConducteurNom] = useState('')
+  const [showNomModal, setShowNomModal] = useState(false)
+  const [editPrenom, setEditPrenom] = useState('')
+  const [editNom, setEditNom] = useState('')
   const [notifications, setNotifications] = useState(true)
   const [showModalHistorique, setShowModalHistorique] = useState(false)
   const [showModalReset, setShowModalReset] = useState(false)
@@ -63,6 +68,8 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('profil').then(p => {
       if (p === 'CD' || p === 'MIXTE' || p === 'LD') setProfil(p)
     })
+    AsyncStorage.getItem('conducteur_prenom').then(v => { if (v) setConducteurPrenom(v) })
+    AsyncStorage.getItem('conducteur_nom').then(v => { if (v) setConducteurNom(v) })
     getDiasRestantes().then(setDiasTrial)
     getDataExpiracao().then(setDataExpiracao)
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
@@ -334,6 +341,71 @@ export default function ReglagesScreen() {
         <View style={st.titleSection}>
           <Text style={[st.title, { color: c.text }]}>{t.reglages}</Text>
         </View>
+
+        {/* NOM / PRÉNOM */}
+        <TouchableOpacity
+          style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}
+          onPress={() => { setEditPrenom(conducteurPrenom); setEditNom(conducteurNom); setShowNomModal(true) }}
+          activeOpacity={0.75}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.5, marginBottom: 6 }}>👤 CONDUCTEUR</Text>
+              {conducteurPrenom || conducteurNom ? (
+                <Text style={{ fontSize: 20, fontWeight: '800', color: c.text }}>
+                  {conducteurPrenom}{conducteurPrenom && conducteurNom ? ' ' : ''}{conducteurNom ? conducteurNom.toUpperCase() : ''}
+                </Text>
+              ) : (
+                <Text style={{ fontSize: 15, fontWeight: '600', color: c.textSub, fontStyle: 'italic' }}>
+                  Appuie pour ajouter ton nom
+                </Text>
+              )}
+            </View>
+            <Text style={{ fontSize: 20, color: c.textSub }}>✏️</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* MODAL NOM / PRENOM */}
+        <Modal visible={showNomModal} transparent animationType="slide">
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowNomModal(false)}>
+            <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, borderWidth: 1, borderColor: c.cardBorder }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 20, textAlign: 'center' }}>👤 Conducteur</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.5, marginBottom: 6 }}>PRÉNOM</Text>
+              <TextInput
+                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 16 }}
+                value={editPrenom}
+                onChangeText={setEditPrenom}
+                placeholder="Ex: Bruno"
+                placeholderTextColor={c.textSub}
+                autoCapitalize="words"
+              />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: c.textLabel, letterSpacing: 1.5, marginBottom: 6 }}>NOM DE FAMILLE</Text>
+              <TextInput
+                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 24 }}
+                value={editNom}
+                onChangeText={v => setEditNom(v.toUpperCase())}
+                placeholder="Ex: VEIGA"
+                placeholderTextColor={c.textSub}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                onPress={async () => {
+                  const p = editPrenom.trim()
+                  const n = editNom.trim()
+                  setConducteurPrenom(p)
+                  setConducteurNom(n)
+                  await AsyncStorage.setItem('conducteur_prenom', p)
+                  await AsyncStorage.setItem('conducteur_nom', n)
+                  await AsyncStorage.setItem('nom', p || n)
+                  setShowNomModal(false)
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
 
         {/* PROFIL */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>

@@ -10,7 +10,8 @@ type Profil = 'CD' | 'MIXTE' | 'LD'
 
 export default function OnboardingScreen() {
   const [etape, setEtape] = useState(0)
-  const [nom, setNom] = useState('Bruno')
+  const [prenom, setPrenom] = useState('')
+  const [nom, setNom] = useState('')
   const [profil, setProfil] = useState<Profil>('MIXTE')
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
@@ -37,8 +38,10 @@ export default function OnboardingScreen() {
     await AsyncStorage.setItem('vehicule_type', typeVehicule)
     await AsyncStorage.setItem('cargo_type', typeCargo)
     await AsyncStorage.setItem('profil', profil)
-    await AsyncStorage.setItem('nom', nom)
-    await AsyncStorage.setItem('conducteur_nom', nom)
+    if (prenom) await AsyncStorage.setItem('conducteur_prenom', prenom)
+    if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
+    // backward compat — keep 'nom' with prenom for the main screen greeting
+    await AsyncStorage.setItem('nom', prenom || nom)
     router.replace('/(tabs)/fiche')
   }
 
@@ -95,14 +98,26 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={st.nomSection}>
-            <Text style={st.nomLabel}>Ton prénom</Text>
+            <Text style={st.nomLabel}>PRÉNOM</Text>
+            <TextInput
+              style={st.nomInput}
+              value={prenom}
+              onChangeText={setPrenom}
+              placeholder="Ex: Bruno"
+              placeholderTextColor="#6b7394"
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+          </View>
+          <View style={st.nomSection}>
+            <Text style={st.nomLabel}>NOM DE FAMILLE</Text>
             <TextInput
               style={st.nomInput}
               value={nom}
               onChangeText={setNom}
-              placeholder="Ex: Bruno"
+              placeholder="Ex: Veiga"
               placeholderTextColor="#6b7394"
-              autoCapitalize="words"
+              autoCapitalize="characters"
               returnKeyType="done"
             />
           </View>

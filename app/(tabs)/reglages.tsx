@@ -367,19 +367,39 @@ export default function ReglagesScreen() {
             keyboardType='numeric'
             style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
           />
-          <Text style={{ fontSize: 10, color: c.textSub, marginTop: 5, fontStyle: 'italic' }}>Modifie ici si tu changes de camion — sera utilisé comme KM début du prochain jour</Text>
-          <TouchableOpacity
-            style={{ backgroundColor: '#f5a623', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 8 }}
-            onPress={async () => {
-              const km = kmTracteurActuel.trim()
-              if (!km || parseFloat(km) <= 0) return
-              await AsyncStorage.setItem('km_ultimo_fim', km)
-              setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour\: ' + km + ' km')
-              setShowModalSucesso(true)
-            }}
-          >
-            <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Enregistrer les KM</Text>
-          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: c.textSub, marginTop: 5, fontStyle: 'italic' }}>Sera utilisé comme KM début du prochain jour</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 10, padding: 10, alignItems: 'center' }}
+              onPress={async () => {
+                const km = kmTracteurActuel.trim()
+                if (!km || parseFloat(km) <= 0) return
+                await AsyncStorage.setItem('km_ultimo_fim', km)
+                setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour\: ' + km + ' km')
+                setShowModalSucesso(true)
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Enregistrer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(231,76,60,0.1)', borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#e74c3c' }}
+              onPress={() => Alert.alert(
+                '🔄 Changer de camion',
+                'Met à jour le numéro ci-dessus, saisis les KM actuels du nouveau camion et appuie sur Enregistrer.',
+                [
+                  { text: 'Compris', style: 'default', onPress: async () => {
+                    setTracteurValue('')
+                    await AsyncStorage.setItem('tracteur_value', '')
+                    setKmTracteurActuel('')
+                    await AsyncStorage.setItem('km_ultimo_fim', '0')
+                  }},
+                  { text: 'Annuler', style: 'cancel' },
+                ]
+              )}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#e74c3c' }}>🔄 Changer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* SEMI-REMORQUE */}

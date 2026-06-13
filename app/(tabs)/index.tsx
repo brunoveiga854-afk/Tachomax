@@ -128,12 +128,6 @@ export default function AujourdhuiScreen() {
   const [kmInicioAuto, setKmInicioAuto] = useState(false)
   const [showKmInicio, setShowKmInicio] = useState(false)
   const [kmDebutConfirme, setKmDebutConfirme] = useState(false)
-  const [kmExtras, setKmExtras] = useState(0)
-  const [changeCamionNota, setChangeCamionNota] = useState('')
-  const [showModalChangeCamion, setShowModalChangeCamion] = useState(false)
-  const [camion2Debut, setCamion2Debut] = useState('')
-  const [camion2Fin, setCamion2Fin] = useState('')
-  const [camion2UltimoFim, setCamion2UltimoFim] = useState('')
 
   const locationSub = useRef<any>(null)
   const tooltipTimer = useRef<any>(null)
@@ -1215,7 +1209,7 @@ const pararGPS = async () => {
     try {
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
-      await AsyncStorage.setItem('km_ultimo_fim', camion2UltimoFim || kmFimInput)
+      await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
     } catch (e) { console.log('Erro:', e) }
   }
 
@@ -1248,7 +1242,7 @@ const pararGPS = async () => {
     // Capture values before reset for summary modal
     const snapService = segServico
     const snapConduite = segConducaoHoje
-    const snapKm = calcularKmManual() + kmExtras
+    const snapKm = calcularKmManual()
 
     // Compute frais inline for summary
     const fim = new Date()
@@ -1283,7 +1277,6 @@ const pararGPS = async () => {
     setEnService(false); setEmPausa(false); setEmConducao(false); setModeNuit(false)
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0); setKmInicioTacho(0); setKmInicioInput(''); setKmFimInput(''); setDecouche(false); setDateInicio(null)
-    setKmExtras(0); setChangeCamionNota(''); setCamion2Debut(''); setCamion2Fin(''); setCamion2UltimoFim('')
     setPausas([]); setPausaReglementaireOk(false)
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
@@ -2159,18 +2152,6 @@ const pararGPS = async () => {
                 )}
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: kmExtras > 0 ? 'rgba(41,128,185,0.15)' : 'rgba(155,89,182,0.08)', borderRadius: 14, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: kmExtras > 0 ? '#2980b9' : 'rgba(155,89,182,0.4)' }}
-              onPress={() => { setCamion2Debut(''); setCamion2Fin(''); setShowModalChangeCamion(true) }}
-            >
-              <Text style={{ fontSize: 18 }}>🔄</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: kmExtras > 0 ? '#2980b9' : '#9b59b6' }}>🔄 Changement de camion</Text>
-                {kmExtras > 0 && <Text style={{ fontSize: 11, color: '#2980b9', marginTop: 2 }}>{changeCamionNota}</Text>}
-                {kmExtras === 0 && <Text style={{ fontSize: 11, color: 'rgba(155,89,182,0.7)', marginTop: 2 }}>Ajouter les km d'un 2ème camion</Text>}
-              </View>
-              {kmExtras > 0 && <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9' }}>+{kmExtras} km</Text>}
-            </TouchableOpacity>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: decouche ? 'rgba(41,128,185,0.12)' : c.bg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: decouche ? '#2980b9' : c.cardBorder }} onPress={() => setDecouche(d => !d)}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Text style={{ fontSize: 24 }}>🌙</Text>
@@ -2189,72 +2170,6 @@ const pararGPS = async () => {
             <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => { setShowTerminerModal(false); setShowKmFimInput(false) }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL CHANGEMENT DE CAMION */}
-      <Modal visible={showModalChangeCamion} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#9b59b6' }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>🔄 Changement de camion</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Entre les KM du nouveau camion</Text>
-            <View style={{ gap: 14 }}>
-              <View>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 6 }}>KM DÉBUT NOUVEAU CAMION</Text>
-                <TextInput
-                  style={{ backgroundColor: c.statBox, borderRadius: 10, padding: 12, fontSize: 20, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                  value={camion2Debut}
-                  onChangeText={setCamion2Debut}
-                  keyboardType='numeric'
-                  placeholder='ex: 100'
-                  placeholderTextColor={c.textSub}
-                  autoFocus
-                />
-              </View>
-              <View>
-                <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 6 }}>KM FIN NOUVEAU CAMION</Text>
-                <TextInput
-                  style={{ backgroundColor: c.statBox, borderRadius: 10, padding: 12, fontSize: 20, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                  value={camion2Fin}
-                  onChangeText={setCamion2Fin}
-                  keyboardType='numeric'
-                  placeholder='ex: 200'
-                  placeholderTextColor={c.textSub}
-                />
-              </View>
-              {camion2Debut && camion2Fin && parseFloat(camion2Fin) > parseFloat(camion2Debut) && (
-                <View style={{ backgroundColor: 'rgba(41,128,185,0.12)', borderRadius: 10, padding: 12, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: '#2980b9', fontWeight: '700' }}>
-                    + {Math.round(parseFloat(camion2Fin) - parseFloat(camion2Debut))} km avec ce camion
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-              <TouchableOpacity
-                style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                onPress={() => setShowModalChangeCamion(false)}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 2, backgroundColor: '#9b59b6', borderRadius: 12, padding: 14, alignItems: 'center' }}
-                onPress={() => {
-                  const d2 = parseFloat(camion2Debut)
-                  const f2 = parseFloat(camion2Fin)
-                  if (!d2 || !f2 || f2 <= d2) return
-                  const extra = Math.round(f2 - d2)
-                  setKmExtras(prev => prev + extra)
-                  setCamion2UltimoFim(camion2Fin)
-                  const nota = `🔄 +${extra}km (${camion2Debut}→${camion2Fin})`
-                  setChangeCamionNota(prev => prev ? prev + ' ' + nota : nota)
-                  setShowModalChangeCamion(false)
-                }}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Ajouter ces KM</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>

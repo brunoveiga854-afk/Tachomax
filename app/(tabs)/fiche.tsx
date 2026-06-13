@@ -2,7 +2,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
@@ -2761,9 +2761,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {
                 if (!modalDetail) return
-                setEditNetPaye(String(modalDetail.netPaye))
-                setEditFraisBoletim(String(modalDetail.fraisBoletim))
-                setEditMontantTotal(String(modalDetail.montantTotalRecu))
+                setEditNetPaye(parseFloat((modalDetail.netPaye || 0).toFixed(2)).toString())
+                setEditFraisBoletim(parseFloat((modalDetail.fraisBoletim || 0).toFixed(2)).toString())
+                setEditMontantTotal(parseFloat((modalDetail.montantTotalRecu || 0).toFixed(2)).toString())
                 setEditMoisIndex(modalDetail.moisIndex)
                 setEditAnnee(modalDetail.annee)
                 setEditInteressement(String(modalDetail.interessement || 0))
@@ -3017,10 +3017,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
       {/* MODAL EDITAR */}
       <Modal visible={showModalEdit} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>✏️ Modifier {modalDetail?.periode}</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Corrige les valeurs incorrectes</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={{ gap: 12, marginBottom: 20 }}>
               <View>
                 <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>NET PAYÉ (€)</Text>
@@ -3059,6 +3061,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </TouchableOpacity>
               </View>
             </View>
+            </ScrollView>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalEdit(false)}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
@@ -3109,6 +3112,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── ONBOARDING SALAIRE ── */}

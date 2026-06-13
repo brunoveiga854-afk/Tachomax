@@ -2070,18 +2070,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </Text>
                 <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>estimé hors primes</Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                  <View style={{ backgroundColor: 'rgba(39,174,96,0.4)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 10, color: 'white', fontWeight: '800' }}>{calcResult.mesHorasLabel.split(' ')[0]}</Text>
-                  </View>
-                  <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>horas</Text>
-                </View>
-                <View style={{ marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{ backgroundColor: 'rgba(39,174,96,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaReceber}</Text>
-                  </View>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{calcResult.mesReceber.split(' ')[0]}</Text>
-                </View>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{calcResult.mesHorasLabel.split(' ')[0]} · le {calcResult.diaReceber} {calcResult.mesReceber.split(' ')[0]}</Text>
               </TouchableOpacity>
               {/* Frais */}
               <TouchableOpacity
@@ -2095,18 +2084,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {calcResult.fraisConfirmado ? 'depuis historique' : 'estimé depuis calendrier'}
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                  <View style={{ backgroundColor: 'rgba(41,128,185,0.4)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 10, color: 'white', fontWeight: '800' }}>{calcResult.mesFraisLabel.split(' ')[0]}</Text>
-                  </View>
-                  <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>frais</Text>
-                </View>
-                <View style={{ marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{ backgroundColor: 'rgba(41,128,185,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 11, color: 'white', fontWeight: '800' }}>le {calcResult.diaFrais}</Text>
-                  </View>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{calcResult.mesReceber.split(' ')[0]}</Text>
-                </View>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{calcResult.mesFraisLabel.split(' ')[0]} · le {calcResult.diaFrais} {calcResult.mesReceber.split(' ')[0]}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />

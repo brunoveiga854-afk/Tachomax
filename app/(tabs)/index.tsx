@@ -1407,9 +1407,9 @@ const pararGPS = async () => {
                     <Text style={{ color: '#27ae60', fontSize: 15, fontWeight: '800' }}>✓ {kmInicioInput} km enregistré</Text>
                   </View>
                 ) : (
-                  <View style={{ backgroundColor: c.card, borderColor: '#f5a623', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, elevation: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Text style={{ fontSize: 20 }}>📍</Text>
+                  <View style={{ backgroundColor: c.card, borderColor: c.cardBorder, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 16 }}>📍</Text>
                       <TextInput
                         value={kmInicioInput}
                         onChangeText={v => { setKmInicioInput(limparInputKm(v)); setKmInicioAuto(false) }}
@@ -1420,8 +1420,7 @@ const pararGPS = async () => {
                         onSubmitEditing={() => {
                           if (kmInicioInput) { setKmInicioAuto(false); setKmDebutConfirme(true); setTimeout(() => { setKmDebutConfirme(false); setShowKmInicio(false) }, 1200) }
                         }}
-                        style={{ flex: 1, color: c.text, fontSize: 20, fontWeight: '700', backgroundColor: c.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 }}
-                        autoFocus
+                        style={{ flex: 1, color: c.text, fontSize: 16, fontWeight: '600', paddingVertical: 6, paddingHorizontal: 8 }}
                       />
                       <TouchableOpacity
                         onPress={() => {
@@ -1441,11 +1440,11 @@ const pararGPS = async () => {
                   </View>
                 )
               ) : kmInicioInput ? (
-                <TouchableOpacity onPress={() => { setShowKmInicio(true); setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 150) }} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: kmInicioAuto ? c.textSub : '#f5a623', fontSize: 13, fontWeight: '700', opacity: kmInicioAuto ? 0.6 : 1 }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity onPress={() => { setShowKmInicio(true); setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 150) }} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
+                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
                   <Text style={{ color: c.textSub, fontSize: 12, opacity: 0.5 }}>+ {t.kmDebut}</Text>
                 </TouchableOpacity>
               )}
@@ -2403,20 +2402,9 @@ const pararGPS = async () => {
                   // Section accordion header with auto-scroll
                   const sectionPositions: Record<string, number> = {}
                   const AccHeader = ({ label, k }: { label: string; k: keyof typeof statsOpen }) => (
-                    <View onLayout={(e) => { sectionPositions[k] = e.nativeEvent.layout.y }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          const opening = !statsOpen[k]
-                          setStatsOpen(s => ({ ...s, [k]: opening }))
-                          if (opening && sectionPositions[k] !== undefined) {
-                            setTimeout(() => statsScrollRef.current?.scrollTo({ y: sectionPositions[k] + 100, animated: true }), 150)
-                          }
-                        }}
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 2 }}
-                      >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
-                        <Text style={{ fontSize: 12, color: c.textSub }}>{statsOpen[k] ? '▲' : '▼'}</Text>
-                      </TouchableOpacity>
+                    <View onLayout={(e) => { sectionPositions[k] = e.nativeEvent.layout.y }}
+                      style={{ paddingVertical: 10, paddingHorizontal: 2 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
                     </View>
                   )
                   const SectionWrap = ({ children }: { children: React.ReactNode }) => (

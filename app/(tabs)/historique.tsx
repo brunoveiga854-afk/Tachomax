@@ -5,8 +5,9 @@ import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, PanResponder, Animated, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
@@ -56,34 +57,6 @@ const MAX_SEMAINE = 56 * 3600
 function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, index }: {
   jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, index: number
 }) {
-  const translateX = useRef(new Animated.Value(0)).current
-  const swipeAtivado = useRef(false)
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10 && Math.abs(g.dy) < 20,
-    onPanResponderMove: (_, g) => {
-      if (g.dx < 0) translateX.setValue(g.dx)
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -80) {
-        Animated.spring(translateX, { toValue: -300, useNativeDriver: true }).start()
-        swipeAtivado.current = true
-        Alert.alert(
-          '🗑️ Supprimer ce jour?',
-          `${jour.jour} ${jour.date} — ${fmtHM(jour.segServico)}\n\nCette action est irréversible.`,
-          [
-            { text: 'Annuler', style: 'cancel', onPress: () => {
-              Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start()
-              swipeAtivado.current = false
-            }},
-            { text: 'Supprimer', style: 'destructive', onPress: onDelete },
-          ]
-        )
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start()
-      }
-    },
-  })).current
   const cfg = TYPE_CONFIG[jour.type] || TYPE_CONFIG.TRAB
   const temPausa = jour.segPausa > 0
   const temServico = ['TRAB', 'DEC'].includes(jour.type)
@@ -92,13 +65,35 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
   const mesIdx = dateParts[1] ? parseInt(dateParts[1]) - 1 : -1
   const mesNome = mesIdx >= 0 && mesIdx < 12 ? MOIS_COURT[mesIdx] : ''
   const amplitudeSeg = temServico ? calcAmplitudeDe(jour.debut, jour.fin) : 0
+
+  const renderRightActions = () => (
+    <TouchableOpacity
+      style={{
+        backgroundColor: '#e74c3c',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 85,
+        marginBottom: 8,
+        marginRight: 20,
+        borderRadius: 16,
+      }}
+      onPress={() => Alert.alert(
+        '🗑️ Supprimer ce jour?',
+        `${jour.jour} ${jour.date} — ${fmtHM(jour.segServico)}\n\nCette action est irréversible.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Supprimer', style: 'destructive', onPress: onDelete },
+        ]
+      )}
+    >
+      <Text style={{ fontSize: 22 }}>🗑️</Text>
+      <Text style={{ fontSize: 10, color: 'white', fontWeight: '700', marginTop: 2 }}>Supprimer</Text>
+    </TouchableOpacity>
+  )
+
   return (
-    <View style={{ marginHorizontal: 20, marginBottom: 8, borderRadius: 16, overflow: 'hidden' }}>
-      <View style={[st.deleteBg]}>
-        <Text style={st.deleteIcon}>🗑️</Text>
-        <Text style={st.deleteText}>Supprimer</Text>
-      </View>
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+    <SwipeableGH renderRightActions={renderRightActions} overshootRight={false}>
+      <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
         <TouchableOpacity activeOpacity={0.85} onPress={onEdit}>
           <View style={[st.jourCard, { backgroundColor: c.card, borderColor: cfg.color + '30', borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
             <View style={st.jourHeader}>
@@ -166,8 +161,8 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
             </View>
           </View>
         </TouchableOpacity>
-      </Animated.View>
-    </View>
+      </View>
+    </SwipeableGH>
   )
 }
 export default function HistoriqueScreen() {

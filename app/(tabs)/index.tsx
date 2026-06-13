@@ -15,10 +15,24 @@ import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
   agendarAlertaAmplitude,
+  agendarAlertaConduicaoDiaria,
   cancelarTodosAlertas,
   cancelarRappelSaisie,
   agendarRappelSaisie,
 } from '../../src/notifications'
+import {
+  VELOCIDADE_MIN,
+  CONDUCAO_SEGUNDOS_ON,
+  CONDUCAO_PARAR_ABAIXO_3_S,
+  CONDUCAO_PARAR_ABAIXO_5_S,
+  CONDUCAO_PARAR_ABAIXO_7_S,
+  GPS_MOVIMENTO_SALTO_MAX_KM,
+  GPS_MOVIMENTO_GAP_S,
+  GPS_MOVIMENTO_GAP_MAX_KM,
+  VEL_BUFFER_SIZE,
+  ACCEL_SALTO_MAX_KMH,
+  mediana,
+} from '../../src/constants'
 type Profil = 'CD' | 'MIXTE' | 'LD'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
 type Jour = {
@@ -40,15 +54,9 @@ type Jour = {
 const PAUSA_MAX = 4.5 * 3600
 const SCREEN_W = Dimensions.get('window').width
 const STAT_W = Math.floor((SCREEN_W - 32) / 3)   // 3 colunas visíveis, margem 16px cada lado
-const VELOCIDADE_MIN = 8
 const STORAGE_KEY = 'TACHOOFFICE_estado'
-const CONDUCAO_SEGUNDOS_ON = 15  // consecutive GPS ticks at speed before setEmConducao(true)
-const CONDUCAO_PARAR_ABAIXO_3_S = 8
-const CONDUCAO_PARAR_ABAIXO_5_S = 16
-const CONDUCAO_PARAR_ABAIXO_7_S = 28
-const GPS_MOVIMENTO_SALTO_MAX_KM = 1
-const GPS_MOVIMENTO_GAP_S = 30
-const GPS_MOVIMENTO_GAP_MAX_KM = 50
+// VELOCIDADE_MIN, CONDUCAO_*, GPS_MOVIMENTO_*, VEL_BUFFER_SIZE, ACCEL_SALTO_MAX_KMH, mediana
+// importados de ../../src/constants (partilhados com tasks.ts)
 
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
@@ -152,6 +160,9 @@ export default function AujourdhuiScreen() {
   const paradoAbaixo7Segundos = useRef(0)
   const tempoGpsMentiroso = useRef(0)
   const tempoVelCongelada = useRef(0)
+  const ultimaVelCongelada = useRef<number | null>(null)
+  const velAnteriorRef = useRef(0)
+  const alertado9hDiario = useRef(false)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})
@@ -205,8 +216,8 @@ export default function AujourdhuiScreen() {
 
   const mediaVelocidade = (vel: number) => {
     velocidadeBuffer.current.push(vel)
-    if (velocidadeBuffer.current.length > 7) velocidadeBuffer.current.shift()
-    return velocidadeBuffer.current.reduce((a, b) => a + b, 0) / velocidadeBuffer.current.length
+    if (velocidadeBuffer.current.length > VEL_BUFFER_SIZE) velocidadeBuffer.current.shift()
+    return mediana(velocidadeBuffer.current)  // mediana robusta a spikes GPS
   }
 
   const resetarParagemGps = () => {
@@ -223,10 +234,27 @@ export default function AujourdhuiScreen() {
   const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number, velGps = 0, velInferida = 0) => {
     const dt = Math.max(1, dtGps)
 
+    // Filtro de coerência de aceleração: salto > 15 km/h a partir de velocidade baixa = spike GPS
+    const prevVel = velAnteriorRef.current
+    velAnteriorRef.current = vel
+    if (vel - prevVel > ACCEL_SALTO_MAX_KMH && prevVel < VELOCIDADE_MIN) return
+
     paradoAbaixo3Segundos.current = vel < 3 ? paradoAbaixo3Segundos.current + dt : 0
     paradoAbaixo5Segundos.current = vel < 5 ? paradoAbaixo5Segundos.current + dt : 0
     paradoAbaixo7Segundos.current = vel < 7 ? paradoAbaixo7Segundos.current + dt : 0
 
+    // Detecção de GPS congelado (velocidade presa em valor baixo sem variar)
+    if (vel >= 1 && vel <= 15) {
+      if (ultimaVelCongelada.current === null || Math.abs(ultimaVelCongelada.current - vel) > 2) {
+        ultimaVelCongelada.current = vel
+        tempoVelCongelada.current = 0
+      } else {
+        tempoVelCongelada.current += dt
+      }
+    } else {
+      ultimaVelCongelada.current = null
+      tempoVelCongelada.current = 0
+    }
     const gpsCongelado = tempoVelCongelada.current >= 4
 
     if (velGps > 20 && velInferida < 5) {
@@ -684,16 +712,27 @@ export default function AujourdhuiScreen() {
   })
   const carregarFraisRegles = async () => {
     const reglesData = await AsyncStorage.getItem('frais_regles')
-    const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
+    let regles = DEFAULT_FRAIS_REGLES
+    try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { regles = DEFAULT_FRAIS_REGLES }
     if (reglesData) await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
     return regles
   }
   const limparFraisReglesAoArrancar = async () => {
+    // Limpa/valida frais_regles
     try {
       const reglesData = await AsyncStorage.getItem('frais_regles')
       const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
       await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
-    } catch (e) {}
+    } catch {
+      await AsyncStorage.removeItem('frais_regles')
+    }
+    // Limpa/valida frais_valores
+    try {
+      const valsData = await AsyncStorage.getItem('frais_valores')
+      if (valsData) JSON.parse(valsData) // só valida — se falhar, apaga
+    } catch {
+      await AsyncStorage.removeItem('frais_valores')
+    }
   }
   const diaAnteriorDecouche = (lista: any[], dataAtual: Date) => {
     const anterior = new Date(dataAtual)
@@ -839,6 +878,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     segPausaRef.current = segPausa
   }, [segPausa])
 
+  // Alerta de 9h diárias de condução — aviso 15 min antes do limite
+  useEffect(() => {
+    if (!enService || !emConducao || alertado9hDiario.current) return
+    if (segConducaoHoje >= MAX_CONDUITE - 15 * 60) {
+      alertado9hDiario.current = true
+      agendarAlertaConduicaoDiaria(15 * 60)  // 15min até ao limite
+    }
+  }, [segConducaoHoje, enService, emConducao])
+
   // Amplitude overflow check — alert if service open > 16h (possible forgot to end)
   useEffect(() => {
     if (!enService || amplitudeAlertado.current) return
@@ -871,7 +919,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const timer = setInterval(() => {
       setParadoSegundos(s => {
         const novo = s + 1
-        if (novo >= 20 * 60 && !showPausaBandeau) setShowPausaBandeau(true)
+        if (novo >= 10 * 60 && !showPausaBandeau) setShowPausaBandeau(true)
         return novo
       })
     }, 1000)
@@ -1052,6 +1100,9 @@ const pararGPS = async () => {
     setEnService(true)
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
+    alertado9hDiario.current = false
+    velAnteriorRef.current = 0
+    ultimaVelCongelada.current = null
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0)
     setPausas([]); setPausaReglementaireOk(false)
@@ -1280,6 +1331,9 @@ const pararGPS = async () => {
     setPausas([]); setPausaReglementaireOk(false)
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
+    alertado9hDiario.current = false
+    velAnteriorRef.current = 0
+    ultimaVelCongelada.current = null
     setShowPausaBandeau(false); setParadoSegundos(0)
     await carregarStatsSemaine()
 
@@ -1445,9 +1499,31 @@ const pararGPS = async () => {
                     </View>
                   </View>
                 )
+              ) : kmInicioAuto && kmInicioInput ? (
+                /* Card de confirmação automática — valor pré-preenchido do último dia */
+                <View style={{ backgroundColor: 'rgba(245,166,35,0.07)', borderColor: 'rgba(245,166,35,0.35)', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12 }}>
+                  <Text style={{ color: c.textSub, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 }}>KM DERNIER JOUR — AUTO-REMPLI</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ color: c.text, fontSize: 20, fontWeight: '800' }}>📍 {kmInicioInput} km</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => setShowKmInicio(true)}
+                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(180,180,180,0.12)', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ fontSize: 15 }}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setKmInicioAuto(false)}
+                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#27ae60', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>✓</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
               ) : kmInicioInput ? (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ color: kmInicioAuto ? c.textSub : '#f5a623', fontSize: 13, fontWeight: '700', opacity: kmInicioAuto ? 0.6 : 1 }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
+                  <Text style={{ color: '#f5a623', fontSize: 13, fontWeight: '700' }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>

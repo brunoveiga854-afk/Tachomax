@@ -394,8 +394,8 @@ const getJoursMois = () => {
     try {
       const reglesData = await AsyncStorage.getItem('frais_regles')
       const valeursData = await AsyncStorage.getItem('frais_valores')
-      regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
-      valeurs = sanitizeFraisValeurs(valeursData ? JSON.parse(valeursData) : {})
+      try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { regles = DEFAULT_FRAIS_REGLES }
+      try { valeurs = sanitizeFraisValeurs(valeursData ? JSON.parse(valeursData) : {}) } catch { valeurs = DEFAULT_FRAIS_VALEURS }
     } catch (e) {}
     const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit), regles, valeurs)
     const jourAtualizado: Jour = {
@@ -446,9 +446,11 @@ const getJoursMois = () => {
       const JOURS_LABELS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
       const JOURS_COURTS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
             const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
-      const fraisVals = fraisValsRaw ? JSON.parse(fraisValsRaw) : {}
+      let fraisVals: any = {}
+      try { if (fraisValsRaw) fraisVals = JSON.parse(fraisValsRaw) } catch { fraisVals = {} }
       const reglesRaw = await AsyncStorage.getItem('frais_regles')
-      const regles = reglesRaw ? JSON.parse(reglesRaw) : {}
+      let regles: any = {}
+      try { if (reglesRaw) regles = JSON.parse(reglesRaw) } catch { regles = {} }
       const jours = JOURS_LABELS.map((label, i) => {
         const dataJour = new Date(lundi); dataJour.setDate(lundi.getDate() + i)
         const ddmm = `${String(dataJour.getDate()).padStart(2,'0')}/${String(dataJour.getMonth()+1).padStart(2,'0')}`

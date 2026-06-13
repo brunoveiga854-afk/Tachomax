@@ -11,6 +11,7 @@ export const NOTIF_IDS = {
   PAUSA_OBRIGATORIA: 'tachooffice-pausa-obrigatoria',
   AMPLITUDE_ALERTA: 'tachooffice-amplitude-alerta',
   RAPPEL_SAISIE: 'tachooffice-rappel-saisie',
+  CONDUITE_DIARIA: 'tachooffice-conduite-diaria',
 }
 
 Notifications.setNotificationHandler({
@@ -50,7 +51,7 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
       identifier: NOTIF_IDS.PAUSA_ALERTA,
       content: {
         title: '⚠️ TachoOffice — Pause dans 30 min',
-        body: 'Il te reste 30 min de conduite continue. Prépare-toi à t\'arrêter.',
+        body: "Il te reste 30 min de conduite continue. Prépare-toi à t'arrêter.",
         sound: 'default',
         data: { type: 'pausa_aviso' },
         ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
@@ -67,7 +68,7 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
     identifier: NOTIF_IDS.PAUSA_OBRIGATORIA,
     content: {
       title: '🛑 TachoOffice — PAUSE OBLIGATOIRE',
-      body: '4h30 de conduite atteintes ! Tu dois t\'arrêter 45 minutes minimum.',
+      body: "4h30 de conduite atteintes ! Tu dois t'arrêter 45 minutes minimum.",
       sound: 'default',
       data: { type: 'pausa_obrigatoria' },
       ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
@@ -116,7 +117,7 @@ export async function agendarRappelSaisie(hora = 20, minuto = 0): Promise<void> 
     identifier: NOTIF_IDS.RAPPEL_SAISIE,
     content: {
       title: '📋 TachoOffice — Saisie du jour',
-      body: 'N\'oublie pas d\'enregistrer ta journée de travail !',
+      body: "N'oublie pas d'enregistrer ta journée de travail !",
       sound: 'default',
       data: { type: 'rappel_saisie' },
       ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
@@ -131,4 +132,44 @@ export async function agendarRappelSaisie(hora = 20, minuto = 0): Promise<void> 
 
 export async function cancelarRappelSaisie(): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
+}
+
+/**
+ * Agenda alerta para o limite diário de 9h de condução.
+ * Chamado quando segConducaoHoje atinge 8h45 (15min antes do limite).
+ * segundosAteAlerta = 0 → dispara imediatamente.
+ */
+export async function agendarAlertaConduicaoDiaria(segundosAteAlerta: number): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.CONDUITE_DIARIA).catch(() => {})
+
+  if (segundosAteAlerta <= 0) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: NOTIF_IDS.CONDUITE_DIARIA,
+      content: {
+        title: '🚛 TachoOffice — Limite journalière !',
+        body: "Tu as atteint 9h de conduite aujourd'hui. Arrêt obligatoire.",
+        sound: 'default',
+        data: { type: 'conduite_diaria_max' },
+        ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
+      },
+      trigger: null,
+    })
+    return
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: NOTIF_IDS.CONDUITE_DIARIA,
+    content: {
+      title: '⚠️ TachoOffice — 9h journalières dans 15 min',
+      body: "Tu approches de la limite de 9h de conduite pour aujourd'hui.",
+      sound: 'default',
+      data: { type: 'conduite_diaria_aviso' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: segundosAteAlerta,
+      repeats: false,
+    },
+  })
 }

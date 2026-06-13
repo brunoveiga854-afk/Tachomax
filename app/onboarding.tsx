@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
+import { TachoLogo } from '../src/TachoLogo'
 
 const { width } = Dimensions.get('window')
 
@@ -52,12 +53,29 @@ export default function OnboardingScreen() {
       {etape === 0 && (
         <View style={st.page}>
           <View style={st.logoSection}>
-            <Text style={st.logo}>Tacho<Text style={st.accent}>Office</Text></Text>
+            <TachoLogo size={32} textColor='#ffffff' />
             <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
           </View>
 
           <View style={st.heroSection}>
-            <Text style={st.heroEmoji}>🚛</Text>
+            <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
+            <Image
+              source={require('../assets/images/icon.png')}
+              style={{ width: width, height: Math.round(width * 0.50), resizeMode: 'contain' }}
+            />
+            {/* Fade esquerdo */}
+            {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
+              <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+            ))}
+            {/* Fade direito */}
+            {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
+              <View key={'r'+i} style={{ position: 'absolute', right: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+            ))}
+            {/* Fade inferior */}
+            {[0.7, 0.4, 0.15].map((op, i) => (
+              <View key={'b'+i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 10, height: 12, backgroundColor: '#0f1117', opacity: op }} />
+            ))}
+          </View>
             <Text style={st.heroTitle}>Bienvenue !</Text>
             <Text style={st.heroText}>
               TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
@@ -81,7 +99,7 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={st.btnNext} onPress={() => setEtape(1)}>
+          <TouchableOpacity style={[st.btnNext, { marginTop: 'auto' as any, marginBottom: 32 }]} onPress={() => setEtape(1)}>
             <Text style={st.btnNextText}>COMMENCER →</Text>
           </TouchableOpacity>
         </View>
@@ -166,7 +184,7 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 'auto' as any, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 'auto' as any, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -199,7 +217,7 @@ export default function OnboardingScreen() {
                 placeholderTextColor="#6b7394"
                 keyboardType="number-pad"
                 maxLength={2}
-                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -211,7 +229,7 @@ export default function OnboardingScreen() {
                 placeholderTextColor="#6b7394"
                 keyboardType="number-pad"
                 maxLength={2}
-                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
               />
             </View>
           </View>
@@ -225,7 +243,7 @@ export default function OnboardingScreen() {
             placeholderTextColor="#6b7394"
             keyboardType="number-pad"
             maxLength={3}
-            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 18, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 16 }}
           />
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>💶 SALAIRE NET MENSUEL (approximatif)</Text>
@@ -237,7 +255,7 @@ export default function OnboardingScreen() {
             placeholderTextColor="#6b7394"
             keyboardType="number-pad"
             maxLength={5}
-            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 18, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 28 }}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
           />
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⏱️ HEURES TRAVAILLÉES PAR MOIS</Text>
@@ -245,17 +263,17 @@ export default function OnboardingScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 }}>
             <TextInput
               value={heuresMensuel}
-              onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setHeuresMensuel(n <= 90 ? String(n || '') : '90') }}
+              onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setHeuresMensuel(n <= 300 ? String(n || '') : '300') }}
               placeholder="ex: 186"
               placeholderTextColor="#6b7394"
               keyboardType="number-pad"
-              maxLength={2}
-              style={{ flex: 1, backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+              maxLength={3}
+              style={{ flex: 1, backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
             />
             <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / mois (légal: 169h)'}</Text>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -398,7 +416,7 @@ export default function OnboardingScreen() {
             />
           </ScrollView>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -444,7 +462,7 @@ export default function OnboardingScreen() {
             <Text style={st.trialPrixSub}>Annulable à tout moment</Text>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(3)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -467,25 +485,25 @@ export default function OnboardingScreen() {
 }
 
 const st = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0f1117' },
+  safe: { flex: 1, backgroundColor: '#0f1117', position: 'relative' },
   page: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
 
   // Logo
-  logoSection: { alignItems: 'center', marginBottom: 32 },
+  logoSection: { alignItems: 'center', marginBottom: 16 },
   logo: { fontSize: 36, fontWeight: '800', color: '#eef0f5', letterSpacing: 2 },
   accent: { color: '#f5a623' },
   logoSub: { fontSize: 13, color: '#6b7394', marginTop: 4 },
 
   // Hero
-  heroSection: { alignItems: 'center', marginBottom: 32 },
+  heroSection: { alignItems: 'center', marginBottom: 12, overflow: 'hidden' },
   heroEmoji: { fontSize: 60, marginBottom: 16 },
   heroTitle: { fontSize: 28, fontWeight: '800', color: '#eef0f5', marginBottom: 12 },
   heroText: { fontSize: 14, color: '#c4c9d8', textAlign: 'center', lineHeight: 22, marginBottom: 8 },
   heroText2: { fontSize: 13, color: '#f5a623', fontWeight: '700', textAlign: 'center' },
 
   // Features
-  features: { gap: 12, marginBottom: 32 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#181c27', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#2a3045' },
+  features: { gap: 6, marginBottom: 12 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#181c27', borderRadius: 10, padding: 9, borderWidth: 1, borderColor: '#2a3045' },
   featureEmoji: { fontSize: 20 },
   featureText: { fontSize: 13, color: '#c4c9d8', fontWeight: '500' },
 
@@ -529,13 +547,13 @@ const st = StyleSheet.create({
   trialPrixSub: { fontSize: 12, color: '#6b7394', marginTop: 4 },
 
   // Buttons
-  btnNext: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 'auto' as any, marginBottom: 8 },
+  btnNext: { backgroundColor: '#f5a623', borderRadius: 16, padding: 14, alignItems: 'center' },
   btnNextText: { fontSize: 15, fontWeight: '800', color: 'white', letterSpacing: 1 },
-  btnStart: { backgroundColor: '#f5a623', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 'auto' as any, marginBottom: 8 },
+  btnStart: { backgroundColor: '#f5a623', borderRadius: 16, padding: 14, alignItems: 'center' },
   btnStartText: { fontSize: 15, fontWeight: '800', color: 'white', letterSpacing: 1 },
 
   // Dots
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 24 },
+  dots: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2a3045' },
   dotActive: { backgroundColor: '#f5a623', width: 24 },
 })

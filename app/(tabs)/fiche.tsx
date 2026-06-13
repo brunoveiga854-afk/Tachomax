@@ -31,6 +31,7 @@ type MoisData = {
   netPaye: number; salairebrut: number; totalCotisations: number
   remboursementFrais: number; fraisBoletim: number; montantTotalRecu: number
   interessement?: number; primeExceptionnelle?: number; participationSalariale?: number; autresPrimes?: number
+  primeNonAccident?: number
   jourPaiement1: number; jourPaiement2: number; analysedAt: string
   entreprise: string; conducteur: string
   // Campos novos extraídos pela IA das fiches
@@ -622,6 +623,7 @@ const totalPrimesExceptionnelles = (d: any) =>
   (d?.interessement || 0) +
   (d?.primeExceptionnelle || 0) +
   (d?.participationSalariale || 0) +
+  (d?.primeNonAccident || 0) +
   (d?.autresPrimes || 0)
 
 const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, d?.netPaye || 0)
@@ -1163,6 +1165,8 @@ export default function MonSalaireScreen() {
   const [showModalFraisReel, setShowModalFraisReel] = useState(false)
   const [showModalSalNet, setShowModalSalNet] = useState(false)
   const [inputSalNet, setInputSalNet] = useState('')
+  const [inputInteressement, setInputInteressement] = useState('')
+  const [inputPrimeNonAcc, setInputPrimeNonAcc] = useState('')
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
@@ -1999,9 +2003,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.salConfirmado ? '#27ae60' : 'rgba(39,174,96,0.35)' }}
                 onPress={() => { setInputSalNet(calcResult.salLiq.toFixed(2)); setShowModalSalNet(true) }}
               >
-                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
+                <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
+                <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>estimé hors primes</Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.62)', fontWeight: '600', marginTop: 3 }}>
                   Horas de {calcResult.mesHorasLabel}
@@ -2222,6 +2227,23 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             </View>
                           )}
                         </View>
+                        {/* Extras breakdown */}
+                        {((m.interessement || 0) > 0 || (m.primeNonAccident || 0) > 0) && (
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                            {(m.interessement || 0) > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '700' }}>🤝 Intéressement</Text>
+                                <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '800' }}>+{Math.round(m.interessement || 0)}€</Text>
+                              </View>
+                            )}
+                            {(m.primeNonAccident || 0) > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '700' }}>🛡 Non-accident</Text>
+                                <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '800' }}>+{Math.round(m.primeNonAccident || 0)}€</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
                       </View>
                       {pctAcerto !== null ? (
                         <View style={{ alignItems: 'flex-end' }}>
@@ -2667,37 +2689,78 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
               Estimé pour <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesReceber}</Text>
             </Text>
-            <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 18, lineHeight: 16 }}>
-              Entre le net réel reçu sur ta fiche de paye.{'\n'}L'IA s'en souviendra pour améliorer les prochaines estimations.
+            <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 14, lineHeight: 16 }}>
+              Entre le net récurrent (sans primes). L'IA améliore les prochaines estimations.
             </Text>
-            <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 8 }}>SALAIRE NET RÉEL REÇU (€)</Text>
+
+            {/* Salaire net base */}
+            <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginBottom: 6 }}>💶 SALAIRE NET RÉEL (hors primes)</Text>
             <TextInput
-              style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 24, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: '#27ae60', textAlign: 'center', marginBottom: 20 }}
+              style={{ backgroundColor: c.input, borderRadius: 12, padding: 12, fontSize: 22, fontWeight: '800', color: c.text, borderWidth: 1.5, borderColor: '#27ae60', textAlign: 'center', marginBottom: 14 }}
               value={inputSalNet}
               onChangeText={setInputSalNet}
               keyboardType="decimal-pad"
-              placeholder="ex: 1842.50"
+              placeholder="ex: 2748.25"
               placeholderTextColor={c.textSub}
               autoFocus
             />
+
+            {/* Extras */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: '#9b59b6', fontWeight: '700', marginBottom: 5 }}>🤝 INTÉRESSEMENT (€)</Text>
+                <TextInput
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 16, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: inputInteressement ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
+                  value={inputInteressement}
+                  onChangeText={setInputInteressement}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.textSub}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: '#27ae60', fontWeight: '700', marginBottom: 5 }}>🛡 NON-ACCIDENT (€)</Text>
+                <TextInput
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 16, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: inputPrimeNonAcc ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
+                  value={inputPrimeNonAcc}
+                  onChangeText={setInputPrimeNonAcc}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.textSub}
+                />
+              </View>
+            </View>
+
+            {/* Total preview */}
+            {inputSalNet ? (
+              <View style={{ backgroundColor: 'rgba(39,174,96,0.08)', borderRadius: 10, padding: 10, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12, color: c.textSub }}>Total estimé reçu</Text>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>
+                  {Math.round((parseFloat(inputSalNet.replace(',','.')) || 0) + (parseFloat(inputInteressement.replace(',','.')) || 0) + (parseFloat(inputPrimeNonAcc.replace(',','.')) || 0) + (calcResult?.totalFrais || 0)).toLocaleString('fr-FR')} €
+                </Text>
+              </View>
+            ) : null}
+
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalSalNet(false)}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => { setShowModalSalNet(false); setInputInteressement(''); setInputPrimeNonAcc('') }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 2, backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center' }}
                 onPress={async () => {
                   const salReel = parseFloat(inputSalNet.replace(',', '.')) || 0
+                  const extraInteressement = parseFloat(inputInteressement.replace(',', '.')) || 0
+                  const extraNonAcc = parseFloat(inputPrimeNonAcc.replace(',', '.')) || 0
+                  const totalExtras = extraInteressement + extraNonAcc
                   if (salReel > 0 && calcResult) {
-                    const novoTotal = salReel + calcResult.totalFrais
+                    const novoTotal = salReel + calcResult.totalFrais + totalExtras
                     setCalcResult({ ...calcResult, salLiq: salReel, totalLiq: novoTotal, salConfirmado: true })
                     setCountingVal(Math.round(novoTotal))
 
-                    // Guardar no histórico para aprendizagem da IA
                     const [mesReceberLabel] = calcResult.mesReceber.split(' ')
                     const mesIdx = moisLabelToIndex(mesReceberLabel)
                     const ano = parseInt(calcResult.mesReceber.split(' ')[1]) || new Date().getFullYear()
-                    const novoHist = aplicarConfirmacaoSalarioPorValor(
+                    let novoHist = aplicarConfirmacaoSalarioPorValor(
                       historique,
                       salReel,
                       ano,
@@ -2706,17 +2769,27 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       padrao,
                       { entreprise: calcResult.empresa || '', frais: calcResult.totalFrais },
                     )
+                    // Add extras to the confirmed entry
+                    if (totalExtras > 0) {
+                      const targetPeriode = `${MOIS_NOMS[mesIdx >= 0 ? mesIdx : new Date().getMonth()]} ${ano}`
+                      novoHist = novoHist.map(h =>
+                        (h.periode === targetPeriode || (h.moisIndex === (mesIdx >= 0 ? mesIdx : new Date().getMonth()) && h.annee === ano))
+                          ? { ...h, interessement: extraInteressement || h.interessement, primeNonAccident: extraNonAcc || h.primeNonAccident, montantTotalRecu: novoTotal }
+                          : h
+                      )
+                    }
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
 
-                    // Re-analisar padrão com o novo valor confirmado
                     const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     setPadrao(novoPadrao)
                     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
                   }
                   setShowModalSalNet(false)
+                  setInputInteressement('')
+                  setInputPrimeNonAcc('')
                 }}
               >
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Confirmer</Text>

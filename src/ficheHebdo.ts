@@ -81,7 +81,7 @@ function dayBlock(j: JourFiche): string {
       </div>
 
       <!-- Main grid: 3 columns -->
-      <div style="display:flex;min-height:68px;">
+      <div style="display:flex;min-height:55px;">
 
         <!-- Col LEFT: Véhicule / Remorque / ADR / frais -->
         <div style="flex:1.15;padding:2px 3mm;border-right:1px solid #bbb;">
@@ -129,7 +129,7 @@ function dayBlock(j: JourFiche): string {
     <span class="filled" style="font-size:11px;margin-left:4px">${j.commentaire || ''}</span>
     <div class="comment-line"></div>
     <div class="comment-line"></div>
-    <div class="comment-line" style="margin-bottom:4mm"></div>
+    <div class="comment-line" style="margin-bottom:2mm"></div>
   </div>`
 }
 
@@ -139,24 +139,25 @@ export function gerarHtmlFiche(info: InfoFiche): string {
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10px; color: #111; background: white; }
     .filled { font-family: 'Montserrat', sans-serif; font-size: 11px; color: #1a3a8f; font-weight: 600; }
-    .page { width: 210mm; height: 297mm; padding: 8mm 7mm 5mm 7mm; position: relative; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; }
+    .page { width: 210mm; height: 297mm; padding: 7mm 7mm 6mm 7mm; position: relative; display: flex; flex-direction: column; box-sizing: border-box; page-break-after: always; break-after: page; }
     .page-break { page-break-before: always; break-before: page; }
     .days-area { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-    .signature { position: absolute; bottom: 4mm; right: 7mm; font-size: 7px; color: #bbb; letter-spacing: 0.3px; font-family: 'Montserrat', sans-serif; }
+    .signature { position: absolute; bottom: 3mm; right: 7mm; font-size: 7px; color: #bbb; letter-spacing: 0.3px; font-family: 'Montserrat', sans-serif; }
 
     /* Header */
-    .fiche-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3mm; }
+    .fiche-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2mm; }
     .fiche-title { font-weight: 800; font-size: 12px; letter-spacing: 0.5px; }
     .sem-box { display: inline-block; border: 1.5px solid #333; min-width: 28px; height: 16px; text-align: center; vertical-align: middle; padding: 0 4px; }
-    .nom-row { display: flex; gap: 10mm; margin-bottom: 3mm; align-items: baseline; }
+    .nom-row { display: flex; gap: 10mm; margin-bottom: 2mm; align-items: baseline; }
     .nom-field { display: flex; align-items: baseline; gap: 3px; flex: 1; }
     .nom-underline { flex: 1; border-bottom: 1px solid #333; min-width: 50px; height: 16px; padding-bottom: 1px; }
 
     /* Regulation block */
-    .reglement { border: 1.5px solid #444; padding: 2mm 3mm; margin-bottom: 3mm; font-size: 8.5px; line-height: 1.5; }
+    .reglement { border: 1.5px solid #444; padding: 1.5mm 3mm; margin-bottom: 2mm; font-size: 8.5px; line-height: 1.4; }
     .reglement strong { font-size: 8.5px; }
 
     /* Day wrapper */
@@ -165,24 +166,24 @@ export function gerarHtmlFiche(info: InfoFiche): string {
     .day-box { flex: 1; }
 
     /* Comment area */
-    .comment-area { padding: 1mm 3mm 0 3mm; }
-    .comment-line { border-bottom: 0.5px solid #555; margin-top: 5mm; height: 0; }
+    .comment-area { padding: 0.5mm 3mm 0 3mm; }
+    .comment-line { border-bottom: 0.5px solid #555; margin-top: 3.5mm; height: 0; }
 
     /* Field rows inside day */
-    .row-field { display: flex; align-items: baseline; gap: 2px; margin-bottom: 2.5px; }
+    .row-field { display: flex; align-items: baseline; gap: 2px; margin-bottom: 1.5px; }
     .field-label { font-size: 9px; font-weight: 700; white-space: nowrap; color: #222; }
     .field-label-sm { font-size: 8px; font-weight: 700; white-space: nowrap; color: #222; }
     .underline { border-bottom: 0.5px solid #555; display: inline-block; vertical-align: baseline; }
 
     /* Total box */
-    .total-box { border: 1.5px solid #333; display: flex; margin-top: 3mm; }
-    .total-left { flex: 1; padding: 2.5mm; border-right: 1.5px solid #333; }
-    .total-right { flex: 1; padding: 2.5mm; }
-    .total-title { font-weight: 800; font-size: 11px; margin-bottom: 3mm; letter-spacing: 0.5px; }
-    .total-field { display: flex; align-items: baseline; gap: 3px; margin-bottom: 2.5mm; }
+    .total-box { border: 1.5px solid #333; display: flex; margin-top: 2mm; }
+    .total-left { flex: 1; padding: 1.5mm 2mm; border-right: 1.5px solid #333; }
+    .total-right { flex: 1; padding: 1.5mm 2mm; }
+    .total-title { font-weight: 800; font-size: 11px; margin-bottom: 2mm; letter-spacing: 0.5px; }
+    .total-field { display: flex; align-items: baseline; gap: 3px; margin-bottom: 1.5mm; }
 
     /* Legend */
-    .legend { border: 1.5px solid #333; padding: 1.5mm 2mm; margin-top: 3mm; font-size: 8px; font-weight: 700; }
+    .legend { border: 1.5px solid #333; padding: 1mm 2mm; margin-top: 2mm; font-size: 8px; font-weight: 700; }
   `
 
   const makeHeader = () => `

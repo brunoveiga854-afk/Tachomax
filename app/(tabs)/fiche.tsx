@@ -1647,9 +1647,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3500, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }] })
       })
       const data = await response.json()
+      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = JSON.parse(data.content[0].text.replace(/```json|```/g, '').trim())
       processarDocumentos(docs)
@@ -1680,9 +1681,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3000, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content }] })
       })
       const data = await response.json()
+      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = JSON.parse(data.content[0].text.replace(/```json|```/g, '').trim())
       if (docs.length > 0) {
@@ -1761,7 +1763,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3500, messages: [{ role: 'user', content }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }] }),
       })
       const data = await response.json()
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }

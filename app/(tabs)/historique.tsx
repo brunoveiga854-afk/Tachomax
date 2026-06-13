@@ -93,7 +93,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
   const mesNome = mesIdx >= 0 && mesIdx < 12 ? MOIS_COURT[mesIdx] : ''
   const amplitudeSeg = temServico ? calcAmplitudeDe(jour.debut, jour.fin) : 0
   return (
-    <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
+    <View style={{ marginHorizontal: 20, marginBottom: 8, borderRadius: 16, overflow: 'hidden' }}>
       <View style={[st.deleteBg]}>
         <Text style={st.deleteIcon}>🗑️</Text>
         <Text style={st.deleteText}>Supprimer</Text>
@@ -1111,7 +1111,7 @@ const st = StyleSheet.create({
   emptyIcon: { fontSize: 40 },
   emptyText: { fontSize: 15, fontWeight: '700' },
   emptySub: { fontSize: 13 },
-  deleteBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 20, borderRadius: 16 },
+  deleteBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 20 },
   deleteIcon: { fontSize: 22 },
   deleteText: { fontSize: 11, fontWeight: '700', color: 'white', marginTop: 2 },
   jourCard: { borderRadius: 16, borderWidth: 1, marginHorizontal: 20, marginBottom: 8, overflow: 'hidden' },

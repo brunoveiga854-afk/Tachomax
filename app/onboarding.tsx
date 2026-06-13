@@ -18,9 +18,18 @@ export default function OnboardingScreen() {
   const [remorqueValue, setRemorqueValue] = useState('')
   const [chariotEmbarque, setChariotEmbarque] = useState(false)
   const [kmInicial, setKmInicial] = useState('')
+  // Contrato (etapa 2)
+  const [ancienneteAns, setAncienneteAns] = useState('')
+  const [ancienneteMois, setAncienneteMois] = useState('')
+  const [coefficient, setCoefficient] = useState('')
+  const [salBaseEstime, setSalBaseEstime] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
+    if (ancienneteAns || ancienneteMois)
+      await AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`)
+    if (coefficient) await AsyncStorage.setItem('coefficient', coefficient)
+    if (salBaseEstime) await AsyncStorage.setItem('sal_base_estime', salBaseEstime)
     await AsyncStorage.setItem('profil', profil)
     await AsyncStorage.setItem('nom', nom)
     await AsyncStorage.setItem('conducteur_nom', nom)
@@ -74,7 +83,7 @@ export default function OnboardingScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.page}>
           <View style={st.stepHeader}>
-            <Text style={st.stepNum}>1 / 3</Text>
+            <Text style={st.stepNum}>1 / 4</Text>
             <Text style={st.stepTitle}>Quel est ton profil ?</Text>
             <Text style={st.stepSub}>Tu pourras changer à tout moment dans les Réglages</Text>
           </View>
@@ -148,12 +157,86 @@ export default function OnboardingScreen() {
         </KeyboardAvoidingView>
       )}
 
-      {/* ETAPE 2 — VÉHICULE */}
+            {/* ETAPE 2 — CONTRAT & ANCIENNETÉ */}
       {etape === 2 && (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={st.stepHeader}>
+            <Text style={st.stepNum}>2 / 4</Text>
+            <Text style={st.stepTitle}>📋 Ton contrat</Text>
+            <Text style={st.stepSub}>Ces infos affinent les estimations de salaire. Tu peux laisser vide.</Text>
+          </View>
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📅 ANCIENNETÉ DANS L'ENTREPRISE</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 6, textAlign: 'center' }}>Années</Text>
+              <TextInput
+                value={ancienneteAns}
+                onChangeText={v => setAncienneteAns(v.replace(/[^0-9]/g, ''))}
+                placeholder="ex: 4"
+                placeholderTextColor="#6b7394"
+                keyboardType="number-pad"
+                maxLength={2}
+                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 6, textAlign: 'center' }}>Mois</Text>
+              <TextInput
+                value={ancienneteMois}
+                onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setAncienneteMois(n <= 11 ? String(n || '') : '11') }}
+                placeholder="ex: 5"
+                placeholderTextColor="#6b7394"
+                keyboardType="number-pad"
+                maxLength={2}
+                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
+              />
+            </View>
+          </View>
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⚖️ COEFFICIENT CONVENTIONNEL</Text>
+          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Sur ta fiche de paie (ex: 138, 150…). Laisse vide si tu ne sais pas.</Text>
+          <TextInput
+            value={coefficient}
+            onChangeText={v => setCoefficient(v.replace(/[^0-9]/g, ''))}
+            placeholder="ex: 138"
+            placeholderTextColor="#6b7394"
+            keyboardType="number-pad"
+            maxLength={3}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 18, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
+          />
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>💶 SALAIRE NET MENSUEL (approximatif)</Text>
+          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Sans les frais. Permet de calibrer les estimations dès l'installation.</Text>
+          <TextInput
+            value={salBaseEstime}
+            onChangeText={v => setSalBaseEstime(v.replace(/[^0-9]/g, ''))}
+            placeholder="ex: 2300"
+            placeholderTextColor="#6b7394"
+            keyboardType="number-pad"
+            maxLength={5}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, color: '#eef0f5', fontSize: 18, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 28 }}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
+              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[st.btnNext, { flex: 2, marginTop: 0 }]} onPress={() => setEtape(3)}>
+              <Text style={st.btnNextText}>SUIVANT →</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
+{/* ETAPE 3 — VÉHICULE */}
+      {etape === 3 && (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.page}>
           <View style={st.stepHeader}>
-            <Text style={st.stepNum}>2 / 3</Text>
+            <Text style={st.stepNum}>3 / 4</Text>
             <Text style={st.stepTitle}>🚛 Ton véhicule</Text>
             <Text style={st.stepSub}>Optionnel — tu peux le faire plus tard dans Réglages</Text>
           </View>
@@ -239,10 +322,10 @@ export default function OnboardingScreen() {
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(1)}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(3)}>
+            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(4)}>
               <Text style={st.btnNextText}>SUIVANT →</Text>
             </TouchableOpacity>
           </View>
@@ -250,11 +333,11 @@ export default function OnboardingScreen() {
         </KeyboardAvoidingView>
       )}
 
-      {/* ETAPE 3 — TRIAL */}
-      {etape === 3 && (
+      {/* ETAPE 4 — TRIAL */}
+      {etape === 4 && (
         <View style={st.page}>
           <View style={st.stepHeader}>
-            <Text style={st.stepNum}>3 / 3</Text>
+            <Text style={st.stepNum}>4 / 4</Text>
             <Text style={st.stepTitle}>60 jours gratuits</Text>
             <Text style={st.stepSub}>Accès complet à toutes les fonctionnalités</Text>
           </View>
@@ -285,7 +368,7 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
+            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(3)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[st.btnStart, { flex: 2 }]} onPress={terminerOnboarding}>
@@ -297,7 +380,7 @@ export default function OnboardingScreen() {
 
       {/* DOTS */}
       <View style={st.dots}>
-        {[0, 1, 2, 3].map(i => (
+        {[0, 1, 2, 3, 4].map(i => (
           <View key={i} style={[st.dot, etape === i && st.dotActive]} />
         ))}
       </View>

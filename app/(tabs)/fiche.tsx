@@ -2954,9 +2954,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             {/* ── ÉTAPE 3 : décalage salaire ── */}
             {onbStep === 3 && (
               <>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📅 Quand reçois-tu ton salaire ?</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📅 Les heures de Janvier — tu les reçois quel mois ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16, lineHeight: 18 }}>
-                  Tu travailles en <Text style={{ color: '#f5a623', fontWeight: '700' }}>Janvier</Text>. Ton salaire de Janvier tombe en...
+                  Tu as travaillé en <Text style={{ color: '#f5a623', fontWeight: '700' }}>Janvier</Text> — ce bulletin de salaire, tu le reçois en quel mois ?
                 </Text>
                 <View style={{ gap: 8, marginBottom: 20 }}>
                   {[
@@ -3017,7 +3017,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             {/* ── ÉTAPE 5 : décalage frais + jour ── */}
             {onbStep === 5 && (
               <>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>🚛 Quand reçois-tu tes frais ?</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>🚛 Les frais de Janvier — tu les reçois quel mois ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 12, lineHeight: 18 }}>
                   Tes frais de <Text style={{ color: '#f5a623', fontWeight: '700' }}>Janvier</Text> (découchés, repas...) tombent en...
                 </Text>

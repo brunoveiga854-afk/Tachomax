@@ -524,6 +524,10 @@ export default function AujourdhuiScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // Reset calendário para mês atual sempre que o tab ganha foco
+      const hoje = new Date()
+      setCalMes(hoje.getMonth())
+      setCalAno(hoje.getFullYear())
       carregarStatsSemaine()
       carregarDiasMes()
       // Reler modoTacho sempre que o separador fica ativo (pode ter mudado nas Definições)
@@ -1447,7 +1451,7 @@ const pararGPS = async () => {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
-                  <Text style={{ color: c.textSub, fontSize: 12, opacity: 0.5 }}>+ {t.kmDebut}</Text>
+                  <Text style={{ fontSize: 12 }}><Text style={{ color: '#e74c3c', fontSize: 14 }}>📍</Text><Text style={{ color: c.textSub, opacity: 0.6 }}> {t.kmDebut}</Text></Text>
                 </TouchableOpacity>
               )}
             </View>

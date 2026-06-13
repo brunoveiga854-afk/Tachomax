@@ -24,7 +24,7 @@ export default function OnboardingScreen() {
     await AsyncStorage.setItem('profil', profil)
     await AsyncStorage.setItem('nom', nom)
     await AsyncStorage.setItem('conducteur_nom', nom)
-    router.replace('/(tabs)')
+    router.replace('/(tabs)/fiche')
   }
 
   return (

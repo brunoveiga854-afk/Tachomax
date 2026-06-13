@@ -2991,16 +2991,17 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>📆 Quel jour tombe ton salaire ?</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16 }}>Le jour du mois où l'argent arrive sur ton compte.</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                  {[5, 8, 10, 15, 25, 28].map(d => (
-                    <TouchableOpacity
-                      key={d}
-                      onPress={() => setOnbDiaSalario(d)}
-                      style={{ paddingVertical: 11, paddingHorizontal: 18, borderRadius: 12, backgroundColor: onbDiaSalario === d ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbDiaSalario === d ? 1.5 : 1, borderColor: onbDiaSalario === d ? '#f5a623' : c.cardBorder }}
-                    >
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: onbDiaSalario === d ? '#f5a623' : c.text }}>{d}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                  <TextInput
+                    value={onbDiaSalario > 0 ? String(onbDiaSalario) : ''}
+                    onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; if (n >= 1 && n <= 31) setOnbDiaSalario(n) }}
+                    keyboardType='number-pad'
+                    maxLength={2}
+                    placeholder='ex: 5'
+                    placeholderTextColor={c.textSub}
+                    style={{ flex: 1, backgroundColor: c.input, borderRadius: 12, borderWidth: 1.5, borderColor: '#f5a623', padding: 14, fontSize: 28, fontWeight: '800', color: '#f5a623', textAlign: 'center' }}
+                  />
+                  <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où ton salaire arrive sur ton compte.'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
@@ -3037,16 +3038,17 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   ))}
                 </View>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>Quel jour du mois ?</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 18 }}>
-                  {[5, 8, 10, 15, 25].map(d => (
-                    <TouchableOpacity
-                      key={d}
-                      onPress={() => setOnbDiaFrais(d)}
-                      style={{ paddingVertical: 9, paddingHorizontal: 16, borderRadius: 10, backgroundColor: onbDiaFrais === d ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbDiaFrais === d ? 1.5 : 1, borderColor: onbDiaFrais === d ? '#f5a623' : c.cardBorder }}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: onbDiaFrais === d ? '#f5a623' : c.text }}>{d}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                  <TextInput
+                    value={onbDiaFrais > 0 ? String(onbDiaFrais) : ''}
+                    onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; if (n >= 1 && n <= 31) setOnbDiaFrais(n) }}
+                    keyboardType='number-pad'
+                    maxLength={2}
+                    placeholder='ex: 10'
+                    placeholderTextColor={c.textSub}
+                    style={{ flex: 1, backgroundColor: c.input, borderRadius: 12, borderWidth: 1.5, borderColor: '#f5a623', padding: 14, fontSize: 28, fontWeight: '800', color: '#f5a623', textAlign: 'center' }}
+                  />
+                  <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où tes frais arrivent.'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>

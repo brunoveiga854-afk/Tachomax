@@ -790,7 +790,7 @@ export default function ReglagesScreen() {
           <View style={{ height: 1, backgroundColor: c.cardBorder }} />
           <View style={{ paddingVertical: 12 }}>
             <Text style={[st.settingLabel, { color: c.text }]}>📦 Version</Text>
-            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoOffice v1.0.0 — Bruno Pereira Da Veiga</Text>
+            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoOffice v1.0.6 · build 13/06/2026</Text>
           </View>
         </View>
 

@@ -96,7 +96,7 @@ export default function AujourdhuiScreen() {
   const [pausas, setPausas] = useState<{dur: number, inicio: number}[]>([])
   const [showPausasModal, setShowPausasModal] = useState(false)
   const [showStats, setShowStats] = useState(false)
-  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: false, bsem: false, sept: false, conduite: false, pauses: false, frais: false, amplitude: false, assiduite: false, records: false })
+  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, conduite: true, pauses: true, frais: true, amplitude: true, assiduite: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
   const pausaInicioRef = useRef<number>(0)
 
@@ -1784,20 +1784,20 @@ const pararGPS = async () => {
             {/* ── STATS STRIP ── */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                <TouchableOpacity onPress={() => showTooltip('conduite')} style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>{modoTacho === 'decrescente' ? '⏳ RESTANT' : '🚛 CONDUITE'}</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fmtHM(modoTacho === 'decrescente' ? countdown : segConducao)}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                <TouchableOpacity onPress={() => showTooltip('service')} style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏱ SERVICE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#f39c12' }}>{fmtHM(segServico)}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
-                <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
+                <TouchableOpacity onPress={() => showTooltip('amplitude')} style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>📏 AMPLITUDE</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#2980b9' }}>{fmtHM(segAmplitude)}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={{ width: 1, height: 30, backgroundColor: c.cardBorder }} />
                 <View style={{ width: STAT_W, alignItems: 'center', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, letterSpacing: 0.5, marginBottom: 2 }}>⏸ PAUSE</Text>

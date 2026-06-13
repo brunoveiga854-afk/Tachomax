@@ -723,6 +723,24 @@ export default function ReglagesScreen() {
           <View style={{ height: 10 }} />
 
           <TouchableOpacity
+            style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
+            onPress={async () => {
+              await AsyncStorage.removeItem('onboarding_salaire_done')
+              Alert.alert('Réinitialisation', "L'assistant de configuration s'ouvrira la prochaine fois que tu consultes l'onglet Mon Salaire.")
+            }}
+          >
+            <Text style={{ fontSize: 22 }}>⚙️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Reconfigurer Mon Salaire</Text>
+              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
+                Relancer l'assistant véhicule, contrat et salaire
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={{ height: 10 }} />
+
+          <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(41,128,185,0.1)', borderColor: '#2980b9' }]}
             onPress={importarDados}
             disabled={loadingImport}

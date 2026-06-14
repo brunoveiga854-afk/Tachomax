@@ -1417,7 +1417,7 @@ const pararGPS = async () => {
   }
 
   return (
-    <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       {storageErro && (
         <TouchableOpacity
           onPress={() => setStorageErro(null)}

@@ -93,7 +93,7 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <SafeAreaView style={st.safe}>
+    <SafeAreaView edges={['top']} style={st.safe}>
 
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (

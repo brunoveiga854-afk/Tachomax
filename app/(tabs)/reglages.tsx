@@ -254,7 +254,7 @@ export default function ReglagesScreen() {
   }
 
   return (
-    <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         <View style={st.header}>

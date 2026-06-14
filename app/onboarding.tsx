@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { TachoLogo } from '../src/TachoLogo'
 
 const { width } = Dimensions.get('window')
@@ -12,6 +12,34 @@ type Profil = 'CD' | 'MIXTE' | 'LD'
 export default function OnboardingScreen() {
   const [etape, setEtape] = useState(0)
   const insets = useSafeAreaInsets()
+  const params = useLocalSearchParams<{ mode?: string }>()
+
+  useEffect(() => {
+    if (params.mode === 'edit') {
+      // Carregar dados existentes e ir directo ao passo 2 (contrat)
+      Promise.all([
+        AsyncStorage.getItem('anciennete'),
+        AsyncStorage.getItem('coefficient'),
+        AsyncStorage.getItem('monSalaire_padrao'),
+      ]).then(([anc, coef, padraoRaw]) => {
+        if (anc) {
+          const matchAns = anc.match(/^(\d+)\s*ans/)
+          const matchMois = anc.match(/(\d+)\s*mois/)
+          if (matchAns) setAncienneteAns(matchAns[1])
+          if (matchMois) setAncienneteMois(matchMois[1])
+        }
+        if (coef) setCoefficient(coef)
+        if (padraoRaw) {
+          try {
+            const p = JSON.parse(padraoRaw)
+            if (p.hbase && p.hbase > 0) setObHbase(p.hbase)
+            if (p.hval && p.hval > 0) setObHvalBrut(String(p.hval))
+          } catch {}
+        }
+        setEtape(2)
+      })
+    }
+  }, [])
   const [prenom, setPrenom] = useState('')
   const [nom, setNom] = useState('')
   const [profil, setProfil] = useState<Profil>('MIXTE')

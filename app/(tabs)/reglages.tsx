@@ -772,15 +772,18 @@ export default function ReglagesScreen() {
                   {salSaved ? '✅ Enregistré !' : 'Enregistrer'}
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: 'rgba(245,166,35,0.35)' }}
+                onPress={() => router.push('/onboarding?mode=edit')}
+              >
+                <Text style={{ color: '#f5a623', fontWeight: '700', fontSize: 13 }}>✏️  Modifier mon contrat / salaire</Text>
+              </TouchableOpacity>
             </View>
           )}
 
           <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
-            onPress={async () => {
-              await AsyncStorage.removeItem('onboarding_salaire_done')
-              router.replace('/onboarding')
-            }}
+            onPress={() => router.replace('/(tabs)/fiche')}
           >
             <Text style={{ fontSize: 22 }}>⚙️</Text>
             <View style={{ flex: 1 }}>

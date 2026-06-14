@@ -2076,7 +2076,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </Text>
                 <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>estimé hors primes</Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginTop: 6 }}>{calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text>
               </TouchableOpacity>
               {/* Frais */}
               <TouchableOpacity
@@ -2096,7 +2095,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />
             <View style={{ width: '100%', gap: 4 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.80)' }}>Brut estimé</Text>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.80)' }}>Brut estimé <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.6)' }}>· {calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text></Text>
                 <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '700' }}>{fmtInt(calcResult.salBrut)}</Text>
               </View>
               {calcResult.hExtra25 > 0 && (

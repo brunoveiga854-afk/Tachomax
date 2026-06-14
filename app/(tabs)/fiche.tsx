@@ -1291,7 +1291,7 @@ export default function MonSalaireScreen() {
         setPadrao(p)
         await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
       }
-    } catch (e) { console.log('Erro:', e) }
+    } catch (e) { // console.log('Erro:', e) }
   }
 
   const onRefresh = async () => {

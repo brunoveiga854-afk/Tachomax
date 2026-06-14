@@ -1,7 +1,7 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, Dimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -220,7 +220,7 @@ export default function AujourdhuiScreen() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
-  const segConducaoHoje = segConducaoDiario + segConducao
+  const segConducaoHoje = useMemo(() => segConducaoDiario + segConducao, [segConducaoDiario, segConducao])
 
   const mediaVelocidade = (vel: number) => {
     velocidadeBuffer.current.push(vel)
@@ -337,7 +337,7 @@ export default function AujourdhuiScreen() {
   const guardarEstado = async (estado: any) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(estado))
-    } catch (e) { console.log('Erro ao guardar estado:', e) }
+    } catch (e) { // console.log('Erro ao guardar estado:', e) }
   }
 
   const criarEstadoSnapshot = (overrides: any = {}) => {
@@ -432,7 +432,6 @@ export default function AujourdhuiScreen() {
       aplicarEstadoPersistido(estadoAtualizado, 0)
       return true
     } catch (e) {
-      console.log('Erro ao sincronizar estado:', e)
       return false
     }
   }
@@ -469,7 +468,6 @@ export default function AujourdhuiScreen() {
         },
       })
     } catch (e) {
-      console.log('Erro ao iniciar GPS background:', e)
     }
   }
 
@@ -478,7 +476,6 @@ export default function AujourdhuiScreen() {
       const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)
       if (started) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
     } catch (e) {
-      console.log('Erro ao parar GPS background:', e)
     }
   }
 
@@ -509,7 +506,7 @@ export default function AujourdhuiScreen() {
       aplicarEstadoPersistido(estado, tempoBackground)
       await iniciarGPS()
       await iniciarGPSBackground()
-    } catch (e) { console.log('Erro ao restaurar estado:', e) }
+    } catch (e) { // console.log('Erro ao restaurar estado:', e) }
   }
 
   const carregarConfigs = async () => {
@@ -608,7 +605,7 @@ export default function AujourdhuiScreen() {
   }, [emConducao])
 
   // PONTO 5 — aviso progressivo pausa obrigatória
-  const warnPhase = segConducao >= PAUSA_MAX ? 3 : segConducao >= 4 * 3600 + 15 * 60 ? 2 : segConducao >= 4 * 3600 + 10 * 60 ? 1 : 0
+  const warnPhase = useMemo(() => segConducao >= PAUSA_MAX ? 3 : segConducao >= 4 * 3600 + 15 * 60 ? 2 : segConducao >= 4 * 3600 + 10 * 60 ? 1 : 0, [segConducao])
   useEffect(() => {
     if (warnAnimRef.current) { warnAnimRef.current.stop(); warnAnimRef.current = null }
     if (warnPhase === 0) { warnAnim.setValue(1); return }
@@ -700,7 +697,7 @@ export default function AujourdhuiScreen() {
         frais: semaine.reduce((a: number, j: any) => a + (j.frais || 0), 0),
         jours: semaine.filter((j: any) => j.type === 'TRAB' || j.type === 'DEC').length,
       })
-    } catch (e) { console.log('Erro:', e) }
+    } catch (e) { // console.log('Erro:', e) }
   }
 
   const carregarDiasMes = async () => {
@@ -857,7 +854,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(lista)
       setEditandoDiaId(null)
       setShowAddDia(false)
-    } catch (e) { console.log('Erro:', e) }
+    } catch (e) { // console.log('Erro:', e) }
   }
 
   const guardarProfil = async (p: Profil) => {
@@ -1287,7 +1284,7 @@ const pararGPS = async () => {
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
-    } catch (e) { console.log('Erro:', e) }
+    } catch (e) { // console.log('Erro:', e) }
   }
 
   const handleTerminer = () => {

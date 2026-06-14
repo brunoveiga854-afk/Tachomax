@@ -112,7 +112,7 @@ export default function OnboardingScreen() {
               <View style={{ width: width, marginHorizontal: -24, marginBottom: 12, position: 'relative' }}>
                 <Image
                   source={require('../assets/images/icon.png')}
-                  style={{ width: width, height: Math.round(width * 0.52), resizeMode: 'cover' }}
+                  style={{ width: width, height: Math.round(width * 0.70), resizeMode: 'cover' }}
                 />
                 {[0.85, 0.6, 0.35, 0.15].map((op, i) => (
                   <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />

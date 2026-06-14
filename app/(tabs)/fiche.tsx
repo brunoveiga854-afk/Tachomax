@@ -68,6 +68,7 @@ type Padrao = {
   // Factor de correcção de frais: fraisBoletim_real / fraisCalc_app
   // Aprende quando há discrepância entre o calculado e o recebido
   fraisFactorReal: number
+  _conflitHbase?: { extraido: number; onboarding: number } | null
   vehiculo?: string
   cargo?: string
 }
@@ -1209,6 +1210,7 @@ export default function MonSalaireScreen() {
   const [showPrevision, setShowPrevision] = useState(false)
   const [showAnalyse, setShowAnalyse] = useState(false)
   const [driftAlert, setDriftAlert] = useState<DriftAlert | null>(null)
+  const [conflitHbase, setConflitHbase] = useState<{extraido: number; onboarding: number} | null>(null)
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
@@ -1394,6 +1396,11 @@ export default function MonSalaireScreen() {
       const histSal: MoisData[] = histSalData ? JSON.parse(histSalData) : historique
       if (histSalData) setHistorique(histSal)
       const p = await carregarPadraoAtual(histSal, hist)
+      if (p._conflitHbase) {
+        setConflitHbase(p._conflitHbase)
+      } else {
+        setConflitHbase(null)
+      }
       const agora = new Date()
       const anoActual = agora.getFullYear()
       const mesActual = agora.getMonth()
@@ -2356,6 +2363,76 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                     </View>
                   </View>
+
+                  {conflitHbase && (
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.15)', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#FFA000' }}>
+                      <Text style={{ fontSize: 12, color: '#FFD54F', fontWeight: '700', marginBottom: 4 }}>
+                        ⚠️ Conflit détecté sur les heures de base
+                      </Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 16, marginBottom: 8 }}>
+                        {}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                          onPress={async () => {
+                            const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null }
+                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            setPadrao(p)
+                            setConflitHbase(null)
+                          }}>
+                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{}</Text>
+                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>ma config</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                          onPress={async () => {
+                            const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null }
+                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            setPadrao(p)
+                            setConflitHbase(null)
+                          }}>
+                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{}</Text>
+                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>depuis ma fiche</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {conflitHbase && (
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.15)', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#FFA000' }}>
+                      <Text style={{ fontSize: 12, color: '#FFD54F', fontWeight: '700', marginBottom: 4 }}>
+                        {"⚠️ Conflit détecté sur les heures de base"}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 16, marginBottom: 8 }}>
+                        {`Ta fiche indique ${conflitHbase.extraido}h/mois mais tu as configuré ${conflitHbase.onboarding}h au démarrage. Lequel est correct?`}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                          onPress={async () => {
+                            const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null }
+                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            setPadrao(p)
+                            setConflitHbase(null)
+                          }}>
+                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{`Garder ${conflitHbase.onboarding}h`}</Text>
+                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>ma config</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                          onPress={async () => {
+                            const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null }
+                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            setPadrao(p)
+                            setConflitHbase(null)
+                          }}>
+                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{`Utiliser ${conflitHbase.extraido}h`}</Text>
+                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>depuis ma fiche</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={{ fontSize: 14 }}>{padrao.liquidRate !== 0.79 ? '🟢' : '🟡'}</Text>

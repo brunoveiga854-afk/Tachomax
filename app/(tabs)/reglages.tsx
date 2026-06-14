@@ -63,6 +63,10 @@ export default function ReglagesScreen() {
   const [equipHayon, setEquipHayon] = useState(false)
   const [equipGrueAux, setEquipGrueAux] = useState(false)
   const [transportOpen, setTransportOpen] = useState(false)
+  const [padrao, setPadraoState] = useState<any>(null)
+  const [editHbase, setEditHbase] = useState('')
+  const [editHval, setEditHval] = useState('')
+  const [salSaved, setSalSaved] = useState(false)
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -74,6 +78,11 @@ export default function ReglagesScreen() {
     getDataExpiracao().then(setDataExpiracao)
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
       if (v !== null) setNotifications(v === 'true')
+    })
+    AsyncStorage.getItem('padrao').then(v => {
+      if (v) {
+        try { const p = JSON.parse(v); setPadraoState(p); setEditHbase(String(p.hbase || '')); setEditHval(String(p.hval || '')) } catch {}
+      }
     })
     AsyncStorage.getItem('rappel_saisie_ativo').then(v => {
       const ativo = v !== 'false'
@@ -714,6 +723,58 @@ export default function ReglagesScreen() {
           </TouchableOpacity>
 
           <View style={{ height: 10 }} />
+
+          {padrao && (
+            <View style={{ marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.2, marginBottom: 12 }}>💶 PARAMÈTRES SALAIRE</Text>
+
+              <Text style={{ fontSize: 12, color: c.textLabel, fontWeight: '600', marginBottom: 4 }}>Heures de base / mois</Text>
+              <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6 }}>
+                {'Colonne "Base" de la ligne "Sous total Salaire de base" sur ta fiche de paye.'}
+              </Text>
+              <TextInput
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: c.text, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: Math.abs((padrao.hbase||0) - 157.67) < 0.1 || Math.abs((padrao.hbase||0) - 151.67) < 0.1 || Math.abs((padrao.hbase||0) - 133.92) < 0.1 ? '#FF9800' : 'rgba(255,255,255,0.12)' }}
+                keyboardType="decimal-pad"
+                value={editHbase}
+                onChangeText={setEditHbase}
+                placeholder="ex: 169"
+                placeholderTextColor={c.textSub}
+              />
+
+              <Text style={{ fontSize: 12, color: c.textLabel, fontWeight: '600', marginBottom: 4 }}>Taux horaire brut (€/h)</Text>
+              <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6 }}>
+                Salaire de base mensuel brut ÷ heures de base.
+              </Text>
+              <TextInput
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: c.text, fontSize: 16, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}
+                keyboardType="decimal-pad"
+                value={editHval}
+                onChangeText={setEditHval}
+                placeholder="ex: 14.78"
+                placeholderTextColor={c.textSub}
+              />
+
+              <TouchableOpacity
+                style={{ backgroundColor: salSaved ? '#27ae60' : '#f5a623', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                onPress={async () => {
+                  const hb = parseFloat(editHbase.replace(',', '.'))
+                  const hv = parseFloat(editHval.replace(',', '.'))
+                  if (isNaN(hb) || hb <= 0 || isNaN(hv) || hv <= 0) {
+                    Alert.alert('Valeurs invalides', 'Vérifie que les deux valeurs sont des nombres positifs.')
+                    return
+                  }
+                  const updated = { ...padrao, hbase: hb, hval: hv, _conflitHbase: null }
+                  await AsyncStorage.setItem('padrao', JSON.stringify(updated))
+                  setPadraoState(updated)
+                  setSalSaved(true)
+                  setTimeout(() => setSalSaved(false), 2000)
+                }}>
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
+                  {salSaved ? '✅ Enregistré !' : 'Enregistrer'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}

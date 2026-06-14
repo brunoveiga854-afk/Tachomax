@@ -471,8 +471,8 @@ export default function ReglagesScreen() {
         {/* TIPO DE TRANSPORTE + EQUIPAMENTO — accordion unificado */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
           <TouchableOpacity onPress={() => setTransportOpen(!transportOpen)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0 }]}>
-              🚛 TYPE DE TRANSPORT & ÉQUIPEMENT
+            <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0, flex: 1, marginRight: 8 }]} numberOfLines={1} adjustsFontSizeToFit>
+              TYPE DE TRANSPORT & ÉQUIPEMENT
             </Text>
             <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700' }}>{transportOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>
@@ -779,7 +779,7 @@ export default function ReglagesScreen() {
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
             onPress={async () => {
               await AsyncStorage.removeItem('onboarding_salaire_done')
-              router.replace('/(tabs)/fiche')
+              router.replace('/onboarding')
             }}
           >
             <Text style={{ fontSize: 22 }}>⚙️</Text>

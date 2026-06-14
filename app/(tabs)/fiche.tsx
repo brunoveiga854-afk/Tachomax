@@ -2069,20 +2069,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.salConfirmado ? '#27ae60' : 'rgba(39,174,96,0.35)' }}
                 onPress={() => { setInputSalNet(calcResult.salLiq.toFixed(2)); setShowModalSalNet(true) }}
               >
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginBottom: 2 }}>{calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
                 <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>estimé hors primes</Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>le {calcResult.diaReceber} {calcResult.mesReceber.split(' ')[0]}</Text>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginTop: 6 }}>{calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text>
               </TouchableOpacity>
               {/* Frais */}
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: calcResult.fraisConfirmado ? 'rgba(41,128,185,0.22)' : 'rgba(41,128,185,0.12)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.fraisConfirmado ? '#2980b9' : 'rgba(41,128,185,0.35)' }}
                 onPress={() => { setInputFraisReel(calcResult.totalFrais.toFixed(2)); setShowModalFraisReel(true) }}
               >
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginBottom: 2 }}>{calcResult.mesFraisLabel.split(' ')[0].toUpperCase()}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.7 }}>{calcResult.fraisConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
@@ -2090,7 +2088,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {calcResult.fraisConfirmado ? 'depuis historique' : 'estimé depuis calendrier'}
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>le {calcResult.diaFrais} {calcResult.mesReceber.split(' ')[0]}</Text>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginTop: 6 }}>{calcResult.mesFraisLabel.split(' ')[0].toUpperCase()}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />
@@ -2113,7 +2111,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </View>
             </View>
             <View style={{ marginTop: 12, alignItems: 'center', gap: 4 }}>
-              <Text style={st.previsionConfianca}>{calcResult.precisao}% de précision · {historique.length} mois de données</Text>
               <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 5, paddingHorizontal: 12, fontStyle: 'italic' }}>
                 Estimation indicative basée sur tes données. Les résultats réels varient selon ton contrat et ton employeur — même les entreprises se trompent parfois. TachoOffice n'assume aucune responsabilité pour les écarts avec ton bulletin de salaire.
               </Text>

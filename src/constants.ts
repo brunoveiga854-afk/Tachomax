@@ -11,7 +11,7 @@ export const MAX_CONDUITE = 9 * 3600       // 9h máx por dia
 export const VELOCIDADE_MIN = 8            // km/h mínimos para contar condução
 
 // Arranque de condução: N segundos consecutivos acima de VELOCIDADE_MIN
-export const CONDUCAO_SEGUNDOS_ON = 15
+export const CONDUCAO_SEGUNDOS_ON = 10
 
 // Paragem de condução: abaixo de X km/h durante Y segundos consecutivos
 export const CONDUCAO_PARAR_ABAIXO_3_S = 8

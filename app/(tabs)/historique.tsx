@@ -570,7 +570,7 @@ const getJoursMois = () => {
     joursActuels.some(j => j.date === r.date)
   )
   return (
-    <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
       <View>
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />
@@ -769,7 +769,7 @@ const getJoursMois = () => {
             <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
           </View>
         }
-        ListFooterComponent={<View style={{ height: 30 }} />}
+        ListFooterComponent={<View style={{ height: 100 }} />}
         renderItem={({ item: jour, index: idx }) => (
           <JourCardSwipeable
             key={jour.id}
@@ -1140,4 +1140,5 @@ const st = StyleSheet.create({
   jourFrais: { paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
   jourFraisLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   jourFraisVal: { fontSize: 18, fontWeight: '900' },
-  editHint: { fontSize: 9, fontWeight: '600', marg
+  editHint: { fontSize: 9, fontWeight: '600', marginTop: 4 },
+})

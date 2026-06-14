@@ -513,7 +513,7 @@ export default function ReglagesScreen() {
         </View>
 
         {/* ÉQUIPEMENT EMBARQUÉ */}
-        <View style={[st.card, { marginBottom: 16 }]}>
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>🔧 ÉQUIPEMENT EMBARQUÉ</Text>
           <View style={st.settingRow}>
             <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Chariot élévateur</Text>

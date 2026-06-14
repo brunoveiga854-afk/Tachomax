@@ -2487,20 +2487,19 @@ const pararGPS = async () => {
 
       {/* PONTO 2 — MODAL DÉTAIL PAUSES CE 561/2006 */}
       {/* ── STATS MODAL ── */}
-      <Modal visible={showStats} transparent animationType="slide">
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setShowStats(false); setStatsBarDetail(null) }}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View onTouchStart={e => e.stopPropagation()} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
-              {/* Header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
-                <TouchableOpacity onPress={() => { setShowStats(false); setStatsBarDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 16, color: c.textSub, fontWeight: '700' }}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={{ height: 1, backgroundColor: c.cardBorder }} />
+      <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null) }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
+              <TouchableOpacity onPress={() => { setShowStats(false); setStatsBarDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, color: c.textSub, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ height: 1, backgroundColor: c.cardBorder }} />
 
-              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={true} nestedScrollEnabled scrollEventThrottle={16} removeClippedSubviews style={{ padding: 16 }} indicatorStyle="white">
+            <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={true} scrollEventThrottle={16} removeClippedSubviews bounces={false} keyboardShouldPersistTaps="handled" style={{ padding: 16 }} indicatorStyle="white">
                 {(() => {
                   // ── Shared helpers ──────────────────────────────────────────
                   const today = new Date()
@@ -2933,9 +2932,8 @@ const pararGPS = async () => {
                   )
                 })()}
               </ScrollView>
-            </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       <Modal visible={showPausasModal} transparent animationType="fade">

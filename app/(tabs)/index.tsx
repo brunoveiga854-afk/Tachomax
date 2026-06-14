@@ -118,6 +118,13 @@ export default function AujourdhuiScreen() {
   const [showCalendario, setShowCalendario] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [storageErro, setStorageErro] = useState<string | null>(null)
+  const [snackbar, setSnackbar] = useState<string | null>(null)
+  const snackbarTimer = useRef<any>(null)
+  const showSnackbar = (msg: string) => {
+    setSnackbar(msg)
+    if (snackbarTimer.current) clearTimeout(snackbarTimer.current)
+    snackbarTimer.current = setTimeout(() => setSnackbar(null), 3500)
+  }
   const [showReglementation, setShowReglementation] = useState(false)
   const [diasHistorique, setDiasHistorique] = useState<Jour[]>([])
   const [showAddDia, setShowAddDia] = useState(false)
@@ -578,22 +585,26 @@ export default function AujourdhuiScreen() {
 
   useEffect(() => {
     if (enService) { pulsarBtn.stopAnimation(); pulsarBtn.setValue(1); return }
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulsarBtn, { toValue: 1.08, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         Animated.timing(pulsarBtn, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
-    ).start()
+    )
+    loop.start()
+    return () => { loop.stop() }
   }, [enService])
 
   useEffect(() => {
     if (!emConducao) { pulsarDot.stopAnimation(); pulsarDot.setValue(1); return }
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulsarDot, { toValue: 1.8, duration: 600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         Animated.timing(pulsarDot, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
-    ).start()
+    )
+    loop.start()
+    return () => { loop.stop() }
   }, [emConducao])
 
   // PONTO 5 — aviso progressivo pausa obrigatória
@@ -1143,7 +1154,7 @@ const pararGPS = async () => {
       await agendarAlertaPausa(PAUSA_MAX)
       await agendarAlertaAmplitude(maxAmplitude)
     }
-    if (isNuit) Alert.alert(t.modeNuitActive, t.modeNuitMsg)
+    if (isNuit) showSnackbar(`🌙 ${t.modeNuitActive} — ${t.modeNuitMsg}`)
   }
 
   // CE 561/2006 — check if pause sequence (15+30 in order) is complete
@@ -1417,6 +1428,15 @@ const pararGPS = async () => {
           <Text style={{ fontSize: 14 }}>⚠️</Text>
           <Text style={{ flex: 1, fontSize: 12, color: '#e74c3c', fontWeight: '600', lineHeight: 16 }}>{storageErro}</Text>
           <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '800' }}>✕</Text>
+        </TouchableOpacity>
+      )}
+      {snackbar && (
+        <TouchableOpacity
+          onPress={() => { setSnackbar(null); if (snackbarTimer.current) clearTimeout(snackbarTimer.current) }}
+          style={{ backgroundColor: themeSombre ? 'rgba(245,166,35,0.12)' : 'rgba(245,166,35,0.15)', borderBottomWidth: 1, borderBottomColor: 'rgba(245,166,35,0.3)', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+        >
+          <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '600', lineHeight: 16 }}>{snackbar}</Text>
+          <Text style={{ fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '800' }}>✕</Text>
         </TouchableOpacity>
       )}
       <ScrollView
@@ -3040,6 +3060,7 @@ const st = StyleSheet.create({
   modalOptionActive: { borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.08)' },
   modalEmoji: { fontSize: 24 },
   modalOptionInfo: { flex: 1 },
+
   modalOptionTitle: { fontSize: 15, fontWeight: '700' },
   modalOptionSub: { fontSize: 13, marginTop: 2 },
   modalCheck: { fontSize: 16, color: '#f5a623', fontWeight: '800' },

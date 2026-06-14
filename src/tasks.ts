@@ -18,6 +18,7 @@ import {
 
 export const LOCATION_TASK_NAME = 'background-location-task'
 const STORAGE_KEY = 'TACHOOFFICE_estado'
+let keepAwakeActivated = false
 
 const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371
@@ -30,9 +31,9 @@ const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
-  try {
-    await activateKeepAwakeAsync('tachooffice-location-task')
-  } catch (e) {}
+  if (!keepAwakeActivated) {
+    try { await activateKeepAwakeAsync('tachooffice-location-task'); keepAwakeActivated = true } catch (e) {}
+  }
   if (error) { console.log('Background GPS error:', error); return }
   if (!data?.locations?.length) return
 
@@ -162,6 +163,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       next.lastBgTick = now
       next.tsBackground = now
     }
+
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch (e) {

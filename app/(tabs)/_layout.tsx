@@ -56,7 +56,6 @@ export default function TabsLayout() {
           height: 56 + insets.bottom,
           paddingBottom: insets.bottom + 4,
           paddingTop: 6,
-          paddingTop: 2,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },

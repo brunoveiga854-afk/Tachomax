@@ -1385,9 +1385,11 @@ export default function MonSalaireScreen() {
 
       // Frais: pelos horários reais primeiro, fallback boletim
       const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
-      const fichesFrais = histSal.filter(f =>
-        f.moisIndex === mesFrais && f.annee === anoFrais && ((f.fraisRecuConfirme || 0) > 0 || f.fraisBoletim > 0)
-      )
+      const fichesFrais = histSal.filter(f => {
+        const fMes = (f.mesFraisTrabalhoIndex != null) ? f.mesFraisTrabalhoIndex : f.moisIndex
+        const fAno = (f.anoFraisTrabalho != null) ? f.anoFraisTrabalho : f.annee
+        return fMes === mesFrais && fAno === anoFrais && ((f.fraisRecuConfirme || 0) > 0 || f.fraisBoletim > 0)
+      })
       // Frais confirmado pelo utilizador tem prioridade sobre o cálculo automático
       const factorFrais = (p.fraisFactorReal || 0) > 0.1 ? p.fraisFactorReal : 1
       const totalFrais = fichesFrais.length > 0

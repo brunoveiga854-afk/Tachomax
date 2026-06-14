@@ -1,7 +1,7 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, Dimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -182,7 +182,7 @@ export default function AujourdhuiScreen() {
   const MAX_AMPLITUDE = modeNuit ? 13 * 3600 : 15 * 3600
   const MOIS_NOMS = ['JANVIER','FÉVRIER','MARS','AVRIL','MAI','JUIN','JUILLET','AOÛT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DÉCEMBRE']
 
-  const c = {
+  const c = useMemo(() => ({
     bg: themeSombre ? '#0f1117' : '#f0f2f8',
     card: themeSombre ? '#181c27' : '#ffffff',
     cardBorder: themeSombre ? '#2a3045' : '#d0d5e8',
@@ -199,7 +199,7 @@ export default function AujourdhuiScreen() {
     modalBg: themeSombre ? '#181c27' : '#ffffff',
     modalOption: themeSombre ? '#1f2436' : '#f0f2f8',
     conducaoGelada: themeSombre ? '#3a3a3a' : '#c0c5d8',
-  }
+  }), [themeSombre])
 
   const navegarMes = (dir: number) => {
     let novoMes = calMes + dir
@@ -3077,6 +3077,7 @@ const st = StyleSheet.create({
   semBarFill: { height: '100%', borderRadius: 3 },
   semEmpty: { fontSize: 14, textAlign: 'center', paddingVertical: 4 },
   semStats: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+
   semStat: { fontSize: 14, fontWeight: '600' },
   semStatSep: { fontSize: 12 },
 })

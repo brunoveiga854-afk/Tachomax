@@ -570,7 +570,7 @@ const getJoursMois = () => {
     joursActuels.some(j => j.date === r.date)
   )
   return (
-    <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       <View>
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />

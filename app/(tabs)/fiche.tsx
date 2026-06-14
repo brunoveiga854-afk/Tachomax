@@ -2065,18 +2065,20 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.salConfirmado ? '#27ae60' : 'rgba(39,174,96,0.35)' }}
                 onPress={() => { setInputSalNet(calcResult.salLiq.toFixed(2)); setShowModalSalNet(true) }}
               >
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginBottom: 2 }}>{calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
                 <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>estimé hors primes</Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.salLiq)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{calcResult.mesHorasLabel.split(' ')[0]} · le {calcResult.diaReceber} {calcResult.mesReceber.split(' ')[0]}</Text>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>le {calcResult.diaReceber} {calcResult.mesReceber.split(' ')[0]}</Text>
               </TouchableOpacity>
               {/* Frais */}
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: calcResult.fraisConfirmado ? 'rgba(41,128,185,0.22)' : 'rgba(41,128,185,0.12)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.fraisConfirmado ? '#2980b9' : 'rgba(41,128,185,0.35)' }}
                 onPress={() => { setInputFraisReel(calcResult.totalFrais.toFixed(2)); setShowModalFraisReel(true) }}
               >
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginBottom: 2 }}>{calcResult.mesFraisLabel.split(' ')[0].toUpperCase()}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.7 }}>{calcResult.fraisConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
@@ -2084,7 +2086,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {calcResult.fraisConfirmado ? 'depuis historique' : 'estimé depuis calendrier'}
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{calcResult.mesFraisLabel.split(' ')[0]} · le {calcResult.diaFrais} {calcResult.mesReceber.split(' ')[0]}</Text>
+                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>le {calcResult.diaFrais} {calcResult.mesReceber.split(' ')[0]}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />
@@ -2746,8 +2748,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </View>
               )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: c.textSub, fontSize: 13 }}>Frais boletim</Text>
-                <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.fraisBoletim || 0)}</Text>
+                <Text style={{ color: c.textSub, fontSize: 13 }}>Frais reçus</Text>
+                <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.fraisRecuConfirme || modalDetail?.fraisBoletim || modalDetail?.remboursementFrais || 0)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder }}>
                 <Text style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>Total reçu</Text>
@@ -2762,7 +2764,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {
                 if (!modalDetail) return
                 setEditNetPaye(parseFloat((modalDetail.netPaye || 0).toFixed(2)).toString())
-                setEditFraisBoletim(parseFloat((modalDetail.fraisBoletim || 0).toFixed(2)).toString())
+                setEditFraisBoletim(parseFloat((modalDetail.fraisRecuConfirme || modalDetail.fraisBoletim || modalDetail.remboursementFrais || 0).toFixed(2)).toString())
                 setEditMontantTotal(parseFloat((modalDetail.montantTotalRecu || 0).toFixed(2)).toString())
                 setEditMoisIndex(modalDetail.moisIndex)
                 setEditAnnee(modalDetail.annee)
@@ -3183,7 +3185,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où ton salaire arrive sur ton compte.'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                  <TouchableOpacity onPress={() => setOnbStep(1)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>

@@ -38,11 +38,41 @@ export default function OnboardingScreen() {
     if (heuresMensuel) await AsyncStorage.setItem('heures_mensuel', heuresMensuel)
     await AsyncStorage.setItem('vehicule_type', typeVehicule)
     await AsyncStorage.setItem('cargo_type', typeCargo)
+    // Sync cargo_type → transport_* flags so Réglages reflects the choice
+    const cargoToTransport: Record<string, string> = {
+      frigo: 'transport_frigo', adr: 'transport_adr',
+      benne: 'transport_benne', citerne: 'transport_citerne', plateau: 'transport_plateau',
+    }
+    // Clear all flags then enable the selected one
+    for (const key of Object.values(cargoToTransport)) await AsyncStorage.setItem(key, 'false')
+    if (cargoToTransport[typeCargo]) await AsyncStorage.setItem(cargoToTransport[typeCargo], 'true')
     await AsyncStorage.setItem('profil', profil)
     if (prenom) await AsyncStorage.setItem('conducteur_prenom', prenom)
     if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
     // backward compat — keep 'nom' with prenom for the main screen greeting
     await AsyncStorage.setItem('nom', prenom || nom)
+    // Pre-populate monSalaire_padrao from onboarding data (avoids asking same questions again)
+    const existingPadrao = await AsyncStorage.getItem('monSalaire_padrao')
+    if (!existingPadrao && (heuresMensuel || salBaseEstime)) {
+      const hbase = parseInt(heuresMensuel) || 169
+      const salNet = parseFloat(salBaseEstime) || 0
+      const hval = salNet > 0 && hbase > 0 ? Math.round((salNet / hbase) * 100) / 100 : 14.76
+      const liquidRate = 0.79
+      const valorDiaConges = salNet > 0 ? Math.round((salNet / 21.67) * 100) / 100 : 136.52
+      const padraoInit = {
+        descoberto: false, diaSalario: 5, diaFrais: 10,
+        defasagemFrais: 1, confianca: 0,
+        hbase, hval, h25: Math.round(hval * 1.25 * 100) / 100, lim25: 17, h50: Math.round(hval * 1.5 * 100) / 100,
+        hlag: 1, flag: 1, liquidRate, fraisSepare: false,
+        horasExtrasMedia: 0,
+        ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
+        valorDiaConges, valorDiaFerie: 0, valorDiaRC: 0,
+        taxaHorariaNetaMedia: hval * liquidRate,
+        fraisFactorReal: 0,
+        vehiculo: typeVehicule, cargo: typeCargo,
+      }
+      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit))
+    }
     router.replace('/(tabs)/fiche')
   }
 
@@ -51,7 +81,7 @@ export default function OnboardingScreen() {
 
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (
-        <View style={st.page}>
+        <View style={[st.page, { paddingTop: 56 }]}>
           <View style={st.logoSection}>
             <TachoLogo size={32} textColor='#ffffff' />
             <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
@@ -141,42 +171,21 @@ export default function OnboardingScreen() {
             />
           </View>
 
-          <View style={st.profilSection}>
+          <View style={{ gap: 8, marginBottom: 24 }}>
             {[
-              {
-                id: 'CD' as Profil,
-                emoji: '🏠',
-                titre: 'Courte Distance',
-                desc: 'Je rentre à la maison tous les jours. Découché exceptionnel.',
-                limites: 'Max 52h/semaine'
-              },
-              {
-                id: 'MIXTE' as Profil,
-                emoji: '🔄',
-                titre: 'Mixte',
-                desc: 'Surtout local, 1–2 découchés par semaine selon les missions.',
-                limites: 'Max 56h/semaine'
-              },
-              {
-                id: 'LD' as Profil,
-                emoji: '🛣️',
-                titre: 'Longue Distance',
-                desc: 'Je fais découché toute la semaine. Je rentre le week-end.',
-                limites: 'Max 56h/semaine'
-              },
+              { id: 'CD' as Profil, emoji: '🏠', titre: 'Courte Distance', sub: 'Rentre chaque jour · Max 52h/sem.' },
+              { id: 'MIXTE' as Profil, emoji: '🔄', titre: 'Mixte', sub: '1–2 découchés/semaine · Max 56h/sem.' },
+              { id: 'LD' as Profil, emoji: '🛣️', titre: 'Longue Distance', sub: 'Découché toute la semaine · Max 56h/sem.' },
             ].map(p => (
               <TouchableOpacity
                 key={p.id}
-                style={[st.profilCard, profil === p.id && st.profilCardActive]}
                 onPress={() => setProfil(p.id)}
+                style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: profil === p.id ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: profil === p.id ? 1.5 : 1, borderColor: profil === p.id ? '#f5a623' : '#2a3045', flexDirection: 'row', alignItems: 'center', gap: 10 }}
               >
-                <View style={st.profilCardLeft}>
-                  <Text style={st.profilEmoji}>{p.emoji}</Text>
-                  <View style={st.profilInfo}>
-                    <Text style={[st.profilTitre, profil === p.id && { color: '#f5a623' }]}>{p.titre}</Text>
-                    <Text style={st.profilDesc}>{p.desc}</Text>
-                    <Text style={[st.profilLimites, profil === p.id && { color: '#f5a623' }]}>{p.limites}</Text>
-                  </View>
+                <Text style={{ fontSize: 20 }}>{p.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: profil === p.id ? '#f5a623' : '#eef0f5' }}>{p.titre}</Text>
+                  <Text style={{ fontSize: 11, color: '#9ba3b8', marginTop: 2 }}>{p.sub}</Text>
                 </View>
                 <View style={[st.profilCheck, profil === p.id && st.profilCheckActive]}>
                   {profil === p.id && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
@@ -212,7 +221,7 @@ export default function OnboardingScreen() {
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📅 ANCIENNETÉ DANS L'ENTREPRISE</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 6, textAlign: 'center' }}>Années</Text>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6, textAlign: 'center' }}>Années</Text>
               <TextInput
                 value={ancienneteAns}
                 onChangeText={v => setAncienneteAns(v.replace(/[^0-9]/g, ''))}
@@ -224,7 +233,7 @@ export default function OnboardingScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 6, textAlign: 'center' }}>Mois</Text>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6, textAlign: 'center' }}>Mois</Text>
               <TextInput
                 value={ancienneteMois}
                 onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setAncienneteMois(n <= 11 ? String(n || '') : '11') }}
@@ -238,7 +247,7 @@ export default function OnboardingScreen() {
           </View>
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⚖️ COEFFICIENT CONVENTIONNEL</Text>
-          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Sur ta fiche de paie (ex: 138, 150…). Laisse vide si tu ne sais pas.</Text>
+          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 8, lineHeight: 16 }}>Sur ta fiche de paie (ex: 138, 150…). Laisse vide si tu ne sais pas.</Text>
           <TextInput
             value={coefficient}
             onChangeText={v => setCoefficient(v.replace(/[^0-9]/g, ''))}
@@ -246,35 +255,9 @@ export default function OnboardingScreen() {
             placeholderTextColor="#6b7394"
             keyboardType="number-pad"
             maxLength={3}
-            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 16 }}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 28 }}
           />
 
-          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>💶 SALAIRE NET MENSUEL (approximatif)</Text>
-          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Sans les frais. Permet de calibrer les estimations dès l'installation.</Text>
-          <TextInput
-            value={salBaseEstime}
-            onChangeText={v => setSalBaseEstime(v.replace(/[^0-9]/g, ''))}
-            placeholder="ex: 2300"
-            placeholderTextColor="#6b7394"
-            keyboardType="number-pad"
-            maxLength={5}
-            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
-          />
-
-          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⏱️ HEURES TRAVAILLÉES PAR MOIS</Text>
-          <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 8, lineHeight: 16 }}>Base légale : 169h/mois. Au-delà → heures supp. Laisse vide si tu ne sais pas.</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-            <TextInput
-              value={heuresMensuel}
-              onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setHeuresMensuel(n <= 300 ? String(n || '') : '300') }}
-              placeholder="ex: 186"
-              placeholderTextColor="#6b7394"
-              keyboardType="number-pad"
-              maxLength={3}
-              style={{ flex: 1, backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 22, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
-            />
-            <Text style={{ fontSize: 13, color: '#6b7394', flex: 2, lineHeight: 18 }}>{'heures / mois (légal: 169h)'}</Text>
-          </View>
 
         </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
@@ -332,7 +315,13 @@ export default function OnboardingScreen() {
               ].map(({ val, label, sub }) => (
                 <TouchableOpacity
                   key={val}
-                  onPress={async () => { setTypeCargo(val); await AsyncStorage.setItem('cargo_type', val) }}
+                  onPress={async () => {
+                    setTypeCargo(val)
+                    await AsyncStorage.setItem('cargo_type', val)
+                    const cargoMap: Record<string, string> = { frigo: 'transport_frigo', adr: 'transport_adr', benne: 'transport_benne', citerne: 'transport_citerne', plateau: 'transport_plateau' }
+                    for (const k of Object.values(cargoMap)) await AsyncStorage.setItem(k, 'false')
+                    if (cargoMap[val]) await AsyncStorage.setItem(cargoMap[val], 'true')
+                  }}
                   style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: typeCargo === val ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: typeCargo === val ? 1.5 : 1, borderColor: typeCargo === val ? '#f5a623' : '#2a3045', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: '800', color: typeCargo === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
@@ -493,13 +482,13 @@ const st = StyleSheet.create({
   page: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
 
   // Logo
-  logoSection: { alignItems: 'center', marginBottom: 16 },
+  logoSection: { alignItems: 'center', marginBottom: 10 },
   logo: { fontSize: 36, fontWeight: '800', color: '#eef0f5', letterSpacing: 2 },
   accent: { color: '#f5a623' },
-  logoSub: { fontSize: 13, color: '#6b7394', marginTop: 4 },
+  logoSub: { fontSize: 13, color: '#9ba3b8', marginTop: 4 },
 
   // Hero
-  heroSection: { alignItems: 'center', marginBottom: 12, overflow: 'hidden' },
+  heroSection: { alignItems: 'center', marginTop: 8, marginBottom: 12, overflow: 'hidden' },
   heroEmoji: { fontSize: 60, marginBottom: 16 },
   heroTitle: { fontSize: 28, fontWeight: '800', color: '#eef0f5', marginBottom: 12 },
   heroText: { fontSize: 14, color: '#c4c9d8', textAlign: 'center', lineHeight: 22, marginBottom: 8 },
@@ -515,7 +504,7 @@ const st = StyleSheet.create({
   stepHeader: { marginBottom: 24 },
   stepNum: { fontSize: 11, color: '#f5a623', fontWeight: '700', letterSpacing: 2, marginBottom: 8 },
   stepTitle: { fontSize: 26, fontWeight: '800', color: '#eef0f5', marginBottom: 6 },
-  stepSub: { fontSize: 13, color: '#6b7394' },
+  stepSub: { fontSize: 13, color: '#9ba3b8' },
 
   // Nom
   nomSection: { marginBottom: 20 },

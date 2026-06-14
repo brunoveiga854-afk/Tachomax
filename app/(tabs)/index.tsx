@@ -2445,7 +2445,7 @@ const pararGPS = async () => {
       <Modal visible={showStats} transparent animationType="slide">
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setShowStats(false); setStatsBarDetail(null) }}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
+            <View onStartShouldSetResponder={() => true} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
@@ -2888,7 +2888,7 @@ const pararGPS = async () => {
                   )
                 })()}
               </ScrollView>
-            </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>

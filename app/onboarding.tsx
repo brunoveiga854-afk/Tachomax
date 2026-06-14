@@ -235,7 +235,7 @@ export default function OnboardingScreen() {
           </View>
           </ScrollView>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -375,7 +375,7 @@ export default function OnboardingScreen() {
           )}
 
         </ScrollView>
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -528,7 +528,7 @@ export default function OnboardingScreen() {
             />
           </ScrollView>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
@@ -574,7 +574,7 @@ export default function OnboardingScreen() {
             <Text style={st.trialPrixSub}>Annulable à tout moment</Text>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(3)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>

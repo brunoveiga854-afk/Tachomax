@@ -472,8 +472,7 @@ export default function ReglagesScreen() {
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
           <TouchableOpacity onPress={() => setTransportOpen(!transportOpen)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0 }]}>
-              {transportFrigo ? '❄️' : transportGrue ? '🏗️' : transportAdr ? '☢️' : transportBenne ? '🪣' : transportCiterne ? '🛢️' : transportPlateau ? '🚧' : transportGrumier ? '🌲' : '🚛'}{' '}
-              TYPE DE TRANSPORT & ÉQUIPEMENT
+              🚛 TYPE DE TRANSPORT & ÉQUIPEMENT
             </Text>
             <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700' }}>{transportOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>

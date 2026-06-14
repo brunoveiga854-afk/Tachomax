@@ -1,7 +1,7 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
@@ -1196,10 +1196,14 @@ export default function MonSalaireScreen() {
   const [onbHvalBrut, setOnbHvalBrut] = useState('')
   const [onbVehiculo, setOnbVehiculo] = useState('porteur')
   const [onbCargo, setOnbCargo] = useState('general')
-  // pré-preencher tipo veículo e cargo do onboarding se já definidos
+  // pré-preencher tipo veículo, cargo e hbase do onboarding se já definidos
   React.useEffect(() => {
     AsyncStorage.getItem('vehicule_type').then(v => { if (v) setOnbVehiculo(v) })
     AsyncStorage.getItem('cargo_type').then(v => { if (v) setOnbCargo(v) })
+    // hbase already saved to padrao via onboarding — also pre-fill wizard state
+    AsyncStorage.getItem('monSalaire_padrao').then(raw => {
+      if (raw) { try { const p = JSON.parse(raw); if (p.hbase) setOnbHbase(p.hbase) } catch {} }
+    })
   }, [])
   const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
   const [inputMoisAtipico, setInputMoisAtipico] = useState(false)
@@ -1208,7 +1212,7 @@ export default function MonSalaireScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current
   const countRef = useRef<any>(null)
 
-  const c = {
+  const c = useMemo(() => ({
     bg: themeSombre ? '#0f1117' : '#f0f2f8',
     card: themeSombre ? '#181c27' : '#ffffff',
     cardBorder: themeSombre ? '#2a3045' : '#d0d5e8',
@@ -1216,7 +1220,7 @@ export default function MonSalaireScreen() {
     textSub: themeSombre ? '#6b7394' : '#555e80',
     textLabel: themeSombre ? '#6b7394' : '#3a4060',
     input: themeSombre ? '#1f2436' : '#f0f2f8',
-  }
+  }), [themeSombre])
 
   const [histCal, setHistCal] = useState<any[]>([])
 
@@ -3035,8 +3039,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editFraisBoletim} onChangeText={setEditFraisBoletim} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
               <View>
-                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>TOTAL REÇU (€)</Text>
-                <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editMontantTotal} onChangeText={setEditMontantTotal} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
+                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>TOTAL REÇU (€) — calculé automatiquement</Text>
+                <View style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#f5a623', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#f5a623' }}>
+                    {((parseFloat(editNetPaye) || 0) + (parseFloat(editFraisBoletim) || 0)).toFixed(2)}
+                  </Text>
+                </View>
               </View>
               <View>
                 <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>INTÉRESSEMENT (€) — 0 pour effacer</Text>
@@ -3072,7 +3080,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 if (!modalDetail) return
                 const netEdit = parseFloat(editNetPaye) || 0
                 const fraisEdit = parseFloat(editFraisBoletim) || 0
-                const totalEdit = parseFloat(editMontantTotal) || 0
+                const totalEdit = (parseFloat(editNetPaye) || 0) + (parseFloat(editFraisBoletim) || 0)
                 const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
                 const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
                 const interessEdit = parseFloat(editInteressement) || 0
@@ -3124,9 +3132,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
             {/* Header + progress */}
             <Text style={{ fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Mon Salaire</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 14 }}>Étape {onbStep} / 7</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 14 }}>Étape {onbStep} / 4</Text>
             <View style={{ flexDirection: 'row', gap: 4, marginBottom: 22 }}>
-              {[1,2,3,4,5].map(s => (
+              {[1,2,3,4].map(s => (
                 <View key={s} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: s <= onbStep ? '#f5a623' : c.cardBorder }} />
               ))}
             </View>
@@ -3242,7 +3250,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </>
             )}
 
-            {/* ── ÉTAPE 6 : frais sur fiche ou séparé ── */}
+            {/* ── ÉTAPE 4 : frais sur fiche ou séparé ── */}
             {onbStep === 4 && (
               <>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>{'📄'} Comment arrivent tes frais ?</Text>
@@ -3269,121 +3277,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(5)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* ── ÉTAPE 7 : contrat + salaire ── */}
-            {onbStep === 5 && (
-              <>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 6 }}>{'📊'} Ton contrat et ton salaire</Text>
-                <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 14, lineHeight: 18 }}>
-                  Ca permet de calculer la valeur de tes jours de conges, feries et RC automatiquement.
-                </Text>
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>Ton contrat, c'est combien d'heures par mois ?</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {[
-                    { h: 152, sub: '35h/sem' },
-                    { h: 169, sub: 'standard transport' },
-                    { h: 182, sub: '42h/sem' },
-                    { h: 200, sub: '46h+/sem' },
-                  ].map(({ h, sub }) => (
-                    <TouchableOpacity
-                      key={h}
-                      onPress={() => setOnbHbase(h)}
-                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: onbHbase === h ? 'rgba(245,166,35,0.12)' : c.input, alignItems: 'center', borderWidth: onbHbase === h ? 1.5 : 1, borderColor: onbHbase === h ? '#f5a623' : c.cardBorder }}
-                    >
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: onbHbase === h ? '#f5a623' : c.text }}>{h}h</Text>
-                      <Text style={{ fontSize: 10, color: onbHbase === h ? '#f5a623' : c.textSub, marginTop: 1 }}>{sub}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Toggle brut/net */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                  <TouchableOpacity onPress={() => setOnbSaisirBrut(true)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: onbSaisirBrut ? 'rgba(245,166,35,0.15)' : c.input, borderWidth: onbSaisirBrut ? 1.5 : 1, borderColor: onbSaisirBrut ? '#f5a623' : c.cardBorder }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: onbSaisirBrut ? '#f5a623' : c.textSub }}>Taux brut/h</Text>
-                    <Text style={{ fontSize: 10, color: onbSaisirBrut ? '#f5a623' : c.textSub, marginTop: 1 }}>je saisis €/h brut</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbSaisirBrut(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: !onbSaisirBrut ? 'rgba(245,166,35,0.15)' : c.input, borderWidth: !onbSaisirBrut ? 1.5 : 1, borderColor: !onbSaisirBrut ? '#f5a623' : c.cardBorder }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: !onbSaisirBrut ? '#f5a623' : c.textSub }}>Net mensuel</Text>
-                    <Text style={{ fontSize: 10, color: !onbSaisirBrut ? '#f5a623' : c.textSub, marginTop: 1 }}>je saisis € net/mois</Text>
-                  </TouchableOpacity>
-                </View>
-                {onbSaisirBrut ? (
-                  <>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Ton taux horaire brut ?</Text>
-                    <TextInput
-                      value={onbHvalBrut}
-                      onChangeText={setOnbHvalBrut}
-                      keyboardType="numeric"
-                      placeholder="ex: 18.50"
-                      placeholderTextColor={c.textSub}
-                      style={{ borderWidth: 1, borderColor: onbHvalBrut ? '#f5a623' : c.cardBorder, borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: c.text, backgroundColor: c.input, marginBottom: 8, textAlign: 'center' }}
-                    />
-                    <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 18, textAlign: 'center' }}>
-                      {'Brut mensuel: '}
-                      <Text style={{ color: c.text, fontWeight: '700' }}>
-                        {onbHvalBrut && onbHbase > 0 ? (parseFloat(onbHvalBrut) * onbHbase).toFixed(0) + ' €' : '---'}
-                      </Text>
-                      {'  → '}
-                      <Text style={{ color: '#f5a623', fontWeight: '800' }}>
-                        {onbHvalBrut && onbHbase > 0 ? (parseFloat(onbHvalBrut) * onbHbase * 0.79).toFixed(0) + ' € net' : '---'}
-                      </Text>
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Ton salaire net mensuel ? (sans les frais)</Text>
-                    <TextInput
-                      value={onbSalNet}
-                      onChangeText={setOnbSalNet}
-                      keyboardType="numeric"
-                      placeholder="ex: 2800"
-                      placeholderTextColor={c.textSub}
-                      style={{ borderWidth: 1, borderColor: onbSalNet ? '#f5a623' : c.cardBorder, borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: c.text, backgroundColor: c.input, marginBottom: 8, textAlign: 'center' }}
-                    />
-                    <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 18, textAlign: 'center' }}>
-                      {'Taux horaire net: '}
-                      <Text style={{ color: '#f5a623', fontWeight: '700' }}>
-                        {onbSalNet && onbHbase > 0 ? (parseFloat(onbSalNet) / onbHbase).toFixed(2) + ' €/h' : '---'}
-                      </Text>
-                      {'  Valeur congé/j: '}
-                      <Text style={{ color: '#f5a623', fontWeight: '700' }}>
-                        {onbSalNet && onbHbase > 0 ? (parseFloat(onbSalNet) / 21.67).toFixed(2) + ' €' : '---'}
-                      </Text>
-                    </Text>
-                  </>
-                )}
-
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<- Retour'}</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={async () => {
-                      const salBrut = onbSaisirBrut ? parseFloat(onbHvalBrut) || 0 : 0
-                      const salNet = onbSaisirBrut
-                        ? (salBrut * onbHbase * 0.79)
-                        : (parseFloat(onbSalNet) || 0)
-                      const hval = salBrut > 0
-                        ? salBrut
-                        : (salNet > 0 && onbHbase > 0 ? Math.round((salNet / onbHbase) * 100) / 100 : DEF_SAL.hval)
-                      const liquidRate = onbSaisirBrut && salBrut > 0 ? 0.79 : DEF_SAL.liquidRate
-                      const valorDiaConges = salNet > 0
-                        ? Math.round((salNet / 21.67) * 100) / 100
-                        : DEF_SAL.valorDiaConges
+                      const hval = padrao.hval ?? DEF_SAL.hval
+                      const liquidRate = padrao.liquidRate ?? DEF_SAL.liquidRate
                       const newPadrao = {
                         ...padrao,
                         hlag: onbHlag, flag: onbFlag, fraisSepare: onbFraisSepare,
                         diaSalario: onbDiaSalario, diaFrais: onbDiaFrais,
-                        hbase: onbHbase, hval, liquidRate,
-                        valorDiaConges,
-                        taxaHorariaNetaMedia: hval * liquidRate,
                         vehiculo: onbVehiculo,
                         cargo: onbCargo,
                       }
@@ -3433,3 +3334,4 @@ const st = StyleSheet.create({
   histSub: { fontSize: 11 },
   histMontant: { fontSize: 18, fontWeight: '800' },
 })
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   

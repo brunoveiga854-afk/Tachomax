@@ -779,7 +779,7 @@ export default function ReglagesScreen() {
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
             onPress={async () => {
               await AsyncStorage.removeItem('onboarding_salaire_done')
-              router.push('/(tabs)/fiche')
+              router.replace('/(tabs)/fiche')
             }}
           >
             <Text style={{ fontSize: 22 }}>⚙️</Text>

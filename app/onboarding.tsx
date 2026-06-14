@@ -18,7 +18,6 @@ export default function OnboardingScreen() {
   const [tracteurValue, setTracteurValue] = useState('')
   const [remorqueType, setRemorqueType] = useState<'immat' | 'parc'>('immat')
   const [remorqueValue, setRemorqueValue] = useState('')
-  const [chariotEmbarque, setChariotEmbarque] = useState(false)
   const [typeVehicule, setTypeVehicule] = useState('semi')
   const [typeCargo, setTypeCargo] = useState('general')
   const [kmInicial, setKmInicial] = useState('')
@@ -46,6 +45,7 @@ export default function OnboardingScreen() {
     const cargoToTransport: Record<string, string> = {
       frigo: 'transport_frigo', adr: 'transport_adr',
       benne: 'transport_benne', citerne: 'transport_citerne', plateau: 'transport_plateau',
+      grue: 'transport_grue', grumier: 'transport_grumier',
     }
     // Clear all flags then enable the selected one
     for (const key of Object.values(cargoToTransport)) await AsyncStorage.setItem(key, 'false')
@@ -90,58 +90,71 @@ export default function OnboardingScreen() {
 
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (
-        <View style={[st.page, { paddingTop: 56 }]}>
-          <View style={st.logoSection}>
-            <TachoLogo size={32} textColor='#ffffff' />
-            <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
-          </View>
-
-          <View style={st.heroSection}>
-            <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
-            <Image
-              source={require('../assets/images/icon.png')}
-              style={{ width: width, height: Math.round(width * 0.78), resizeMode: 'cover' }}
-            />
-            {/* Fade esquerdo */}
-            {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
-              <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
-            ))}
-            {/* Fade direito */}
-            {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
-              <View key={'r'+i} style={{ position: 'absolute', right: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
-            ))}
-            {/* Fade inferior */}
-            {[0.7, 0.4, 0.15].map((op, i) => (
-              <View key={'b'+i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 10, height: 12, backgroundColor: '#0f1117', opacity: op }} />
-            ))}
-          </View>
-            <Text style={st.heroTitle}>Bienvenue !</Text>
-            <Text style={st.heroText}>
-              TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
-            </Text>
-            <Text style={st.heroText2}>
-              Minimum de saisie. Maximum de précision.
-            </Text>
-          </View>
-
-          <View style={st.features}>
-            {[
-              { emoji: '⏱️', text: 'Chronomètre de service et pause' },
-              { emoji: '🧾', text: 'Frais calculés automatiquement' },
-              { emoji: '⚖️', text: 'Alertes limites légales' },
-              { emoji: '🤖', text: 'IA lit ta fiche de paie' },
-            ].map(item => (
-              <View key={item.text} style={st.featureRow}>
-                <Text style={st.featureEmoji}>{item.emoji}</Text>
-                <Text style={st.featureText}>{item.text}</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[st.page, { paddingTop: 56 }]}>
+              <View style={st.logoSection}>
+                <TachoLogo size={32} textColor='#ffffff' />
+                <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
               </View>
-            ))}
-          </View>
 
-          <TouchableOpacity style={[st.btnNext, { marginTop: 'auto' as any, marginBottom: 32 }]} onPress={() => setEtape(1)}>
+              <View style={st.heroSection}>
+                <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
+                  <Image
+                    source={require('../assets/images/icon.png')}
+                    style={{ width: width, height: Math.round(width * 0.78), resizeMode: 'cover' }}
+                  />
+                  {/* Fade esquerdo */}
+                  {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
+                    <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+                  ))}
+                  {/* Fade direito */}
+                  {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
+                    <View key={'r'+i} style={{ position: 'absolute', right: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+                  ))}
+                  {/* Fade inferior */}
+                  {[0.7, 0.4, 0.15].map((op, i) => (
+                    <View key={'b'+i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 10, height: 12, backgroundColor: '#0f1117', opacity: op }} />
+                  ))}
+                </View>
+                <Text style={st.heroTitle}>Bienvenue !</Text>
+                <Text style={st.heroText}>
+                  TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
+                </Text>
+                <Text style={st.heroText2}>
+                  Minimum de saisie. Maximum de précision.
+                </Text>
+              </View>
+
+              <View style={st.features}>
+                {[
+                  { emoji: '⏱️', text: 'Chronomètre de service et pause' },
+                  { emoji: '🧾', text: 'Frais calculés automatiquement' },
+                  { emoji: '⚖️', text: 'Alertes limites légales' },
+                  { emoji: '🤖', text: 'IA lit ta fiche de paie' },
+                ].map(item => (
+                  <View key={item.text} style={st.featureRow}>
+                    <Text style={st.featureEmoji}>{item.emoji}</Text>
+                    <Text style={st.featureText}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Botão fixo no fundo */}
+          <TouchableOpacity
+            style={[st.btnNext, { position: 'absolute', bottom: 24, left: 16, right: 16 }]}
+            onPress={() => setEtape(1)}
+          >
             <Text style={st.btnNextText}>COMMENCER →</Text>
           </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       )}
 
       {/* ETAPE 1 — PERFIL */}
@@ -396,6 +409,8 @@ export default function OnboardingScreen() {
                 { val: 'citerne',  label: '🛢 Citerne',            sub: 'liquides, produits en vrac' },
                 { val: 'plateau',  label: '🪵 Plateau / Hayon',    sub: 'charges encombrantes, bois' },
                 { val: 'adr',      label: '☢️ ADR — Dangereux',    sub: 'matières dangereuses' },
+                { val: 'grue',    label: '🏗️ Grue / Ampliroll',   sub: 'levage, ampliroll' },
+                { val: 'grumier', label: '🌲 Grumier',             sub: 'transport de bois, grumes' },
               ].map(({ val, label, sub }) => (
                 <TouchableOpacity
                   key={val}
@@ -464,22 +479,6 @@ export default function OnboardingScreen() {
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
             />
 
-            {/* CHARIOT EMBARQUÉ */}
-            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🔧 CHARIOT EMBARQUÉ</Text>
-            <View style={{ flexDirection: 'row', marginBottom: 20, gap: 8 }}>
-              <TouchableOpacity
-                onPress={async () => { setChariotEmbarque(true); await AsyncStorage.setItem('chariot_embarque', 'true') }}
-                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: chariotEmbarque ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: chariotEmbarque ? 1.5 : 1, borderColor: chariotEmbarque ? '#f5a623' : '#2a3045' }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: chariotEmbarque ? '#f5a623' : '#6b7394' }}>Oui</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => { setChariotEmbarque(false); await AsyncStorage.setItem('chariot_embarque', 'false') }}
-                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: !chariotEmbarque ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: !chariotEmbarque ? 1.5 : 1, borderColor: !chariotEmbarque ? '#f5a623' : '#2a3045' }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: !chariotEmbarque ? '#f5a623' : '#6b7394' }}>Non</Text>
-              </TouchableOpacity>
-            </View>
 
             {/* KM INITIAL */}
             <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📍 KM AU COMPTEUR (TACOGRAPHE)</Text>

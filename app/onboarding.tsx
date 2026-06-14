@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { TachoLogo } from '../src/TachoLogo'
@@ -11,6 +11,7 @@ type Profil = 'CD' | 'MIXTE' | 'LD'
 
 export default function OnboardingScreen() {
   const [etape, setEtape] = useState(0)
+  const insets = useSafeAreaInsets()
   const [prenom, setPrenom] = useState('')
   const [nom, setNom] = useState('')
   const [profil, setProfil] = useState<Profil>('MIXTE')
@@ -96,46 +97,66 @@ export default function OnboardingScreen() {
 
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={[st.page, { paddingTop: 8, flex: 1 }]}>
-            <View style={st.logoSection}>
-              <TachoLogo size={28} textColor='#ffffff' />
-              <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
-            </View>
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 + insets.bottom }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[st.page, { paddingTop: 12 }]}>
+              <View style={st.logoSection}>
+                <TachoLogo size={28} textColor='#ffffff' />
+                <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
+              </View>
 
-            <View style={st.heroSection}>
-              <Image
-                source={require('../assets/images/icon.png')}
-                style={{ width: '88%', aspectRatio: 16 / 9, resizeMode: 'contain', alignSelf: 'center', marginBottom: 8 }}
-              />
+              <View style={{ width: width, marginHorizontal: -24, marginBottom: 12, position: 'relative' }}>
+                <Image
+                  source={require('../assets/images/icon.png')}
+                  style={{ width: width, height: Math.round(width * 0.52), resizeMode: 'cover' }}
+                />
+                {[0.85, 0.6, 0.35, 0.15].map((op, i) => (
+                  <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+                ))}
+                {[0.85, 0.6, 0.35, 0.15].map((op, i) => (
+                  <View key={'r'+i} style={{ position: 'absolute', right: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
+                ))}
+                {[0.7, 0.4, 0.15].map((op, i) => (
+                  <View key={'b'+i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 10, height: 12, backgroundColor: '#0f1117', opacity: op }} />
+                ))}
+              </View>
+
               <Text style={st.heroTitle}>Bienvenue !</Text>
               <Text style={st.heroText}>
                 TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
               </Text>
-              <Text style={st.heroText2}>
+              <Text style={[st.heroText2, { marginBottom: 16 }]}>
                 Minimum de saisie. Maximum de précision.
               </Text>
-            </View>
 
-            <View style={st.features}>
-              {[
-                { emoji: '⏱️', text: 'Chronomètre de service et pause' },
-                { emoji: '🧾', text: 'Frais calculés automatiquement' },
-                { emoji: '⚖️', text: 'Alertes limites légales' },
-                { emoji: '🤖', text: 'IA lit ta fiche de paie' },
-              ].map(item => (
-                <View key={item.text} style={st.featureRow}>
-                  <Text style={st.featureEmoji}>{item.emoji}</Text>
-                  <Text style={st.featureText}>{item.text}</Text>
-                </View>
-              ))}
+              <View style={st.features}>
+                {[
+                  { emoji: '⏱️', text: 'Chronomètre de service et pause' },
+                  { emoji: '🧾', text: 'Frais calculés automatiquement' },
+                  { emoji: '⚖️', text: 'Alertes limites légales' },
+                  { emoji: '🤖', text: 'IA lit ta fiche de paie' },
+                ].map(item => (
+                  <View key={item.text} style={st.featureRow}>
+                    <Text style={st.featureEmoji}>{item.emoji}</Text>
+                    <Text style={st.featureText}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
+          </ScrollView>
 
-            <TouchableOpacity style={[st.btnNext, { marginTop: 'auto' as any, marginBottom: 24 }]} onPress={() => setEtape(1)}>
-              <Text style={st.btnNextText}>COMMENCER →</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+          {/* Botão fixo — respeita barra de navegação Android */}
+          <TouchableOpacity
+            style={[st.btnNext, { position: 'absolute', bottom: insets.bottom + 16, left: 16, right: 16 }]}
+            onPress={() => setEtape(1)}
+          >
+            <Text style={st.btnNextText}>COMMENCER →</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ETAPE 1 — PERFIL */}

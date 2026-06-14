@@ -2367,41 +2367,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {conflitHbase && (
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.15)', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#FFA000' }}>
                       <Text style={{ fontSize: 12, color: '#FFD54F', fontWeight: '700', marginBottom: 4 }}>
-                        ⚠️ Conflit détecté sur les heures de base
-                      </Text>
-                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 16, marginBottom: 8 }}>
-                        {}
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
-                          onPress={async () => {
-                            const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null }
-                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
-                            setPadrao(p)
-                            setConflitHbase(null)
-                          }}>
-                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{}</Text>
-                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>ma config</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
-                          onPress={async () => {
-                            const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null }
-                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
-                            setPadrao(p)
-                            setConflitHbase(null)
-                          }}>
-                          <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{}</Text>
-                          <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>depuis ma fiche</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  {conflitHbase && (
-                    <View style={{ backgroundColor: 'rgba(255,160,0,0.15)', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#FFA000' }}>
-                      <Text style={{ fontSize: 12, color: '#FFD54F', fontWeight: '700', marginBottom: 4 }}>
                         {"⚠️ Conflit détecté sur les heures de base"}
                       </Text>
                       <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 16, marginBottom: 8 }}>

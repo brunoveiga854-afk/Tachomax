@@ -1,7 +1,8 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useFocusEffect } from 'expo-router'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
@@ -1312,6 +1313,20 @@ export default function MonSalaireScreen() {
     })
     charger()
   }, [])
+
+  // Recarregar padrao sempre que a aba ganha foco (ex: após editar nas Réglages)
+  useFocusEffect(useCallback(() => {
+    AsyncStorage.getItem('monSalaire_padrao').then(raw => {
+      if (raw) {
+        try {
+          const p = JSON.parse(raw)
+          setPadrao(p)
+          if (p._conflitHbase) setConflitHbase(p._conflitHbase)
+          else setConflitHbase(null)
+        } catch {}
+      }
+    })
+  }, []))
 
   useEffect(() => {
     if (!loading) { setLoadingMsg(0); scrollAnim.setValue(0); dustAnim.setValue(0); return }

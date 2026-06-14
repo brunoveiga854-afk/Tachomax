@@ -1211,6 +1211,8 @@ export default function MonSalaireScreen() {
   const [showAnalyse, setShowAnalyse] = useState(false)
   const [driftAlert, setDriftAlert] = useState<DriftAlert | null>(null)
   const [conflitHbase, setConflitHbase] = useState<{extraido: number; onboarding: number} | null>(null)
+  const [editHbaseVisible, setEditHbaseVisible] = useState(false)
+  const [editHbaseVal, setEditHbaseVal] = useState('')
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
@@ -2354,15 +2356,80 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 14 }}>{padrao.hbase > 0 ? '🟢' : '🔴'}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Heures base/mois</Text>
-                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
-                        {padrao.hbase > 0 ? `${padrao.hbase}h · défini au démarrage` : 'Non défini — indispensable'}
-                      </Text>
-                    </View>
-                  </View>
+                  {(() => {
+                    const ARMADILHAS = [157.67, 151.67, 133.92]
+                    const isArmadilha = ARMADILHAS.some(v => Math.abs(padrao.hbase - v) < 0.1)
+                    return (
+                      <View style={{ gap: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 14 }}>{padrao.hbase <= 0 ? '🔴' : isArmadilha ? '🟠' : '🟢'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Heures base/mois</Text>
+                            <Text style={{ fontSize: 11, color: isArmadilha ? '#FFD54F' : 'rgba(255,255,255,0.55)' }}>
+                              {padrao.hbase > 0 ? `${padrao.hbase}h · défini au démarrage` : 'Non défini — indispensable'}
+                            </Text>
+                          </View>
+                          {padrao.hbase > 0 && (
+                            <TouchableOpacity
+                              style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}
+                              onPress={() => setEditHbaseVisible(true)}>
+                              <Text style={{ fontSize: 10, color: 'white' }}>Corriger</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {isArmadilha && (
+                          <View style={{ backgroundColor: 'rgba(255,152,0,0.15)', borderRadius: 8, padding: 8, borderLeftWidth: 2, borderLeftColor: '#FF9800' }}>
+                            <Text style={{ fontSize: 11, color: '#FFD54F', lineHeight: 15 }}>
+                              {'⚠️ Ce chiffre ressemble à des heures annuelles ÷ 12. Vérifie la ligne "Sous total Salaire de base" sur ta fiche et corrige si nécessaire.'}
+                            </Text>
+                            <TouchableOpacity
+                              style={{ marginTop: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,152,0,0.3)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 }}
+                              onPress={() => setEditHbaseVisible(true)}>
+                              <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>Corriger maintenant</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                        <Modal visible={editHbaseVisible} transparent animationType="fade">
+                          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                            <View style={{ backgroundColor: '#1a1a2e', borderRadius: 16, padding: 20, width: '100%' }}>
+                              <Text style={{ fontSize: 14, color: 'white', fontWeight: '700', marginBottom: 4 }}>Heures de base / mois</Text>
+                              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>
+                                {'Regarde la colonne "Base" sur la ligne "Sous total Salaire de base" de ta fiche de paye.'}
+                              </Text>
+                              <TextInput
+                                style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: 10, color: 'white', fontSize: 18, textAlign: 'center', marginBottom: 16 }}
+                                keyboardType="decimal-pad"
+                                defaultValue={String(padrao.hbase)}
+                                onChangeText={v => setEditHbaseVal(v)}
+                                placeholder="ex: 169"
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                              />
+                              <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <TouchableOpacity
+                                  style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                                  onPress={() => setEditHbaseVisible(false)}>
+                                  <Text style={{ color: 'white', fontSize: 13 }}>Annuler</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={{ flex: 1, backgroundColor: '#27ae60', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                                  onPress={async () => {
+                                    const val = parseFloat(editHbaseVal.replace(',', '.'))
+                                    if (!isNaN(val) && val > 0) {
+                                      const p = { ...padrao, hbase: val, _conflitHbase: null }
+                                      await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                                      setPadrao(p)
+                                    }
+                                    setEditHbaseVisible(false)
+                                  }}>
+                                  <Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>Enregistrer</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          </View>
+                        </Modal>
+                      </View>
+                    )
+                  })()}
 
                   {conflitHbase && (
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.15)', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#FFA000' }}>

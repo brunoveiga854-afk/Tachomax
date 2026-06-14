@@ -2490,7 +2490,7 @@ const pararGPS = async () => {
       <Modal visible={showStats} transparent animationType="slide">
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setShowStats(false); setStatsBarDetail(null) }}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View onStartShouldSetResponder={() => true} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
+            <View onTouchStart={e => e.stopPropagation()} style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
@@ -2500,7 +2500,7 @@ const pararGPS = async () => {
               </View>
               <View style={{ height: 1, backgroundColor: c.cardBorder }} />
 
-              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={true} nestedScrollEnabled style={{ padding: 16 }} indicatorStyle="white">
+              <ScrollView ref={statsScrollRef} showsVerticalScrollIndicator={true} nestedScrollEnabled scrollEventThrottle={16} removeClippedSubviews style={{ padding: 16 }} indicatorStyle="white">
                 {(() => {
                   // ── Shared helpers ──────────────────────────────────────────
                   const today = new Date()

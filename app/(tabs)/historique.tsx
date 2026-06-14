@@ -571,46 +571,7 @@ const getJoursMois = () => {
   )
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
-      <FlatList
-        showsVerticalScrollIndicator={false}
-        data={validos}
-        keyExtractor={(item) => item.id}
-        initialNumToRender={15}
-        windowSize={10}
-        removeClippedSubviews={true}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true)
-              await chargerHistorique()
-              setRefreshing(false)
-            }}
-            colors={['#f5a623']}
-            tintColor={'#f5a623'}
-          />
-        }
-        ListEmptyComponent={
-          <View style={st.emptyBox}>
-            <Text style={st.emptyIcon}>📭</Text>
-            <Text style={[st.emptyText, { color: c.emptyText }]}>Aucun service enregistré</Text>
-            <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
-          </View>
-        }
-        ListFooterComponent={<View style={{ height: 100 }} />}
-        renderItem={({ item: jour, index: idx }) => (
-          <JourCardSwipeable
-            key={jour.id}
-            jour={jour}
-            themeSombre={themeSombre}
-            c={c}
-            index={idx}
-            onDelete={() => eliminarJour(jour.id)}
-            onEdit={() => abrirEdicao(jour)}
-            onNote={() => abrirNota(jour)}
-          />
-        )}
-        ListHeaderComponent={<>
+      <View>
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />
           <TouchableOpacity onPress={() => { setSemaine(0); setMoisOffset(0) }} style={[st.resetBtn, { backgroundColor: c.navBtn, borderColor: c.navBtnBorder }]}>
@@ -781,8 +742,47 @@ const getJoursMois = () => {
             </View>
           </View>
         )}
-        <Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>
-      </>}
+      </View>
+      <FlatList
+        showsVerticalScrollIndicator={false}
+        data={validos}
+        keyExtractor={(item) => item.id}
+        initialNumToRender={15}
+        windowSize={10}
+        removeClippedSubviews={true}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true)
+              await chargerHistorique()
+              setRefreshing(false)
+            }}
+            colors={['#f5a623']}
+            tintColor={'#f5a623'}
+          />
+        }
+        ListEmptyComponent={
+          <View style={st.emptyBox}>
+            <Text style={st.emptyIcon}>📭</Text>
+            <Text style={[st.emptyText, { color: c.emptyText }]}>Aucun service enregistré</Text>
+            <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
+          </View>
+        }
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        renderItem={({ item: jour, index: idx }) => (
+          <JourCardSwipeable
+            key={jour.id}
+            jour={jour}
+            themeSombre={themeSombre}
+            c={c}
+            index={idx}
+            onDelete={() => eliminarJour(jour.id)}
+            onEdit={() => abrirEdicao(jour)}
+            onNote={() => abrirNota(jour)}
+          />
+        )}
+        ListHeaderComponent={<Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>}
       />
 
       {/* MODAL EDIT */}

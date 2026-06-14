@@ -570,7 +570,7 @@ const getJoursMois = () => {
     joursActuels.some(j => j.date === r.date)
   )
   return (
-    <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       <View>
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />
@@ -769,7 +769,7 @@ const getJoursMois = () => {
             <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
           </View>
         }
-        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListFooterComponent={<View style={{ height: 30 }} />}
         renderItem={({ item: jour, index: idx }) => (
           <JourCardSwipeable
             key={jour.id}
@@ -1081,34 +1081,34 @@ const getJoursMois = () => {
 }
 const st = StyleSheet.create({
   safe: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 12 },
   appName: { fontSize: 28, fontWeight: '800', letterSpacing: 1 },
   accent: { color: '#f5a623' },
   resetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   resetBtnText: { fontSize: 14, fontWeight: '600' },
-  toggleRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, borderRadius: 12, borderWidth: 1, padding: 4 },
+  toggleRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 12, borderRadius: 12, borderWidth: 1, padding: 4 },
   toggleBtn: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 10 },
   toggleBtnActive: { backgroundColor: '#f5a623' },
   toggleBtnText: { fontSize: 13, fontWeight: '700' },
-  semaineNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 16 },
+  semaineNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 },
   navBtn: { borderRadius: 10, padding: 10, borderWidth: 1 },
   navBtnText: { fontSize: 16, fontWeight: '700' },
   semaineLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 1, textAlign: 'center', flex: 1 },
-  resumoCard: { marginHorizontal: 20, marginBottom: 16, borderRadius: 16, borderWidth: 1, padding: 16, overflow: 'hidden' },
+  resumoCard: { marginHorizontal: 20, marginBottom: 12, borderRadius: 16, borderWidth: 1, padding: 16, overflow: 'hidden' },
   resumoAccentBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: '#f5a623' },
-  resumoTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 3, marginBottom: 12 },
-  resumoRow: { flexDirection: 'row', marginBottom: 12 },
+  resumoTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 3, marginBottom: 8 },
+  resumoRow: { flexDirection: 'row', marginBottom: 8 },
   resumoItem: { flex: 1, alignItems: 'center' },
   resumoDivider: { width: 1 },
   resumoVal: { fontSize: 20, fontWeight: '800' },
   resumoLabel: { fontSize: 13, marginTop: 2, textTransform: 'uppercase', letterSpacing: 1 },
-  barraProgressoBg: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
+  barraProgressoBg: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
   barraProgressoFill: { height: '100%', borderRadius: 3 },
   exportBtn: { backgroundColor: '#f5a623', borderRadius: 10, padding: 12, alignItems: 'center' },
   exportBtnText: { fontSize: 13, fontWeight: '800', color: 'white' },
   avisoBox: { marginHorizontal: 20, marginBottom: 10, backgroundColor: 'rgba(243,156,18,0.1)', borderWidth: 1, borderColor: '#f39c12', borderRadius: 10, padding: 10 },
   avisoText: { fontSize: 14, color: '#f39c12', fontWeight: '600' },
-  listeTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 3, marginHorizontal: 20, marginBottom: 10 },
+  listeTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 3, marginHorizontal: 20, marginBottom: 8 },
   emptyBox: { alignItems: 'center', padding: 40, gap: 8 },
   emptyIcon: { fontSize: 40 },
   emptyText: { fontSize: 15, fontWeight: '700' },
@@ -1140,5 +1140,4 @@ const st = StyleSheet.create({
   jourFrais: { paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
   jourFraisLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   jourFraisVal: { fontSize: 18, fontWeight: '900' },
-  editHint: { fontSize: 9, fontWeight: '600', marginTop: 4 },
-})
+  editHint: { fontSize: 9, fontWeight: '600', marg

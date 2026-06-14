@@ -2089,7 +2089,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {calcResult.fraisConfirmado ? 'depuis historique' : 'estimé depuis calendrier'}
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
-                <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: '800', letterSpacing: 1, marginTop: 6 }}>{calcResult.mesFraisLabel.split(' ')[0].toUpperCase()}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 }} />

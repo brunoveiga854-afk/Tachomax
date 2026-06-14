@@ -97,69 +97,44 @@ export default function OnboardingScreen() {
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={[st.page, { paddingTop: 56 }]}>
-              <View style={st.logoSection}>
-                <TachoLogo size={32} textColor='#ffffff' />
-                <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
-              </View>
-
-              <View style={st.heroSection}>
-                <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
-                  <Image
-                    source={require('../assets/images/icon.png')}
-                    style={{ width: width, height: Math.round(width * 0.78), resizeMode: 'cover' }}
-                  />
-                  {/* Fade esquerdo */}
-                  {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
-                    <View key={'l'+i} style={{ position: 'absolute', left: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
-                  ))}
-                  {/* Fade direito */}
-                  {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
-                    <View key={'r'+i} style={{ position: 'absolute', right: i * 12, top: 0, bottom: 0, width: 14, backgroundColor: '#0f1117', opacity: op }} />
-                  ))}
-                  {/* Fade inferior */}
-                  {[0.7, 0.4, 0.15].map((op, i) => (
-                    <View key={'b'+i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 10, height: 12, backgroundColor: '#0f1117', opacity: op }} />
-                  ))}
-                </View>
-                <Text style={st.heroTitle}>Bienvenue !</Text>
-                <Text style={st.heroText}>
-                  TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
-                </Text>
-                <Text style={st.heroText2}>
-                  Minimum de saisie. Maximum de précision.
-                </Text>
-              </View>
-
-              <View style={st.features}>
-                {[
-                  { emoji: '⏱️', text: 'Chronomètre de service et pause' },
-                  { emoji: '🧾', text: 'Frais calculés automatiquement' },
-                  { emoji: '⚖️', text: 'Alertes limites légales' },
-                  { emoji: '🤖', text: 'IA lit ta fiche de paie' },
-                ].map(item => (
-                  <View key={item.text} style={st.featureRow}>
-                    <Text style={st.featureEmoji}>{item.emoji}</Text>
-                    <Text style={st.featureText}>{item.text}</Text>
-                  </View>
-                ))}
-              </View>
+          <View style={[st.page, { paddingTop: 8, flex: 1 }]}>
+            <View style={st.logoSection}>
+              <TachoLogo size={28} textColor='#ffffff' />
+              <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
             </View>
-          </ScrollView>
 
-          {/* Botão fixo no fundo */}
-          <TouchableOpacity
-            style={[st.btnNext, { position: 'absolute', bottom: 24, left: 16, right: 16 }]}
-            onPress={() => setEtape(1)}
-          >
-            <Text style={st.btnNextText}>COMMENCER →</Text>
-          </TouchableOpacity>
+            <View style={st.heroSection}>
+              <Image
+                source={require('../assets/images/icon.png')}
+                style={{ width: '88%', aspectRatio: 16 / 9, resizeMode: 'contain', alignSelf: 'center', marginBottom: 8 }}
+              />
+              <Text style={st.heroTitle}>Bienvenue !</Text>
+              <Text style={st.heroText}>
+                TachoOffice calcule automatiquement tes heures, tes frais et t'alerte avant les limites légales.
+              </Text>
+              <Text style={st.heroText2}>
+                Minimum de saisie. Maximum de précision.
+              </Text>
+            </View>
+
+            <View style={st.features}>
+              {[
+                { emoji: '⏱️', text: 'Chronomètre de service et pause' },
+                { emoji: '🧾', text: 'Frais calculés automatiquement' },
+                { emoji: '⚖️', text: 'Alertes limites légales' },
+                { emoji: '🤖', text: 'IA lit ta fiche de paie' },
+              ].map(item => (
+                <View key={item.text} style={st.featureRow}>
+                  <Text style={st.featureEmoji}>{item.emoji}</Text>
+                  <Text style={st.featureText}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity style={[st.btnNext, { marginTop: 'auto' as any, marginBottom: 24 }]} onPress={() => setEtape(1)}>
+              <Text style={st.btnNextText}>COMMENCER →</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       )}
 
@@ -592,18 +567,18 @@ const st = StyleSheet.create({
   logoSection: { alignItems: 'center', marginBottom: 4 },
   logo: { fontSize: 36, fontWeight: '800', color: '#eef0f5', letterSpacing: 2 },
   accent: { color: '#f5a623' },
-  logoSub: { fontSize: 13, color: '#9ba3b8', marginTop: 4 },
+  logoSub: { fontSize: 12, color: '#9ba3b8', marginTop: 3 },
 
   // Hero
-  heroSection: { alignItems: 'center', marginTop: 0, marginBottom: 12, overflow: 'hidden' },
+  heroSection: { alignItems: 'center', marginTop: 0, marginBottom: 8, overflow: 'hidden' },
   heroEmoji: { fontSize: 60, marginBottom: 16 },
-  heroTitle: { fontSize: 28, fontWeight: '800', color: '#eef0f5', marginBottom: 12 },
-  heroText: { fontSize: 14, color: '#c4c9d8', textAlign: 'center', lineHeight: 22, marginBottom: 8 },
-  heroText2: { fontSize: 13, color: '#f5a623', fontWeight: '700', textAlign: 'center' },
+  heroTitle: { fontSize: 25, fontWeight: '800', color: '#eef0f5', marginBottom: 8 },
+  heroText: { fontSize: 13, color: '#c4c9d8', textAlign: 'center', lineHeight: 20, marginBottom: 6 },
+  heroText2: { fontSize: 12, color: '#f5a623', fontWeight: '700', textAlign: 'center' },
 
   // Features
   features: { gap: 6, marginBottom: 12 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#181c27', borderRadius: 10, padding: 9, borderWidth: 1, borderColor: '#2a3045' },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#181c27', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 9, borderWidth: 1, borderColor: '#2a3045' },
   featureEmoji: { fontSize: 20 },
   featureText: { fontSize: 13, color: '#c4c9d8', fontWeight: '500' },
 

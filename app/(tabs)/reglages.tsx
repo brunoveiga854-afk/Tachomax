@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { router } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
@@ -79,7 +80,7 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
       if (v !== null) setNotifications(v === 'true')
     })
-    AsyncStorage.getItem('padrao').then(v => {
+    AsyncStorage.getItem('monSalaire_padrao').then(v => {
       if (v) {
         try { const p = JSON.parse(v); setPadraoState(p); setEditHbase(String(p.hbase || '')); setEditHval(String(p.hval || '')) } catch {}
       }
@@ -467,19 +468,20 @@ export default function ReglagesScreen() {
           />
         </View>
 
-        {/* TYPE DE TRANSPORT — accordion */}
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+        {/* TIPO DE TRANSPORTE + EQUIPAMENTO — accordion unificado */}
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
           <TouchableOpacity onPress={() => setTransportOpen(!transportOpen)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0 }]}>
-              {transportFrigo ? '❄️' : transportGrue ? '🏗️' : transportAdr ? '⚠️' : transportBenne ? '🪣' : transportCiterne ? '🚽' : transportPlateau ? '📦' : transportGrumier ? '🌲' : '🚛'}{' '}
-              {transportFrigo ? 'Frigorifique' : transportGrue ? 'Grue / Ampliroll' : transportAdr ? 'ADR' : transportBenne ? 'Benne' : transportCiterne ? 'Citerne' : transportPlateau ? 'Plateau' : transportGrumier ? 'Grumier' : 'Normal'}
+              {transportFrigo ? '❄️' : transportGrue ? '🏗️' : transportAdr ? '☢️' : transportBenne ? '🪣' : transportCiterne ? '🛢️' : transportPlateau ? '🚧' : transportGrumier ? '🌲' : '🚛'}{' '}
+              TYPE DE TRANSPORT & ÉQUIPEMENT
             </Text>
             <Text style={{ fontSize: 14, color: c.textSub, fontWeight: '700' }}>{transportOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>
           {transportOpen && (
             <View style={{ marginTop: 14 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: c.textSub, letterSpacing: 1.2, marginBottom: 8 }}>TYPE DE TRANSPORT</Text>
               <View style={[st.settingRow, { opacity: 0.5 }]}>
-                <Text style={[st.settingLabel, { color: c.text }]}>🚛 Normal</Text>
+                <Text style={[st.settingLabel, { color: c.text }]}>🚛 Normal / Tautliner</Text>
                 <Switch value={true} disabled trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
@@ -489,12 +491,7 @@ export default function ReglagesScreen() {
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
               <View style={st.settingRow}>
-                <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Grue / Ampliroll</Text>
-                <Switch value={transportGrue} onValueChange={async (v) => { setTransportGrue(v); await AsyncStorage.setItem('transport_grue', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
-              </View>
-              <View style={[st.divider, { backgroundColor: c.divider }]} />
-              <View style={st.settingRow}>
-                <Text style={[st.settingLabel, { color: c.text }]}>⚠️ ADR — Matières dangereuses</Text>
+                <Text style={[st.settingLabel, { color: c.text }]}>☢️ ADR — Matières dangereuses</Text>
                 <Switch value={transportAdr} onValueChange={async (v) => { setTransportAdr(v); await AsyncStorage.setItem('transport_adr', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#e74c3c' }} thumbColor="white" />
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
@@ -504,40 +501,43 @@ export default function ReglagesScreen() {
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
               <View style={st.settingRow}>
-                <Text style={[st.settingLabel, { color: c.text }]}>🚽 Citerne</Text>
+                <Text style={[st.settingLabel, { color: c.text }]}>🛢️ Citerne</Text>
                 <Switch value={transportCiterne} onValueChange={async (v) => { setTransportCiterne(v); await AsyncStorage.setItem('transport_citerne', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
               <View style={st.settingRow}>
-                <Text style={[st.settingLabel, { color: c.text }]}>📦 Plateau</Text>
+                <Text style={[st.settingLabel, { color: c.text }]}>🚧 Plateau</Text>
                 <Switch value={transportPlateau} onValueChange={async (v) => { setTransportPlateau(v); await AsyncStorage.setItem('transport_plateau', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
               </View>
               <View style={[st.divider, { backgroundColor: c.divider }]} />
               <View style={st.settingRow}>
-                <Text style={[st.settingLabel, { color: c.text }]}>🌲 Grumier</Text>
+                <Text style={[st.settingLabel, { color: c.text }]}>🌲 Grumier / Forestier</Text>
                 <Switch value={transportGrumier} onValueChange={async (v) => { setTransportGrumier(v); await AsyncStorage.setItem('transport_grumier', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+              </View>
+              <View style={[st.divider, { backgroundColor: c.divider }]} />
+              <View style={st.settingRow}>
+                <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Grue / Ampliroll</Text>
+                <Switch value={transportGrue} onValueChange={async (v) => { setTransportGrue(v); await AsyncStorage.setItem('transport_grue', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+              </View>
+
+              <View style={{ height: 12 }} />
+              <Text style={{ fontSize: 10, fontWeight: '800', color: c.textSub, letterSpacing: 1.2, marginBottom: 8 }}>ÉQUIPEMENT EMBARQUÉ</Text>
+              <View style={st.settingRow}>
+                <Text style={[st.settingLabel, { color: c.text }]}>🚜 Chariot élévateur</Text>
+                <Switch value={equipChariot} onValueChange={async (v) => { setEquipChariot(v); await AsyncStorage.setItem('equipement_chariot', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+              </View>
+              <View style={[st.divider, { backgroundColor: c.divider }]} />
+              <View style={st.settingRow}>
+                <Text style={[st.settingLabel, { color: c.text }]}>🚪 Hayon élévateur</Text>
+                <Switch value={equipHayon} onValueChange={async (v) => { setEquipHayon(v); await AsyncStorage.setItem('equipement_hayon', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+              </View>
+              <View style={[st.divider, { backgroundColor: c.divider }]} />
+              <View style={st.settingRow}>
+                <Text style={[st.settingLabel, { color: c.text }]}>🦾 Grue auxiliaire</Text>
+                <Switch value={equipGrueAux} onValueChange={async (v) => { setEquipGrueAux(v); await AsyncStorage.setItem('equipement_grue_aux', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
               </View>
             </View>
           )}
-        </View>
-
-        {/* ÉQUIPEMENT EMBARQUÉ */}
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>🔧 ÉQUIPEMENT EMBARQUÉ</Text>
-          <View style={st.settingRow}>
-            <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Chariot élévateur</Text>
-            <Switch value={equipChariot} onValueChange={async (v) => { setEquipChariot(v); await AsyncStorage.setItem('equipement_chariot', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
-          </View>
-          <View style={[st.divider, { backgroundColor: c.divider }]} />
-          <View style={st.settingRow}>
-            <Text style={[st.settingLabel, { color: c.text }]}>🚪 Hayon élévateur</Text>
-            <Switch value={equipHayon} onValueChange={async (v) => { setEquipHayon(v); await AsyncStorage.setItem('equipement_hayon', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
-          </View>
-          <View style={[st.divider, { backgroundColor: c.divider }]} />
-          <View style={st.settingRow}>
-            <Text style={[st.settingLabel, { color: c.text }]}>🔧 Grue auxiliaire</Text>
-            <Switch value={equipGrueAux} onValueChange={async (v) => { setEquipGrueAux(v); await AsyncStorage.setItem('equipement_grue_aux', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
-          </View>
         </View>
 
 
@@ -764,7 +764,7 @@ export default function ReglagesScreen() {
                     return
                   }
                   const updated = { ...padrao, hbase: hb, hval: hv, _conflitHbase: null }
-                  await AsyncStorage.setItem('padrao', JSON.stringify(updated))
+                  await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
                   setPadraoState(updated)
                   setSalSaved(true)
                   setTimeout(() => setSalSaved(false), 2000)
@@ -780,7 +780,7 @@ export default function ReglagesScreen() {
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
             onPress={async () => {
               await AsyncStorage.removeItem('onboarding_salaire_done')
-              Alert.alert('Réinitialisation', "L'assistant de configuration s'ouvrira la prochaine fois que tu consultes l'onglet Mon Salaire.")
+              router.push('/(tabs)/fiche')
             }}
           >
             <Text style={{ fontSize: 22 }}>⚙️</Text>

@@ -2416,7 +2416,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                     const val = parseFloat(editHbaseVal.replace(',', '.'))
                                     if (!isNaN(val) && val > 0) {
                                       const p = { ...padrao, hbase: val, _conflitHbase: null }
-                                      await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                                      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                                       setPadrao(p)
                                     }
                                     setEditHbaseVisible(false)
@@ -2444,7 +2444,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
                             const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null }
-                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                             setPadrao(p)
                             setConflitHbase(null)
                           }}>
@@ -2455,7 +2455,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
                             const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null }
-                            await AsyncStorage.setItem('padrao', JSON.stringify(p))
+                            await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                             setPadrao(p)
                             setConflitHbase(null)
                           }}>

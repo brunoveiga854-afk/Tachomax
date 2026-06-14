@@ -28,6 +28,10 @@ export default function OnboardingScreen() {
   const [coefficient, setCoefficient] = useState('')
   const [salBaseEstime, setSalBaseEstime] = useState('')
   const [heuresMensuel, setHeuresMensuel] = useState('')
+  const [obHbase, setObHbase] = useState(169)
+  const [obSaisirBrut, setObSaisirBrut] = useState(true)
+  const [obHvalBrut, setObHvalBrut] = useState('')
+  const [obSalNet, setObSalNet] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -51,13 +55,18 @@ export default function OnboardingScreen() {
     if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
     // backward compat — keep 'nom' with prenom for the main screen greeting
     await AsyncStorage.setItem('nom', prenom || nom)
-    // Pre-populate monSalaire_padrao from onboarding data (avoids asking same questions again)
+    // Pre-populate monSalaire_padrao from onboarding salary data
     const existingPadrao = await AsyncStorage.getItem('monSalaire_padrao')
-    if (!existingPadrao && (heuresMensuel || salBaseEstime)) {
-      const hbase = parseInt(heuresMensuel) || 169
-      const salNet = parseFloat(salBaseEstime) || 0
-      const hval = salNet > 0 && hbase > 0 ? Math.round((salNet / hbase) * 100) / 100 : 14.76
-      const liquidRate = 0.79
+    if (!existingPadrao) {
+      const hbase = obHbase
+      const salBrut = obSaisirBrut ? (parseFloat(obHvalBrut) || 0) : 0
+      const salNet = obSaisirBrut
+        ? (salBrut > 0 ? salBrut * hbase * 0.79 : 0)
+        : (parseFloat(obSalNet) || 0)
+      const hval = salBrut > 0
+        ? salBrut
+        : (salNet > 0 && hbase > 0 ? Math.round((salNet / hbase) * 100) / 100 : 14.76)
+      const liquidRate = obSaisirBrut && salBrut > 0 ? 0.79 : 0.79
       const valorDiaConges = salNet > 0 ? Math.round((salNet / 21.67) * 100) / 100 : 136.52
       const padraoInit = {
         descoberto: false, diaSalario: 5, diaFrais: 10,
@@ -91,7 +100,7 @@ export default function OnboardingScreen() {
             <View style={{ width: width, marginHorizontal: -24, marginBottom: 8, position: 'relative' }}>
             <Image
               source={require('../assets/images/icon.png')}
-              style={{ width: width, height: Math.round(width * 0.60), resizeMode: 'cover' }}
+              style={{ width: width, height: Math.round(width * 0.78), resizeMode: 'cover' }}
             />
             {/* Fade esquerdo */}
             {[0.85, 0.6, 0.4, 0.22, 0.1].map((op, i) => (
@@ -255,9 +264,84 @@ export default function OnboardingScreen() {
             placeholderTextColor="#6b7394"
             keyboardType="number-pad"
             maxLength={3}
-            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 28 }}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 24 }}
           />
 
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⏱️ HEURES DE CONTRAT PAR MOIS</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            {[
+              { h: 152, sub: '35h/sem' },
+              { h: 169, sub: 'standard transport' },
+              { h: 182, sub: '42h/sem' },
+              { h: 200, sub: '46h+/sem' },
+            ].map(({ h, sub }) => (
+              <TouchableOpacity
+                key={h}
+                onPress={() => setObHbase(h)}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: obHbase === h ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: obHbase === h ? 1.5 : 1, borderColor: obHbase === h ? '#f5a623' : '#2a3045' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '800', color: obHbase === h ? '#f5a623' : '#eef0f5' }}>{h}h</Text>
+                <Text style={{ fontSize: 10, color: obHbase === h ? '#f5a623' : '#6b7394', marginTop: 1 }}>{sub}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>💶 TON SALAIRE</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+            <TouchableOpacity onPress={() => setObSaisirBrut(true)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: obSaisirBrut ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obSaisirBrut ? 1.5 : 1, borderColor: obSaisirBrut ? '#f5a623' : '#2a3045' }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: obSaisirBrut ? '#f5a623' : '#9ba3b8' }}>Taux brut/h</Text>
+              <Text style={{ fontSize: 10, color: obSaisirBrut ? '#f5a623' : '#6b7394', marginTop: 1 }}>je saisis €/h brut</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setObSaisirBrut(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: !obSaisirBrut ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: !obSaisirBrut ? 1.5 : 1, borderColor: !obSaisirBrut ? '#f5a623' : '#2a3045' }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: !obSaisirBrut ? '#f5a623' : '#9ba3b8' }}>Net mensuel</Text>
+              <Text style={{ fontSize: 10, color: !obSaisirBrut ? '#f5a623' : '#6b7394', marginTop: 1 }}>je saisis € net/mois</Text>
+            </TouchableOpacity>
+          </View>
+          {obSaisirBrut ? (
+            <>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ton taux horaire brut ?</Text>
+              <TextInput
+                value={obHvalBrut}
+                onChangeText={setObHvalBrut}
+                keyboardType="numeric"
+                placeholder="ex: 18.50"
+                placeholderTextColor="#6b7394"
+                style={{ borderWidth: 1, borderColor: obHvalBrut ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 6, textAlign: 'center' }}
+              />
+              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 20, textAlign: 'center' }}>
+                {'Brut mensuel: '}
+                <Text style={{ color: '#eef0f5', fontWeight: '700' }}>
+                  {obHvalBrut && obHbase > 0 ? (parseFloat(obHvalBrut) * obHbase).toFixed(0) + ' €' : '---'}
+                </Text>
+                {'  →  '}
+                <Text style={{ color: '#f5a623', fontWeight: '800' }}>
+                  {obHvalBrut && obHbase > 0 ? (parseFloat(obHvalBrut) * obHbase * 0.79).toFixed(0) + ' € net' : '---'}
+                </Text>
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ton salaire net mensuel ? (sans les frais)</Text>
+              <TextInput
+                value={obSalNet}
+                onChangeText={setObSalNet}
+                keyboardType="numeric"
+                placeholder="ex: 2800"
+                placeholderTextColor="#6b7394"
+                style={{ borderWidth: 1, borderColor: obSalNet ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 6, textAlign: 'center' }}
+              />
+              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 20, textAlign: 'center' }}>
+                {'Taux horaire net: '}
+                <Text style={{ color: '#f5a623', fontWeight: '700' }}>
+                  {obSalNet && obHbase > 0 ? (parseFloat(obSalNet) / obHbase).toFixed(2) + ' €/h' : '---'}
+                </Text>
+                {'  Valeur congé/j: '}
+                <Text style={{ color: '#f5a623', fontWeight: '700' }}>
+                  {obSalNet && obHbase > 0 ? (parseFloat(obSalNet) / 21.67).toFixed(2) + ' €' : '---'}
+                </Text>
+              </Text>
+            </>
+          )}
 
         </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32, paddingTop: 12 }}>
@@ -482,13 +566,13 @@ const st = StyleSheet.create({
   page: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
 
   // Logo
-  logoSection: { alignItems: 'center', marginBottom: 10 },
+  logoSection: { alignItems: 'center', marginBottom: 4 },
   logo: { fontSize: 36, fontWeight: '800', color: '#eef0f5', letterSpacing: 2 },
   accent: { color: '#f5a623' },
   logoSub: { fontSize: 13, color: '#9ba3b8', marginTop: 4 },
 
   // Hero
-  heroSection: { alignItems: 'center', marginTop: 8, marginBottom: 12, overflow: 'hidden' },
+  heroSection: { alignItems: 'center', marginTop: 0, marginBottom: 12, overflow: 'hidden' },
   heroEmoji: { fontSize: 60, marginBottom: 16 },
   heroTitle: { fontSize: 28, fontWeight: '800', color: '#eef0f5', marginBottom: 12 },
   heroText: { fontSize: 14, color: '#c4c9d8', textAlign: 'center', lineHeight: 22, marginBottom: 8 },

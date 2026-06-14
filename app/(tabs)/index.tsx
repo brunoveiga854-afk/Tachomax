@@ -125,6 +125,7 @@ export default function AujourdhuiScreen() {
     if (snackbarTimer.current) clearTimeout(snackbarTimer.current)
     snackbarTimer.current = setTimeout(() => setSnackbar(null), 3500)
   }
+  useEffect(() => { return () => { if (snackbarTimer.current) clearTimeout(snackbarTimer.current) } }, [])
   const [showReglementation, setShowReglementation] = useState(false)
   const [diasHistorique, setDiasHistorique] = useState<Jour[]>([])
   const [showAddDia, setShowAddDia] = useState(false)

@@ -5,7 +5,7 @@ import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -571,8 +571,13 @@ const getJoursMois = () => {
   )
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
-      <ScrollView
+      <FlatList
         showsVerticalScrollIndicator={false}
+        data={validos}
+        keyExtractor={(item) => item.id}
+        initialNumToRender={15}
+        windowSize={10}
+        removeClippedSubviews={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -585,7 +590,27 @@ const getJoursMois = () => {
             tintColor={'#f5a623'}
           />
         }
-      >
+        ListEmptyComponent={
+          <View style={st.emptyBox}>
+            <Text style={st.emptyIcon}>📭</Text>
+            <Text style={[st.emptyText, { color: c.emptyText }]}>Aucun service enregistré</Text>
+            <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
+          </View>
+        }
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        renderItem={({ item: jour, index: idx }) => (
+          <JourCardSwipeable
+            key={jour.id}
+            jour={jour}
+            themeSombre={themeSombre}
+            c={c}
+            index={idx}
+            onDelete={() => eliminarJour(jour.id)}
+            onEdit={() => abrirEdicao(jour)}
+            onNote={() => abrirNota(jour)}
+          />
+        )}
+        ListHeaderComponent={<>
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />
           <TouchableOpacity onPress={() => { setSemaine(0); setMoisOffset(0) }} style={[st.resetBtn, { backgroundColor: c.navBtn, borderColor: c.navBtnBorder }]}>
@@ -757,28 +782,8 @@ const getJoursMois = () => {
           </View>
         )}
         <Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>
-        {validos.length === 0 ? (
-          <View style={st.emptyBox}>
-            <Text style={st.emptyIcon}>📭</Text>
-            <Text style={[st.emptyText, { color: c.emptyText }]}>Aucun service enregistré</Text>
-            <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
-          </View>
-        ) : (
-          validos.map((jour, idx) => (
-            <JourCardSwipeable
-              key={jour.id}
-              jour={jour}
-              themeSombre={themeSombre}
-              c={c}
-              index={idx}
-              onDelete={() => eliminarJour(jour.id)}
-              onEdit={() => abrirEdicao(jour)}
-              onNote={() => abrirNota(jour)}
-            />
-          ))
-        )}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      </>}
+      />
 
       {/* MODAL EDIT */}
       <Modal visible={showEdit} transparent animationType="slide">

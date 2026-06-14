@@ -117,6 +117,7 @@ export default function AujourdhuiScreen() {
 
   const [showCalendario, setShowCalendario] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [storageErro, setStorageErro] = useState<string | null>(null)
   const [showReglementation, setShowReglementation] = useState(false)
   const [diasHistorique, setDiasHistorique] = useState<Jour[]>([])
   const [showAddDia, setShowAddDia] = useState(false)
@@ -514,10 +515,15 @@ export default function AujourdhuiScreen() {
     } else {
       const dados = await AsyncStorage.getItem('monSalaire_v2')
       if (dados) {
-        const hist = JSON.parse(dados)
-        if (hist.length > 0 && hist[0].conducteur) {
-          const primeiroNome = hist[0].conducteur.split(' ')[0]
-          setNomeConducteur(primeiroNome)
+        try {
+          const hist = JSON.parse(dados)
+          if (hist.length > 0 && hist[0].conducteur) {
+            const primeiroNome = hist[0].conducteur.split(' ')[0]
+            setNomeConducteur(primeiroNome)
+          }
+        } catch {
+          await AsyncStorage.removeItem('monSalaire_v2')
+          setStorageErro('Données salaire corrompues — réinitialisées.')
         }
       }
     }
@@ -750,12 +756,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let prevDec = false
     try {
       const fvData = await AsyncStorage.getItem('frais_valores')
-      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      if (fvData) {
+        try { fv = { ...fv, ...JSON.parse(fvData) } }
+        catch { await AsyncStorage.removeItem('frais_valores') }
+      }
       regles = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
-      const lista = existente ? JSON.parse(existente) : []
-      const [dia, mes] = addDiaStr.split('/').map(Number)
-      if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
+      try {
+        const lista = existente ? JSON.parse(existente) : []
+        const [dia, mes] = addDiaStr.split('/').map(Number)
+        if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
+      } catch { await AsyncStorage.removeItem('historique'); setStorageErro('Historique corrompu — réinitialisé.') }
     } catch (e) {}
     const result = calcularFraisJour({
       type,
@@ -813,7 +824,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
     try {
       const existente = await AsyncStorage.getItem('historique')
-      let lista = existente ? JSON.parse(existente) : []
+      let lista: any[] = []
+      if (existente) {
+        try { lista = JSON.parse(existente) }
+        catch { await AsyncStorage.removeItem('historique'); setStorageErro('Historique corrompu — réinitialisé. Ton nouveau jour a été sauvegardé.') }
+      }
       if (editandoDiaId) {
         // EDITAR — substituir o dia existente
         lista = lista.map((j: any) => j.id === editandoDiaId ? { ...j, ...diaDados } : j)
@@ -1394,6 +1409,16 @@ const pararGPS = async () => {
 
   return (
     <SafeAreaView style={[st.safe, { backgroundColor: c.bg }]}>
+      {storageErro && (
+        <TouchableOpacity
+          onPress={() => setStorageErro(null)}
+          style={{ backgroundColor: 'rgba(231,76,60,0.12)', borderBottomWidth: 1, borderBottomColor: 'rgba(231,76,60,0.3)', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+        >
+          <Text style={{ fontSize: 14 }}>⚠️</Text>
+          <Text style={{ flex: 1, fontSize: 12, color: '#e74c3c', fontWeight: '600', lineHeight: 16 }}>{storageErro}</Text>
+          <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '800' }}>✕</Text>
+        </TouchableOpacity>
+      )}
       <ScrollView
         ref={mainScrollRef}
         showsVerticalScrollIndicator={false}

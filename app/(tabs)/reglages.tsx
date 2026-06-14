@@ -107,10 +107,30 @@ export default function ReglagesScreen() {
     setTimeout(() => setShowModalSucesso(true), 300)
   }
 
+  const criarBackupSilencioso = async (): Promise<string | null> => {
+    try {
+      const backup: any = { version: 'tachooffice-v1', exportedAt: new Date().toISOString(), data: {} }
+      const allKeys = await AsyncStorage.getAllKeys()
+      for (const key of allKeys) {
+        const val = await AsyncStorage.getItem(key)
+        if (val) { try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val } }
+      }
+      const date = new Date().toISOString().slice(0, 10)
+      const filename = `tachooffice_backup_avant_reset_${date}.json`
+      const path = `${FileSystem.documentDirectory}${filename}`
+      await FileSystem.writeAsStringAsync(path, JSON.stringify(backup, null, 2), { encoding: FileSystem.EncodingType.UTF8 })
+      return path
+    } catch { return null }
+  }
+
   const apagaTudo = async () => {
+    const backupPath = await criarBackupSilencioso()
     await AsyncStorage.clear()
     setShowModalReset(false)
-    setModalSucessoMsg("✅ App réinitialisée\nRedémarre l'app pour recommencer.")
+    const backupMsg = backupPath
+      ? "\n\n💾 Sauvegarde automatique créée avant la réinitialisation."
+      : "\n\n⚠️ Impossible de créer la sauvegarde automatique."
+    setModalSucessoMsg(`✅ App réinitialisée\nRedémarre l'app pour recommencer.${backupMsg}`)
     setTimeout(() => setShowModalSucesso(true), 300)
   }
 

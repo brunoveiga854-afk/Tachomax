@@ -337,7 +337,7 @@ export default function AujourdhuiScreen() {
   const guardarEstado = async (estado: any) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(estado))
-    } catch (e) { // console.log('Erro ao guardar estado:', e) }
+    } catch (e) { }
   }
 
   const criarEstadoSnapshot = (overrides: any = {}) => {
@@ -506,7 +506,7 @@ export default function AujourdhuiScreen() {
       aplicarEstadoPersistido(estado, tempoBackground)
       await iniciarGPS()
       await iniciarGPSBackground()
-    } catch (e) { // console.log('Erro ao restaurar estado:', e) }
+    } catch (e) { }
   }
 
   const carregarConfigs = async () => {
@@ -697,7 +697,7 @@ export default function AujourdhuiScreen() {
         frais: semaine.reduce((a: number, j: any) => a + (j.frais || 0), 0),
         jours: semaine.filter((j: any) => j.type === 'TRAB' || j.type === 'DEC').length,
       })
-    } catch (e) { // console.log('Erro:', e) }
+    } catch (e) { }
   }
 
   const carregarDiasMes = async () => {
@@ -854,7 +854,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(lista)
       setEditandoDiaId(null)
       setShowAddDia(false)
-    } catch (e) { // console.log('Erro:', e) }
+    } catch (e) { }
   }
 
   const guardarProfil = async (p: Profil) => {
@@ -1284,7 +1284,7 @@ const pararGPS = async () => {
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
-    } catch (e) { // console.log('Erro:', e) }
+    } catch (e) { }
   }
 
   const handleTerminer = () => {

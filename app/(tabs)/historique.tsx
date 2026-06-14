@@ -216,7 +216,7 @@ export default function HistoriqueScreen() {
       const mudou = migrada.some((j: any, i: number) => j.date !== lista[i].date)
       if (mudou) await AsyncStorage.setItem('historique', JSON.stringify(migrada))
       setHistorique(migrada)
-    } catch (e) { // console.log('Erro:', e) }
+    } catch (e) { }
   }
   const c = {
     bg: themeSombre ? '#0f1117' : '#f0f2f8',

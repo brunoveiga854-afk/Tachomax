@@ -70,6 +70,7 @@ type Padrao = {
   // Aprende quando há discrepância entre o calculado e o recebido
   fraisFactorReal: number
   _conflitHbase?: { extraido: number; onboarding: number } | null
+  _hbaseManual?: boolean
   vehiculo?: string
   cargo?: string
 }
@@ -939,12 +940,14 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   if (comCoef.length > 0) {
     // Média dos coeficientes (devem ser iguais entre fiches da mesma empresa)
     const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length
-    const hbases = comCoef.map(d => d.hbase || 0).filter(v => v > 0)
+    const ARMADILHAS_HBASE = [157.67, 151.67, 133.92]
+    const hbases = comCoef.map(d => d.hbase || 0).filter(v => v > 0 && !ARMADILHAS_HBASE.some(a => Math.abs(v - a) < 0.1))
     const hvals  = comCoef.map(d => d.hval  || 0).filter(v => v > 0)
     const h25s   = comCoef.map(d => d.h25   || 0).filter(v => v > 0)
     const lim25s = comCoef.map(d => d.lim25 || 0).filter(v => v > 0)
     const h50s   = comCoef.map(d => d.h50   || 0).filter(v => v > 0)
-    if (hbases.length > 0) base.hbase = Math.round(avg(hbases) * 100) / 100
+    // Só actualiza hbase se não foi definido manualmente pelo utilizador
+    if (hbases.length > 0 && !base._hbaseManual) base.hbase = Math.round(avg(hbases) * 100) / 100
     if (hvals.length  > 0) base.hval  = Math.round(avg(hvals)  * 1000) / 1000
     if (h25s.length   > 0) base.h25   = Math.round(avg(h25s)   * 1000) / 1000
     if (lim25s.length > 0) base.lim25 = Math.round(avg(lim25s) * 100) / 100
@@ -2430,7 +2433,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                   onPress={async () => {
                                     const val = parseFloat(editHbaseVal.replace(',', '.'))
                                     if (!isNaN(val) && val > 0) {
-                                      const p = { ...padrao, hbase: val, _conflitHbase: null }
+                                      const p = { ...padrao, hbase: val, _conflitHbase: null, _hbaseManual: true }
                                       await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                                       setPadrao(p)
                                     }
@@ -2458,7 +2461,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
-                            const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null }
+                            const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null, _hbaseManual: true }
                             await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                             setPadrao(p)
                             setConflitHbase(null)
@@ -2469,7 +2472,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
-                            const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null }
+                            const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null, _hbaseManual: true }
                             await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
                             setPadrao(p)
                             setConflitHbase(null)

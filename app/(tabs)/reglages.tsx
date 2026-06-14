@@ -762,7 +762,7 @@ export default function ReglagesScreen() {
                     Alert.alert('Valeurs invalides', 'Vérifie que les deux valeurs sont des nombres positifs.')
                     return
                   }
-                  const updated = { ...padrao, hbase: hb, hval: hv, _conflitHbase: null }
+                  const updated = { ...padrao, hbase: hb, hval: hv, _conflitHbase: null, _hbaseManual: true }
                   await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
                   setPadraoState(updated)
                   setSalSaved(true)

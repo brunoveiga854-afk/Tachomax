@@ -21,6 +21,9 @@ export default function OnboardingScreen() {
   const [typeVehicule, setTypeVehicule] = useState('semi')
   const [typeCargo, setTypeCargo] = useState('general')
   const [kmInicial, setKmInicial] = useState('')
+  const [equipChariot, setEquipChariot] = useState(false)
+  const [equipHayon, setEquipHayon] = useState(false)
+  const [equipGrueAux, setEquipGrueAux] = useState(false)
   // Contrato (etapa 2)
   const [ancienneteAns, setAncienneteAns] = useState('')
   const [ancienneteMois, setAncienneteMois] = useState('')
@@ -50,6 +53,9 @@ export default function OnboardingScreen() {
     // Clear all flags then enable the selected one
     for (const key of Object.values(cargoToTransport)) await AsyncStorage.setItem(key, 'false')
     if (cargoToTransport[typeCargo]) await AsyncStorage.setItem(cargoToTransport[typeCargo], 'true')
+    await AsyncStorage.setItem('equipement_chariot', String(equipChariot))
+    await AsyncStorage.setItem('equipement_hayon', String(equipHayon))
+    await AsyncStorage.setItem('equipement_grue_aux', String(equipGrueAux))
     await AsyncStorage.setItem('profil', profil)
     if (prenom) await AsyncStorage.setItem('conducteur_prenom', prenom)
     if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
@@ -425,6 +431,24 @@ export default function OnboardingScreen() {
                 >
                   <Text style={{ fontSize: 13, fontWeight: '800', color: typeCargo === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
                   <Text style={{ fontSize: 11, color: typeCargo === val ? '#f5a623' : '#6b7394' }}>{sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* ÉQUIPEMENT EMBARQUÉ */}
+            <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🔧 ÉQUIPEMENT EMBARQUÉ</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+              {[
+                { key: 'chariot', label: '🏗️ Chariot', state: equipChariot, set: setEquipChariot },
+                { key: 'hayon',   label: '🚪 Hayon',   state: equipHayon,   set: setEquipHayon   },
+                { key: 'grue_aux',label: '🔧 Grue aux.',state: equipGrueAux, set: setEquipGrueAux },
+              ].map(({ key, label, state, set }) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={async () => { set(!state); await AsyncStorage.setItem('equipement_' + key, String(!state)) }}
+                  style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, backgroundColor: state ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: state ? 1.5 : 1, borderColor: state ? '#f5a623' : '#2a3045' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: state ? '#f5a623' : '#6b7394' }}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>

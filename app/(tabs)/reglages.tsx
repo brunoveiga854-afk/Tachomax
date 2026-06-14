@@ -59,6 +59,9 @@ export default function ReglagesScreen() {
   const [transportCiterne, setTransportCiterne] = useState(false)
   const [transportPlateau, setTransportPlateau] = useState(false)
   const [transportGrumier, setTransportGrumier] = useState(false)
+  const [equipChariot, setEquipChariot] = useState(false)
+  const [equipHayon, setEquipHayon] = useState(false)
+  const [equipGrueAux, setEquipGrueAux] = useState(false)
   const [transportOpen, setTransportOpen] = useState(false)
 
   useEffect(() => {
@@ -92,6 +95,9 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('transport_citerne').then(v => setTransportCiterne(v === 'true'))
     AsyncStorage.getItem('transport_plateau').then(v => setTransportPlateau(v === 'true'))
     AsyncStorage.getItem('transport_grumier').then(v => setTransportGrumier(v === 'true'))
+    AsyncStorage.getItem('equipement_chariot').then(v => setEquipChariot(v === 'true'))
+    AsyncStorage.getItem('equipement_hayon').then(v => setEquipHayon(v === 'true'))
+    AsyncStorage.getItem('equipement_grue_aux').then(v => setEquipGrueAux(v === 'true'))
   }, [])
 
   const fmtHM = (seg: number) => {
@@ -504,6 +510,25 @@ export default function ReglagesScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ÉQUIPEMENT EMBARQUÉ */}
+        <View style={[st.card, { marginBottom: 16 }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>🔧 ÉQUIPEMENT EMBARQUÉ</Text>
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Chariot élévateur</Text>
+            <Switch value={equipChariot} onValueChange={async (v) => { setEquipChariot(v); await AsyncStorage.setItem('equipement_chariot', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>🚪 Hayon élévateur</Text>
+            <Switch value={equipHayon} onValueChange={async (v) => { setEquipHayon(v); await AsyncStorage.setItem('equipement_hayon', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+          </View>
+          <View style={[st.divider, { backgroundColor: c.divider }]} />
+          <View style={st.settingRow}>
+            <Text style={[st.settingLabel, { color: c.text }]}>🔧 Grue auxiliaire</Text>
+            <Switch value={equipGrueAux} onValueChange={async (v) => { setEquipGrueAux(v); await AsyncStorage.setItem('equipement_grue_aux', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
+          </View>
         </View>
 
 

@@ -47,6 +47,7 @@ type MoisData = {
   fraisRecuConfirme?: number
   pagamentoSalMesIndex?: number; pagamentoSalAno?: number
   pagamentoFraisMesIndex?: number; pagamentoFraisAno?: number
+  estimativaSnapshot?: number
 }
 
 type Padrao = {
@@ -80,11 +81,26 @@ type CalcResult = {
   totalLiq: number; jours: number; hExtra25: number; hExtra50: number
   mesReceber: string; diaReceber: number; diaFrais: number
   empresa: string; precisao: number; mesAberto: boolean
-  mesHorasLabel: string  // ex: "Mai 2026"
-  mesFraisLabel: string  // ex: "Avril 2026"
-  salConfirmado?: boolean  // true quando o utilizador confirmou o valor real
-  fraisConfirmado?: boolean // true quando vem do histórico confirmado
+  mesHorasLabel: string
+  mesFraisLabel: string
+  salConfirmado?: boolean
+  fraisConfirmado?: boolean
+  // Campos para painel Analyse
+  nConges: number; nFeries: number; nRC: number
+  hNormal: number
+  fraisDetail: { ptd: number; dej: number; din: number; nui: number }
+  modoCalculo: 'preciso' | 'calibrado' | 'estimado'
+  liquidRateUsado: number
 }
+
+type DriftAlert = {
+  tipo: 'salaire' | 'frais' | 'misto' | null
+  percentagem: number
+  mensagem: string
+  mesesAnalisados: number
+}
+
+type DriftTuplo = { est: number; real: number; estFrais: number; realFrais: number; estSal: number; realSal: number }
 
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
@@ -101,6 +117,49 @@ const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
   if (padrao.descoberto) p += 10
   if (padrao.liquidRate !== DEF_SAL.liquidRate) p += 5
   return Math.min(p, 98)
+}
+
+// ── Detecção de drift ─────────────────────────────────────────────────────────
+const detectarDrift = (tuplos: DriftTuplo[]): DriftAlert => {
+  if (tuplos.length < 2) return { tipo: null, percentagem: 0, mensagem: '', mesesAnalisados: 0 }
+
+  const erros = tuplos.map(t => t.real > 0 && t.est > 0 ? ((t.est - t.real) / t.real) * 100 : null)
+    .filter(e => e !== null) as number[]
+
+  if (erros.length < 2) return { tipo: null, percentagem: 0, mensagem: '', mesesAnalisados: 0 }
+
+  const media = erros.reduce((a, b) => a + b, 0) / erros.length
+  const todosNaMesmaDirecao = erros.every(e => e > 0) || erros.every(e => e < 0)
+  const percentagem = Math.abs(Math.round(media))
+
+  if (!todosNaMesmaDirecao || percentagem < 5) {
+    return { tipo: null, percentagem: 0, mensagem: '', mesesAnalisados: erros.length }
+  }
+
+  const direcao = media > 0 ? 'au-dessus' : 'en-dessous'
+  let tipo: DriftAlert['tipo'] = 'misto'
+  let mensagem = ''
+
+  const errosSal = tuplos.map(t => t.realSal > 0 && t.estSal > 0 ? ((t.estSal - t.realSal) / t.realSal) * 100 : null)
+    .filter(e => e !== null) as number[]
+  const errosFrais = tuplos.map(t => t.realFrais > 0 && t.estFrais > 0 ? ((t.estFrais - t.realFrais) / t.realFrais) * 100 : null)
+    .filter(e => e !== null) as number[]
+
+  const mediaSal = errosSal.length >= 2 ? Math.abs(errosSal.reduce((a,b)=>a+b,0)/errosSal.length) : 0
+  const mediaFrais = errosFrais.length >= 2 ? Math.abs(errosFrais.reduce((a,b)=>a+b,0)/errosFrais.length) : 0
+
+  if (mediaSal > 7 && mediaFrais < 3) {
+    tipo = 'salaire'
+    mensagem = `Mes estimations de salaire sont systématiquement ${percentagem}% ${direcao} du réel sur ${erros.length} mois. Ton taux de cotisations ou ta grille salariale a peut-être changé. Charge une fiche de paye récente pour recalibrer.`
+  } else if (mediaFrais > 7 && mediaSal < 3) {
+    tipo = 'frais'
+    mensagem = `Mes calculs de frais s'écartent ${percentagem}% du réel sur ${erros.length} mois. Les critères de ton entreprise ont peut-être changé (heure du petit-déj, amplitude pour le déjeuner...). Charge un boletim de frais récent.`
+  } else {
+    tipo = 'misto'
+    mensagem = `Mes estimations sont ${percentagem}% ${direcao} du réel sur ${erros.length} mois consécutifs. Quelque chose a changé — salaire, frais ou les deux. Charge tes derniers documents pour que je me recalibre.`
+  }
+
+  return { tipo, percentagem, mensagem, mesesAnalisados: erros.length }
 }
 
 const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
@@ -1148,6 +1207,8 @@ export default function MonSalaireScreen() {
   const scrollAnim = useRef(new Animated.Value(0)).current
   const dustAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
+  const [showAnalyse, setShowAnalyse] = useState(false)
+  const [driftAlert, setDriftAlert] = useState<DriftAlert | null>(null)
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
@@ -1475,7 +1536,28 @@ export default function MonSalaireScreen() {
         mesFraisLabel: `${MOIS_NOMS[mesFrais]} ${anoFrais}`,
         salConfirmado: ficheReal?.salarioConfirmado || false,
         fraisConfirmado: fichesFrais.length > 0 && (fichesFrais[0].fraisConfirmado || (fichesFrais[0].fraisRecuConfirme || 0) > 0),
+        nConges: diasConges.length,
+        nFeries: diasFeries.length,
+        nRC: diasRC.length,
+        hNormal: Math.min(totalH, p.hbase),
+        fraisDetail: { ptd: fraisHorario.ptd, dej: fraisHorario.dej, din: fraisHorario.din, nui: fraisHorario.nui },
+        modoCalculo: ficheReal?.netPaye ? 'preciso' : p.taxaHorariaNetaMedia > 0 ? 'calibrado' : 'estimado',
+        liquidRateUsado: p.liquidRate,
       })
+      // Drift detection usando calcEstimativaMes para dados sem snapshot
+      const tuplosParaDrift: DriftTuplo[] = histSal
+        .filter(m => m.montantTotalRecu > 0 && m.salarioConfirmado)
+        .slice(0, 4)
+        .map(m => {
+          const est = m.estimativaSnapshot || calcEstimativaMes(m)
+          const realFrais = m.fraisRecuConfirme || m.fraisBoletim || 0
+          const estFrais = m.fraisBoletim || 0
+          const realSal = m.netPaye || 0
+          const estSal = est > 0 && estFrais > 0 ? Math.max(0, est - estFrais) : 0
+          return { est, real: m.montantTotalRecu, estFrais, realFrais, estSal, realSal }
+        })
+      setDriftAlert(detectarDrift(tuplosParaDrift))
+      setShowAnalyse(false)
       animarContagem(Math.round(totalLiq), mesAberto)
     } catch (e) {
       mostrarErro('Erreur: ' + String(e))
@@ -2123,6 +2205,207 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)' }}>* basé sur ton historique · pattern détecté</Text>
               )}
             </View>
+            {/* ── Bouton Analyse ─────────────────────────────────────────── */}
+            <TouchableOpacity
+              onPress={() => setShowAnalyse(v => !v)}
+              style={{ marginTop: 14, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6,
+                backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7,
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}
+            >
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '700' }}>
+                {showAnalyse ? "▲ Masquer l'analyse" : "🔍 Voir l'analyse"}
+              </Text>
+            </TouchableOpacity>
+
+            {showAnalyse && (
+              <View style={{ marginTop: 14, backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 16,
+                padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', gap: 14 }}>
+
+                {driftAlert && driftAlert.tipo && (
+                  <View style={{ backgroundColor: 'rgba(243,156,18,0.18)', borderRadius: 12, padding: 12,
+                    borderWidth: 1, borderColor: 'rgba(243,156,18,0.5)', gap: 6 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>⚠️ Quelque chose a changé</Text>
+                    <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 16 }}>{driftAlert.mensagem}</Text>
+                    <TouchableOpacity onPress={importerDocumentos}
+                      style={{ marginTop: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(243,156,18,0.3)',
+                        borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 }}>
+                      <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '700' }}>📄 Charger des documents</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.5)',
+                    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>Détail du calcul</Text>
+
+                  {calcResult.modoCalculo === 'preciso' ? (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>✅ Salaire réel (fiche confirmée)</Text>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)} €</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hNormal)}h norm. × {padrao.hval.toFixed(2)} €</Text>
+                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hNormal * padrao.hval)} €</Text>
+                      </View>
+                      {calcResult.hExtra25 > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra25)}h +25% × {padrao.h25.toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra25 * padrao.h25)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.hExtra50 > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra50)}h +50% × {padrao.h50.toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra50 * padrao.h50)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.nConges > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🏖 {calcResult.nConges}j congés × {(padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nConges * (padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval))} €</Text>
+                        </View>
+                      )}
+                      {calcResult.nFeries > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🎌 {calcResult.nFeries}j fériés × {(padrao.valorDiaFerie > 0 ? padrao.valorDiaFerie : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nFeries * (padrao.valorDiaFerie > 0 ? padrao.valorDiaFerie : (padrao.hbase / 22) * padrao.hval))} €</Text>
+                        </View>
+                      )}
+                      {calcResult.nRC > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🔄 {calcResult.nRC}j R.C. × {(padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nRC * (padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval))} €</Text>
+                        </View>
+                      )}
+                      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 2 }} />
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+                          Brut→Net ({Math.round(calcResult.liquidRateUsado * 100)}%{calcResult.liquidRateUsado === 0.79 ? ' · défaut ⚠️' : ' · réel ✅'})
+                        </Text>
+                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)} €</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
+                        Mode: {calcResult.modoCalculo === 'calibrado' ? '⚡ calibré (taxa neta média)' : '📊 estimé (formule classique)'}
+                      </Text>
+                    </>
+                  )}
+
+                  {calcResult.totalFrais > 0 && (
+                    <>
+                      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 2 }} />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.6)' }}>Frais ({calcResult.mesFraisLabel})</Text>
+                      {calcResult.fraisDetail.ptd > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🍵 Pt-déj × {calcResult.fraisDetail.ptd}</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.ptd * padrao.ptd)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.fraisDetail.dej > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🥗 Déjeuner × {calcResult.fraisDetail.dej}</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.dej * padrao.dej)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.fraisDetail.din > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🍽 Dîner × {calcResult.fraisDetail.din}</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.din * padrao.din)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.fraisDetail.nui > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🌙 Nuit × {calcResult.fraisDetail.nui}</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.nui * padrao.nui)} €</Text>
+                        </View>
+                      )}
+                      {calcResult.fraisConfirmado && (
+                        <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>✅ Frais depuis boletim confirmé</Text>
+                      )}
+                    </>
+                  )}
+
+                  <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 4 }} />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>TOTAL ESTIMÉ</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#2ecc71' }}>{fmtInt(calcResult.totalLiq)} €</Text>
+                  </View>
+                </View>
+
+                <View style={{ gap: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.5)',
+                    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>Données essentielles</Text>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{padrao.hval > 0 ? '🟢' : '🔴'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Taux horaire brut</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                        {padrao.hval > 0 ? `${padrao.hval.toFixed(2)} €/h · défini au démarrage` : 'Non défini — indispensable'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{padrao.hbase > 0 ? '🟢' : '🔴'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Heures base/mois</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                        {padrao.hbase > 0 ? `${padrao.hbase}h · défini au démarrage` : 'Non défini — indispensable'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{padrao.liquidRate !== 0.79 ? '🟢' : '🟡'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Taux cotisations (brut→net)</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                        {padrao.liquidRate !== 0.79
+                          ? `${Math.round(padrao.liquidRate * 100)}% net · appris depuis tes fiches ✅`
+                          : "79% · valeur par défaut — charge une fiche avec brut + net pour l'améliorer"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{(padrao.fraisFactorReal > 0 && padrao.fraisFactorReal !== 1) || padrao.ptd !== 4.42 ? '🟢' : '🟡'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Frais (PTD / Déj / Dîner / Nuit)</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                        {padrao.ptd !== 4.42 || (padrao.fraisFactorReal > 0 && padrao.fraisFactorReal !== 1)
+                          ? `${padrao.ptd}€ · ${padrao.dej}€ · ${padrao.din}€ · ${padrao.nui}€ · depuis boletins ✅`
+                          : 'Valeurs génériques — charge un boletim de frais pour calibrer'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{padrao.valorDiaConges > 0 ? '🟢' : '🟡'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Valeur jour congé</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                        {padrao.valorDiaConges > 0
+                          ? `${padrao.valorDiaConges.toFixed(2)} €/j · appris depuis fiches ✅`
+                          : `${((padrao.hbase / 22) * padrao.hval).toFixed(2)} €/j estimé (hbase÷22 × taux)`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 4, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, padding: 10 }}>
+                    <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 16 }}>
+                      {calcResult.modoCalculo === 'preciso'
+                        ? '✅ Mode précis — salaire réel depuis ta fiche de paye confirmée.'
+                        : calcResult.modoCalculo === 'calibrado'
+                        ? '⚡ Mode calibré — taxa neta moyenne apprise de ton historique. Très fiable.'
+                        : '📊 Mode estimé — formule classique. Charge plus de fiches pour améliorer.'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             <TouchableOpacity onPress={() => setShowPrevision(false)} style={{ marginTop: 16 }}>
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>↩ Retour</Text>
             </TouchableOpacity>

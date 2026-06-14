@@ -16,12 +16,28 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     if (params.mode === 'edit') {
-      // Carregar dados existentes e ir directo ao passo 2 (contrat)
+      // Carregar TODOS os dados existentes e ir directo ao passo 2 (contrat)
       Promise.all([
+        AsyncStorage.getItem('conducteur_prenom'),
+        AsyncStorage.getItem('conducteur_nom'),
+        AsyncStorage.getItem('profil'),
         AsyncStorage.getItem('anciennete'),
         AsyncStorage.getItem('coefficient'),
         AsyncStorage.getItem('monSalaire_padrao'),
-      ]).then(([anc, coef, padraoRaw]) => {
+        AsyncStorage.getItem('vehicule_type'),
+        AsyncStorage.getItem('cargo_type'),
+        AsyncStorage.getItem('tracteur_type'),
+        AsyncStorage.getItem('tracteur_value'),
+        AsyncStorage.getItem('remorque_type'),
+        AsyncStorage.getItem('remorque_value'),
+        AsyncStorage.getItem('km_ultimo_fim'),
+        AsyncStorage.getItem('equipement_chariot'),
+        AsyncStorage.getItem('equipement_hayon'),
+        AsyncStorage.getItem('equipement_grue_aux'),
+      ]).then(([pren, nomV, prof, anc, coef, padraoRaw, vType, cType, tType, tVal, rType, rVal, km, eChar, eHay, eGrue]) => {
+        if (pren) setPrenom(pren)
+        if (nomV) setNom(nomV)
+        if (prof === 'CD' || prof === 'MIXTE' || prof === 'LD') setProfil(prof)
         if (anc) {
           const matchAns = anc.match(/^(\d+)\s*ans/)
           const matchMois = anc.match(/(\d+)\s*mois/)
@@ -36,6 +52,16 @@ export default function OnboardingScreen() {
             if (p.hval && p.hval > 0) setObHvalBrut(String(p.hval))
           } catch {}
         }
+        if (vType) setTypeVehicule(vType)
+        if (cType) setTypeCargo(cType)
+        if (tType === 'immat' || tType === 'parc') setTracteurType(tType)
+        if (tVal) setTracteurValue(tVal)
+        if (rType === 'immat' || rType === 'parc') setRemorqueType(rType)
+        if (rVal) setRemorqueValue(rVal)
+        if (km) setKmInicial(km)
+        if (eChar === 'true') setEquipChariot(true)
+        if (eHay === 'true') setEquipHayon(true)
+        if (eGrue === 'true') setEquipGrueAux(true)
         setEtape(2)
       })
     }

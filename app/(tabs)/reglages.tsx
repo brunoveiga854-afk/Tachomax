@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
+import { useApp } from '../../context/AppContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 
@@ -27,6 +28,7 @@ const BACKUP_KEYS = [
 export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
+  const { recarregarApp, actualizarCampo } = useApp()
   const [profil, setProfil] = useState<'CD' | 'MIXTE' | 'LD'>('MIXTE')
   const [conducteurPrenom, setConducteurPrenom] = useState('')
   const [conducteurNom, setConducteurNom] = useState('')
@@ -64,10 +66,30 @@ export default function ReglagesScreen() {
   const [equipHayon, setEquipHayon] = useState(false)
   const [equipGrueAux, setEquipGrueAux] = useState(false)
   const [transportOpen, setTransportOpen] = useState(false)
-  const [padrao, setPadraoState] = useState<any>(null)
-  const [editHbase, setEditHbase] = useState('')
-  const [editHval, setEditHval] = useState('')
-  const [salSaved, setSalSaved] = useState(false)
+
+  // Novos — secção escondida + campos obrigatórios
+  const [versionTapCount, setVersionTapCount] = useState(0)
+  const [secretUnlocked, setSecretUnlocked] = useState(false)
+  const [camposOk, setCamposOk] = useState({ profil: true, hbase: true, hval: true, km: true })
+
+  // Verifica os 4 campos obrigatórios e persiste o estado
+  const atualizarCamposOk = async () => {
+    const pSalvo = await AsyncStorage.getItem('profil')
+    const padData = await AsyncStorage.getItem('monSalaire_padrao')
+    const kmRaw = await AsyncStorage.getItem('km_ultimo_fim')
+    let hbase = 0, hval = 0
+    if (padData) { try { const p = JSON.parse(padData); hbase = p.hbase || 0; hval = p.hval || 0 } catch {} }
+    const novosCampos = {
+      profil: !!pSalvo,
+      hbase: hbase > 0,
+      hval: hval > 0,
+      km: parseFloat(kmRaw || '') > 0,
+    }
+    setCamposOk(novosCampos)
+    const allOk = novosCampos.profil && novosCampos.hbase && novosCampos.hval && novosCampos.km
+    await AsyncStorage.setItem('campos_obrigatorios_ok', allOk ? 'true' : 'false')
+    actualizarCampo('camposObrigatoriosOk', allOk)
+  }
 
   useEffect(() => {
     AsyncStorage.getItem('profil').then(p => {
@@ -80,11 +102,7 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
       if (v !== null) setNotifications(v === 'true')
     })
-    AsyncStorage.getItem('monSalaire_padrao').then(v => {
-      if (v) {
-        try { const p = JSON.parse(v); setPadraoState(p); setEditHbase(String(p.hbase || '')); setEditHval(String(p.hval || '')) } catch {}
-      }
-    })
+
     AsyncStorage.getItem('rappel_saisie_ativo').then(v => {
       const ativo = v !== 'false'
       setRappelAtivo(ativo)
@@ -108,6 +126,7 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('equipement_chariot').then(v => setEquipChariot(v === 'true'))
     AsyncStorage.getItem('equipement_hayon').then(v => setEquipHayon(v === 'true'))
     AsyncStorage.getItem('equipement_grue_aux').then(v => setEquipGrueAux(v === 'true'))
+    atualizarCamposOk()
   }, [])
 
   const fmtHM = (seg: number) => {
@@ -150,7 +169,6 @@ export default function ReglagesScreen() {
     setTimeout(() => setShowModalSucesso(true), 300)
   }
 
-  // EXPORTAR — gera JSON com todos os dados
   const exportarDados = async () => {
     setLoadingExport(true)
     try {
@@ -159,21 +177,17 @@ export default function ReglagesScreen() {
         exportedAt: new Date().toISOString(),
         data: {}
       }
-
       for (const key of BACKUP_KEYS) {
         const val = await AsyncStorage.getItem(key)
         if (val) {
-        try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
+          try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
+        }
       }
-      }
-
       const json = JSON.stringify(backup, null, 2)
       const date = new Date().toISOString().slice(0, 10)
       const filename = `tachooffice_backup_${date}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
-
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 })
-
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(path, {
           mimeType: 'application/json',
@@ -185,13 +199,12 @@ export default function ReglagesScreen() {
         setShowModalSucesso(true)
       }
     } catch (e) {
-      setModalSucessoMsg('❌ Erreur lors de l\'export.\n' + String(e))
+      setModalSucessoMsg("❌ Erreur lors de l'export.\n" + String(e))
       setShowModalSucesso(true)
     }
     setLoadingExport(false)
   }
 
-  // IMPORTAR — lê JSON e restaura dados
   const importarDados = async () => {
     setLoadingImport(true)
     try {
@@ -199,29 +212,22 @@ export default function ReglagesScreen() {
         type: 'application/json',
         copyToCacheDirectory: true,
       })
-
       if (result.canceled) { setLoadingImport(false); return }
-
       const file = result.assets[0]
       const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 })
       const backup = JSON.parse(content)
-
-      // Validar formato
       if (!backup.data || !backup.version) {
         setModalSucessoMsg('❌ Fichier invalide.\nCe fichier ne semble pas être un backup TachoOffice.')
         setShowModalSucesso(true)
         setLoadingImport(false)
         return
       }
-
-      // Contar dados
       const nJours = backup.data.historique?.length || 0
       const nFiches = backup.data.monSalaire_v2?.length || 0
-
       setImportData({ backup, nJours, nFiches })
       setShowModalImport(true)
     } catch (e) {
-      setModalSucessoMsg('❌ Erreur lors de l\'import.\n' + String(e))
+      setModalSucessoMsg("❌ Erreur lors de l'import.\n" + String(e))
       setShowModalSucesso(true)
     }
     setLoadingImport(false)
@@ -235,10 +241,11 @@ export default function ReglagesScreen() {
       for (const [key, val] of Object.entries(backup.data)) {
         await AsyncStorage.setItem(key, JSON.stringify(val))
       }
+      await recarregarApp()
       setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nRedémarre l'app pour voir tes données.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {
-      setModalSucessoMsg('❌ Erreur lors de l\'import.\n' + String(e))
+      setModalSucessoMsg("❌ Erreur lors de l'import.\n" + String(e))
       setShowModalSucesso(true)
     }
     setImportData(null)
@@ -263,6 +270,22 @@ export default function ReglagesScreen() {
     version: themeSombre ? '#2a3045' : '#9096b0',
   }
 
+  // Separador visual entre secções
+  const SecSep = ({ label }: { label: string }) => (
+    <View style={{ marginHorizontal: 20, marginTop: 22, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: c.divider }} />
+      <Text style={{ fontSize: 9, fontWeight: '800', color: c.textSub, letterSpacing: 2, textTransform: 'uppercase' }}>{label}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: c.divider }} />
+    </View>
+  )
+
+  // Badge campo obrigatório
+  const ReqBadge = () => (
+    <View style={{ backgroundColor: '#e74c3c', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, marginLeft: 6 }}>
+      <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', letterSpacing: 0.3 }}>REQUIS</Text>
+    </View>
+  )
+
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -275,7 +298,10 @@ export default function ReglagesScreen() {
           <Text style={[st.title, { color: c.text }]}>{t.reglages}</Text>
         </View>
 
-        {/* NOM / PRÉNOM */}
+        {/* ── 1. CONDUCTEUR + PROFIL ── */}
+        <SecSep label="👤 CONDUCTEUR + PROFIL" />
+
+        {/* Conducteur */}
         <TouchableOpacity
           style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}
           onPress={() => { setEditPrenom(conducteurPrenom); setEditNom(conducteurNom); setShowNomModal(true) }}
@@ -298,58 +324,26 @@ export default function ReglagesScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* MODAL NOM / PRENOM */}
-        <Modal visible={showNomModal} transparent animationType="slide">
-          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowNomModal(false)}>
-            <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, borderWidth: 1, borderColor: c.cardBorder }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 20, textAlign: 'center' }}>👤 Conducteur</Text>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.5, marginBottom: 6 }}>PRÉNOM</Text>
-              <TextInput
-                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 16 }}
-                value={editPrenom}
-                onChangeText={setEditPrenom}
-                placeholder="Ex: Bruno"
-                placeholderTextColor={c.textSub}
-                autoCapitalize="words"
-              />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: c.textLabel, letterSpacing: 1.5, marginBottom: 6 }}>NOM DE FAMILLE</Text>
-              <TextInput
-                style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 24 }}
-                value={editNom}
-                onChangeText={v => setEditNom(v.toUpperCase())}
-                placeholder="Ex: VEIGA"
-                placeholderTextColor={c.textSub}
-                autoCapitalize="characters"
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
-                onPress={async () => {
-                  const p = editPrenom.trim()
-                  const n = editNom.trim()
-                  setConducteurPrenom(p)
-                  setConducteurNom(n)
-                  await AsyncStorage.setItem('conducteur_prenom', p)
-                  await AsyncStorage.setItem('conducteur_nom', n)
-                  await AsyncStorage.setItem('nom', p || n)
-                  setShowNomModal(false)
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
-
-        {/* PROFIL */}
+        {/* Profil */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.monProfil}</Text>
-          <Text style={[st.label, { color: c.textLabel }]}>{t.typeConducteur}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0 }]}>{t.monProfil}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={[st.label, { color: c.textLabel, marginBottom: 0 }]}>{t.typeConducteur}</Text>
+            {!camposOk.profil && <ReqBadge />}
+          </View>
           <View style={st.profilRow}>
             {(['CD', 'MIXTE', 'LD'] as const).map(p => (
               <TouchableOpacity
                 key={p}
                 style={[st.profilBtn, { backgroundColor: c.profilBtnBg, borderColor: c.profilBtnBorder }, profil === p && st.profilBtnActive]}
-                onPress={async () => { setProfil(p); await AsyncStorage.setItem('profil', p) }}
+                onPress={async () => {
+                  setProfil(p)
+                  await AsyncStorage.setItem('profil', p)
+                  actualizarCampo('profil', p)
+                  atualizarCamposOk()
+                }}
               >
                 <Text style={[st.profilBtnText, { color: profil === p ? '#f5a623' : c.profilBtnText }]}>
                   {p === 'CD' ? '🏠 CD' : p === 'MIXTE' ? '🔄 Mixte' : '🛣️ LD'}
@@ -366,18 +360,21 @@ export default function ReglagesScreen() {
           </View>
         </View>
 
-        {/* TRACTEUR */}
+        {/* ── 2. VÉHICULE ── */}
+        <SecSep label="🚛 VÉHICULE" />
+
+        {/* Tracteur */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>🚛 TRACTEUR</Text>
           <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
             <TouchableOpacity
-              onPress={async () => { setTracteurType('immat'); await AsyncStorage.setItem('tracteur_type', 'immat') }}
+              onPress={async () => { setTracteurType('immat'); await AsyncStorage.setItem('tracteur_type', 'immat'); actualizarCampo('tracteurType', 'immat') }}
               style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: tracteurType === 'immat' ? '#f5a623' : c.infoBox, alignItems: 'center' }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'immat' ? '#fff' : c.textSub }}>Immatriculation</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={async () => { setTracteurType('parc'); await AsyncStorage.setItem('tracteur_type', 'parc') }}
+              onPress={async () => { setTracteurType('parc'); await AsyncStorage.setItem('tracteur_type', 'parc'); actualizarCampo('tracteurType', 'parc') }}
               style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: tracteurType === 'parc' ? '#f5a623' : c.infoBox, alignItems: 'center' }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'parc' ? '#fff' : c.textSub }}>Numéro de parc</Text>
@@ -388,13 +385,17 @@ export default function ReglagesScreen() {
             onChangeText={async (v) => {
               setTracteurValue(v)
               await AsyncStorage.setItem('tracteur_value', v)
+              actualizarCampo('tracteurValue', v)
             }}
             placeholder={tracteurType === 'immat' ? 'ex: AB-123-CD' : 'ex: T042'}
             placeholderTextColor={c.textSub}
             autoCapitalize="characters"
             style={{ backgroundColor: c.infoBox, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
           />
-          <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>KM ACTUEL DU CAMION</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 6 }}>
+            <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700' }}>KM ACTUEL DU CAMION</Text>
+            {!camposOk.km && <ReqBadge />}
+          </View>
           <TextInput
             value={kmTracteurActuel}
             onChangeText={setKmTracteurActuel}
@@ -411,7 +412,9 @@ export default function ReglagesScreen() {
                 const km = kmTracteurActuel.trim()
                 if (!km || parseFloat(km) <= 0) return
                 await AsyncStorage.setItem('km_ultimo_fim', km)
-                setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour\: ' + km + ' km')
+                actualizarCampo('kmUltimoFim', parseInt(km))
+                await atualizarCamposOk()
+                setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour: ' + km + ' km')
                 setShowModalSucesso(true)
               }}
             >
@@ -426,8 +429,11 @@ export default function ReglagesScreen() {
                   { text: 'Compris', style: 'default', onPress: async () => {
                     setTracteurValue('')
                     await AsyncStorage.setItem('tracteur_value', '')
+                    actualizarCampo('tracteurValue', '')
                     setKmTracteurActuel('')
                     await AsyncStorage.setItem('km_ultimo_fim', '0')
+                    actualizarCampo('kmUltimoFim', 0)
+                    await atualizarCamposOk()
                   }},
                   { text: 'Annuler', style: 'cancel' },
                 ]
@@ -438,18 +444,18 @@ export default function ReglagesScreen() {
           </View>
         </View>
 
-        {/* SEMI-REMORQUE */}
+        {/* Semi-Remorque */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>🔗 SEMI-REMORQUE</Text>
           <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
             <TouchableOpacity
-              onPress={async () => { setRemorqueType('immat'); await AsyncStorage.setItem('remorque_type', 'immat') }}
+              onPress={async () => { setRemorqueType('immat'); await AsyncStorage.setItem('remorque_type', 'immat'); actualizarCampo('remorqueType', 'immat') }}
               style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: remorqueType === 'immat' ? '#f5a623' : c.infoBox, alignItems: 'center' }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'immat' ? '#fff' : c.textSub }}>Immatriculation</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={async () => { setRemorqueType('parc'); await AsyncStorage.setItem('remorque_type', 'parc') }}
+              onPress={async () => { setRemorqueType('parc'); await AsyncStorage.setItem('remorque_type', 'parc'); actualizarCampo('remorqueType', 'parc') }}
               style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: remorqueType === 'parc' ? '#f5a623' : c.infoBox, alignItems: 'center' }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'parc' ? '#fff' : c.textSub }}>Numéro de parc</Text>
@@ -460,6 +466,7 @@ export default function ReglagesScreen() {
             onChangeText={async (v) => {
               setRemorqueValue(v)
               await AsyncStorage.setItem('remorque_value', v)
+              actualizarCampo('remorqueValue', v)
             }}
             placeholder={remorqueType === 'immat' ? 'ex: AB-123-CD' : 'ex: AP2'}
             placeholderTextColor={c.textSub}
@@ -468,7 +475,7 @@ export default function ReglagesScreen() {
           />
         </View>
 
-        {/* TIPO DE TRANSPORTE + EQUIPAMENTO — accordion unificado */}
+        {/* Transport & Équipement — accordion */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder, marginBottom: 16 }]}>
           <TouchableOpacity onPress={() => setTransportOpen(!transportOpen)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[st.sectionTitle, { color: c.textLabel, marginBottom: 0, flex: 1, marginRight: 8 }]} numberOfLines={1} adjustsFontSizeToFit>
@@ -518,7 +525,6 @@ export default function ReglagesScreen() {
                 <Text style={[st.settingLabel, { color: c.text }]}>🏗️ Grue / Ampliroll</Text>
                 <Switch value={transportGrue} onValueChange={async (v) => { setTransportGrue(v); await AsyncStorage.setItem('transport_grue', String(v)) }} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
               </View>
-
               <View style={{ height: 12 }} />
               <Text style={{ fontSize: 10, fontWeight: '800', color: c.textSub, letterSpacing: 1.2, marginBottom: 8 }}>ÉQUIPEMENT EMBARQUÉ</Text>
               <View style={st.settingRow}>
@@ -539,8 +545,9 @@ export default function ReglagesScreen() {
           )}
         </View>
 
+        {/* ── 3. APPARENCE ── */}
+        <SecSep label="🎨 APPARENCE" />
 
-        {/* APPARENCE */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.apparence}</Text>
           <View style={st.settingRow}>
@@ -563,45 +570,11 @@ export default function ReglagesScreen() {
               thumbColor="white"
             />
           </View>
-          <View style={[st.divider, { backgroundColor: c.divider }]} />
-          <Text style={[st.label, { color: c.textLabel, marginBottom: 10 }]}>{t.langue}</Text>
-          <View style={st.langueRow}>
-            <TouchableOpacity
-              style={[st.langueBtn, { backgroundColor: c.langueBtn, borderColor: langue === 'fr' ? '#f5a623' : c.langueBtnBorder }, langue === 'fr' && st.langueBtnActive]}
-              onPress={() => setLangue('fr')}
-            >
-              <Text style={[st.langueBtnText, { color: langue === 'fr' ? '#f5a623' : c.text }]}>🇫🇷 Français</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[st.langueBtn, { backgroundColor: c.langueBtn, borderColor: langue === 'pt' ? '#f5a623' : c.langueBtnBorder }, langue === 'pt' && st.langueBtnActive]}
-              onPress={() => setLangue('pt')}
-            >
-              <Text style={[st.langueBtnText, { color: langue === 'pt' ? '#f5a623' : c.text }]}>🇵🇹 Português</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* MODE TEST */}
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>DÉVELOPPEMENT</Text>
-          <View style={st.settingRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[st.settingLabel, { color: c.text }]}>🧪 Mode test</Text>
-              <Text style={[st.settingSub, { color: c.textSub }]}>Affiche le bouton « Stop conduite » pour tests sans polluer les données</Text>
-            </View>
-            <Switch
-              value={modeTest}
-              onValueChange={async (valor) => {
-                setModeTest(valor)
-                await AsyncStorage.setItem('mode_test', String(valor))
-              }}
-              trackColor={{ false: '#d0d5e8', true: '#9b59b6' }}
-              thumbColor="white"
-            />
-          </View>
-        </View>
+        {/* ── 4. NOTIFICATIONS ── */}
+        <SecSep label="🔔 NOTIFICATIONS" />
 
-        {/* NOTIFICATIONS */}
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.notifications}</Text>
           <View style={st.settingRow}>
@@ -632,7 +605,6 @@ export default function ReglagesScreen() {
               thumbColor="white"
             />
           </View>
-
           <View style={[st.settingRow, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder }]}>
             <View style={{ flex: 1 }}>
               <Text style={[st.settingLabel, { color: c.text }]}>📋 Rappel de saisie</Text>
@@ -656,55 +628,63 @@ export default function ReglagesScreen() {
           </View>
         </View>
 
-        {/* LECTEUR TACHYGRAPHE */}
+
+        {/* ── 5. PARAMÈTRES SALAIRE ── */}
+        <SecSep label="💶 PARAMÈTRES SALAIRE" />
+
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>LECTEUR TACHYGRAPHE</Text>
-          <Text style={[st.settingSub, { color: c.textSub }]}>Connecte un lecteur Bluetooth pour importer automatiquement les données de ta carte conducteur</Text>
-          <TouchableOpacity style={[st.leitoresBtn, { backgroundColor: c.profilBtnBg, borderColor: c.cardBorder }]}>
-            <Text style={st.leitoresBtnText}>📡 Voir les appareils recommandés</Text>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>💶 PARAMÈTRES SALAIRE</Text>
+          <TouchableOpacity
+            style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.08)', borderColor: 'rgba(245,166,35,0.35)' }]}
+            onPress={() => router.push('/onboarding?mode=edit')}
+          >
+            <Text style={{ fontSize: 18 }}>✏️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Modifier mon contrat</Text>
+              <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>Relancer l'assistant contrat et salaire</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* ABONNEMENT */}
+
+        {/* ── 6. ABONNEMENT ── */}
+        <SecSep label="⭐ ABONNEMENT" />
+
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.abonnement}</Text>
           {diasTrial !== null && diasTrial > 0 ? (
-            <>
-              <View style={st.trialBox}>
-                <Text style={st.trialDays}>{diasTrial}</Text>
-                <Text style={[st.trialLabel, { color: c.textSub }]}>{t.joursEssai}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+              <Text style={{ fontSize: 40, fontWeight: '800', color: '#f5a623', lineHeight: 46 }}>{diasTrial}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{t.joursEssai}</Text>
                 {dataExpiracao && (
-                  <Text style={{ fontSize: 13, color: c.textSub, marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>
                     Expire le {dataExpiracao.getDate()}/{String(dataExpiracao.getMonth() + 1).padStart(2, '0')}/{dataExpiracao.getFullYear()}
                   </Text>
                 )}
               </View>
-              <TouchableOpacity style={st.subscribeBtn}>
-                <Text style={st.subscribeBtnText}>{t.sabonner}</Text>
-              </TouchableOpacity>
-            </>
+            </View>
           ) : (
-            <>
-              <View style={[st.trialBox, { backgroundColor: 'rgba(231,76,60,0.08)', borderRadius: 12, padding: 16 }]}>
-                <Text style={{ fontSize: 36, marginBottom: 4 }}>⏰</Text>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: '#e74c3c', textAlign: 'center' }}>
-                  Essai terminé
-                </Text>
-                <Text style={{ fontSize: 13, color: c.textSub, marginTop: 4, textAlign: 'center' }}>
-                  Abonne-toi pour continuer à utiliser TachoOffice
-                </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <Text style={{ fontSize: 28 }}>⏰</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#e74c3c' }}>Essai terminé</Text>
+                <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>Abonne-toi pour continuer</Text>
               </View>
-              <TouchableOpacity style={[st.subscribeBtn, { backgroundColor: '#e74c3c' }]}>
-                <Text style={st.subscribeBtnText}>🔓 S'abonner — 2,99€/mois</Text>
-              </TouchableOpacity>
-            </>
+            </View>
           )}
+          <TouchableOpacity style={[st.subscribeBtn, diasTrial !== null && diasTrial <= 0 ? { backgroundColor: '#e74c3c' } : {}]}>
+            <Text style={st.subscribeBtnText}>
+              {diasTrial !== null && diasTrial <= 0 ? "🔓 S'abonner — 2,99€/mois" : t.sabonner}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* SAUVEGARDE */}
+        {/* ── 7. SAUVEGARDE ── */}
+        <SecSep label="🔒 SAUVEGARDE" />
+
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>🔒 SAUVEGARDE</Text>
-
           <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(39,174,96,0.1)', borderColor: '#27ae60' }]}
             onPress={exportarDados}
@@ -720,82 +700,7 @@ export default function ReglagesScreen() {
               </Text>
             </View>
           </TouchableOpacity>
-
           <View style={{ height: 10 }} />
-
-          {padrao && (
-            <View style={{ marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.2, marginBottom: 12 }}>💶 PARAMÈTRES SALAIRE</Text>
-
-              <Text style={{ fontSize: 12, color: c.textLabel, fontWeight: '600', marginBottom: 4 }}>Heures de base / mois</Text>
-              <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6 }}>
-                {'Colonne "Base" de la ligne "Sous total Salaire de base" sur ta fiche de paye.'}
-              </Text>
-              <TextInput
-                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: c.text, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: Math.abs((padrao.hbase||0) - 157.67) < 0.1 || Math.abs((padrao.hbase||0) - 151.67) < 0.1 || Math.abs((padrao.hbase||0) - 133.92) < 0.1 ? '#FF9800' : 'rgba(255,255,255,0.12)' }}
-                keyboardType="decimal-pad"
-                value={editHbase}
-                onChangeText={setEditHbase}
-                placeholder="ex: 169"
-                placeholderTextColor={c.textSub}
-              />
-
-              <Text style={{ fontSize: 12, color: c.textLabel, fontWeight: '600', marginBottom: 4 }}>Taux horaire brut (€/h)</Text>
-              <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6 }}>
-                Salaire de base mensuel brut ÷ heures de base.
-              </Text>
-              <TextInput
-                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: c.text, fontSize: 16, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}
-                keyboardType="decimal-pad"
-                value={editHval}
-                onChangeText={setEditHval}
-                placeholder="ex: 14.78"
-                placeholderTextColor={c.textSub}
-              />
-
-              <TouchableOpacity
-                style={{ backgroundColor: salSaved ? '#27ae60' : '#f5a623', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
-                onPress={async () => {
-                  const hb = parseFloat(editHbase.replace(',', '.'))
-                  const hv = parseFloat(editHval.replace(',', '.'))
-                  if (isNaN(hb) || hb <= 0 || isNaN(hv) || hv <= 0) {
-                    Alert.alert('Valeurs invalides', 'Vérifie que les deux valeurs sont des nombres positifs.')
-                    return
-                  }
-                  const updated = { ...padrao, hbase: hb, hval: hv, _conflitHbase: null, _hbaseManual: true }
-                  await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
-                  setPadraoState(updated)
-                  setSalSaved(true)
-                  setTimeout(() => setSalSaved(false), 2000)
-                }}>
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-                  {salSaved ? '✅ Enregistré !' : 'Enregistrer'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: 'rgba(245,166,35,0.35)' }}
-                onPress={() => router.push('/onboarding?mode=edit')}
-              >
-                <Text style={{ color: '#f5a623', fontWeight: '700', fontSize: 13 }}>✏️  Modifier mon contrat / salaire</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.1)', borderColor: '#f5a623' }]}
-            onPress={() => router.replace('/(tabs)/fiche')}
-          >
-            <Text style={{ fontSize: 22 }}>⚙️</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Reconfigurer Mon Salaire</Text>
-              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
-                Relancer l'assistant véhicule, contrat et salaire
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <View style={{ height: 10 }} />
-
           <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(41,128,185,0.1)', borderColor: '#2980b9' }]}
             onPress={importarDados}
@@ -813,7 +718,9 @@ export default function ReglagesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* DADOS */}
+        {/* ── 8. MES DONNÉES ── */}
+        <SecSep label="🗑️ MES DONNÉES" />
+
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.mesDonnees}</Text>
           <TouchableOpacity style={st.btnDanger} onPress={() => setShowModalHistorique(true)}>
@@ -833,7 +740,9 @@ export default function ReglagesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* LÉGAL */}
+        {/* ── 9. LÉGAL + VERSION ── */}
+        <SecSep label="📋 LÉGAL" />
+
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>LÉGAL</Text>
           <TouchableOpacity
@@ -846,12 +755,120 @@ export default function ReglagesScreen() {
           <View style={{ height: 1, backgroundColor: c.cardBorder }} />
           <View style={{ paddingVertical: 12 }}>
             <Text style={[st.settingLabel, { color: c.text }]}>📦 Version</Text>
-            <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>TachoOffice v1.0.7 · build 13/06/2026</Text>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {
+                const next = versionTapCount + 1
+                setVersionTapCount(next)
+                if (next >= 5) { setSecretUnlocked(true); setVersionTapCount(0) }
+              }}
+            >
+              <Text style={[st.settingSub, { color: c.textSub, marginTop: 2 }]}>
+                TachoOffice v1.0.7 · build 13/06/2026{versionTapCount > 0 && versionTapCount < 5 ? ` (${5 - versionTapCount})` : ''}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
+        {/* ── 10. SECTION ESCONDIDA — 5 toques na versão ── */}
+        {secretUnlocked && (
+          <>
+            <SecSep label="⚙️ CONFIGURATION AVANCÉE" />
+            <View style={[st.section, { backgroundColor: c.card, borderColor: '#9b59b6' }]}>
+              <Text style={[st.sectionTitle, { color: '#9b59b6' }]}>🔧 DÉVELOPPEMENT</Text>
+
+              <Text style={[st.label, { color: c.textLabel, marginBottom: 10 }]}>{t.langue}</Text>
+              <View style={st.langueRow}>
+                <TouchableOpacity
+                  style={[st.langueBtn, { backgroundColor: c.langueBtn, borderColor: langue === 'fr' ? '#f5a623' : c.langueBtnBorder }, langue === 'fr' && st.langueBtnActive]}
+                  onPress={() => setLangue('fr')}
+                >
+                  <Text style={[st.langueBtnText, { color: langue === 'fr' ? '#f5a623' : c.text }]}>🇫🇷 Français</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[st.langueBtn, { backgroundColor: c.langueBtn, borderColor: langue === 'pt' ? '#f5a623' : c.langueBtnBorder }, langue === 'pt' && st.langueBtnActive]}
+                  onPress={() => setLangue('pt')}
+                >
+                  <Text style={[st.langueBtnText, { color: langue === 'pt' ? '#f5a623' : c.text }]}>🇵🇹 Português</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[st.divider, { backgroundColor: c.divider }]} />
+
+              <View style={st.settingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[st.settingLabel, { color: c.text }]}>🧪 Mode test</Text>
+                  <Text style={[st.settingSub, { color: c.textSub }]}>Affiche le bouton « Stop conduite » pour tests sans polluer les données</Text>
+                </View>
+                <Switch
+                  value={modeTest}
+                  onValueChange={async (valor) => {
+                    setModeTest(valor)
+                    await AsyncStorage.setItem('mode_test', String(valor))
+                  }}
+                  trackColor={{ false: '#d0d5e8', true: '#9b59b6' }}
+                  thumbColor="white"
+                />
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(155,89,182,0.3)' }}
+                  onPress={() => { setSecretUnlocked(false); setVersionTapCount(0) }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#9b59b6' }}>✕ Masquer cette section</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* MODAL NOM / PRÉNOM */}
+      <Modal visible={showNomModal} transparent animationType="slide">
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowNomModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, borderWidth: 1, borderColor: c.cardBorder }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 20, textAlign: 'center' }}>👤 Conducteur</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.5, marginBottom: 6 }}>PRÉNOM</Text>
+            <TextInput
+              style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 16 }}
+              value={editPrenom}
+              onChangeText={setEditPrenom}
+              placeholder="Ex: Bruno"
+              placeholderTextColor={c.textSub}
+              autoCapitalize="words"
+            />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: c.textLabel, letterSpacing: 1.5, marginBottom: 6 }}>NOM DE FAMILLE</Text>
+            <TextInput
+              style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 24 }}
+              value={editNom}
+              onChangeText={v => setEditNom(v.toUpperCase())}
+              placeholder="Ex: VEIGA"
+              placeholderTextColor={c.textSub}
+              autoCapitalize="characters"
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
+              onPress={async () => {
+                const p = editPrenom.trim()
+                const n = editNom.trim()
+                setConducteurPrenom(p)
+                setConducteurNom(n)
+                await AsyncStorage.setItem('conducteur_prenom', p)
+                await AsyncStorage.setItem('conducteur_nom', n)
+                await AsyncStorage.setItem('nom', p || n)
+                actualizarCampo('nom', p || n)
+                setShowNomModal(false)
+                setTimeout(() => { setModalSucessoMsg('✅ Nom enregistré'); setShowModalSucesso(true) }, 350)
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* MODAL PRIVACY POLICY */}
       <Modal visible={showPrivacy} transparent animationType="slide">
@@ -865,12 +882,12 @@ export default function ReglagesScreen() {
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {[
-                { titre: 'Données collectées', texte: 'TachoOffice stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l\'app. Aucune donnée n\'est envoyée vers des serveurs externes.' },
-                { titre: 'Stockage local', texte: 'Toutes tes données sont conservées localement sur ton appareil via AsyncStorage. Elles ne quittent jamais ton téléphone sauf si tu utilises la fonction d\'export manuel.' },
-                { titre: 'Localisation GPS', texte: 'L\'accès à la localisation est utilisé uniquement pour calculer les kilomètres parcourus pendant ton service. Les coordonnées GPS ne sont jamais enregistrées ni transmises.' },
-                { titre: 'Intelligence artificielle', texte: 'La fonctionnalité de lecture de fiche de paie utilise l\'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n\'est conservée par TachoOffice.' },
-                { titre: 'Notifications', texte: 'Les alertes (pause obligatoire, amplitude, rappel de saisie) sont gérées localement par ton appareil. Aucune notification n\'est envoyée depuis un serveur externe.' },
-                { titre: 'Pas de publicité', texte: 'TachoOffice ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales.' },
+                { titre: 'Données collectées', texte: "TachoOffice stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l'app. Aucune donnée n'est envoyée vers des serveurs externes." },
+                { titre: 'Stockage local', texte: "Toutes tes données sont conservées localement sur ton appareil via AsyncStorage. Elles ne quittent jamais ton téléphone sauf si tu utilises la fonction d'export manuel." },
+                { titre: 'Localisation GPS', texte: "L'accès à la localisation est utilisé uniquement pour calculer les kilomètres parcourus pendant ton service. Les coordonnées GPS ne sont jamais enregistrées ni transmises." },
+                { titre: 'Intelligence artificielle', texte: "La fonctionnalité de lecture de fiche de paie utilise l'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n'est conservée par TachoOffice." },
+                { titre: 'Notifications', texte: "Les alertes (pause obligatoire, amplitude, rappel de saisie) sont gérées localement par ton appareil. Aucune notification n'est envoyée depuis un serveur externe." },
+                { titre: 'Pas de publicité', texte: "TachoOffice ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales." },
                 { titre: 'Contact', texte: 'Pour toute question concernant tes données : brunoveiga854@gmail.com' },
               ].map(item => (
                 <View key={item.titre} style={{ marginBottom: 16 }}>
@@ -964,8 +981,6 @@ export default function ReglagesScreen() {
         </View>
       </Modal>
 
-
-
       {/* MODAL SUCESSO */}
       <Modal visible={showModalSucesso} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 40 }}>
@@ -1007,8 +1022,6 @@ const st = StyleSheet.create({
   langueBtn: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
   langueBtnActive: { backgroundColor: 'rgba(245,166,35,0.1)' },
   langueBtnText: { fontSize: 13, fontWeight: '700' },
-  leitoresBtn: { marginTop: 12, borderWidth: 1, borderRadius: 10, padding: 14, alignItems: 'center' },
-  leitoresBtnText: { fontSize: 13, fontWeight: '700', color: '#f5a623' },
   trialBox: { alignItems: 'center', paddingVertical: 16 },
   trialDays: { fontSize: 48, fontWeight: '800', color: '#f5a623' },
   trialLabel: { fontSize: 13, marginTop: 4 },

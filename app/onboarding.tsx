@@ -34,7 +34,9 @@ export default function OnboardingScreen() {
         AsyncStorage.getItem('equipement_chariot'),
         AsyncStorage.getItem('equipement_hayon'),
         AsyncStorage.getItem('equipement_grue_aux'),
-      ]).then(([pren, nomV, prof, anc, coef, padraoRaw, vType, cType, tType, tVal, rType, rVal, km, eChar, eHay, eGrue]) => {
+        AsyncStorage.getItem('contrat_net_mensuel'),
+        AsyncStorage.getItem('contrat_saisir_brut'),
+      ]).then(([pren, nomV, prof, anc, coef, padraoRaw, vType, cType, tType, tVal, rType, rVal, km, eChar, eHay, eGrue, netMensuel, saisirBrut]) => {
         if (pren) setPrenom(pren)
         if (nomV) setNom(nomV)
         if (prof === 'CD' || prof === 'MIXTE' || prof === 'LD') setProfil(prof)
@@ -48,7 +50,14 @@ export default function OnboardingScreen() {
         if (padraoRaw) {
           try {
             const p = JSON.parse(padraoRaw)
-            if (p.hbase && p.hbase > 0) setObHbase(p.hbase)
+            if (p.hbase && p.hbase > 0) {
+              setObHbase(p.hbase)
+              const presets = [152, 169, 182, 200]
+              if (!presets.includes(p.hbase)) {
+                setObHbaseIsCustom(true)
+                setObHbaseCustomInput(String(p.hbase))
+              }
+            }
             if (p.hval && p.hval > 0) setObHvalBrut(String(p.hval))
           } catch {}
         }
@@ -62,6 +71,8 @@ export default function OnboardingScreen() {
         if (eChar === 'true') setEquipChariot(true)
         if (eHay === 'true') setEquipHayon(true)
         if (eGrue === 'true') setEquipGrueAux(true)
+        if (saisirBrut !== null) setObSaisirBrut(saisirBrut === 'true')
+        if (netMensuel) setObSalNet(netMensuel)
         setEtape(2)
       })
     }
@@ -89,6 +100,8 @@ export default function OnboardingScreen() {
   const [obSaisirBrut, setObSaisirBrut] = useState(true)
   const [obHvalBrut, setObHvalBrut] = useState('')
   const [obSalNet, setObSalNet] = useState('')
+  const [obHbaseIsCustom, setObHbaseIsCustom] = useState(false)
+  const [obHbaseCustomInput, setObHbaseCustomInput] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -116,19 +129,22 @@ export default function OnboardingScreen() {
     if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
     // backward compat — keep 'nom' with prenom for the main screen greeting
     await AsyncStorage.setItem('nom', prenom || nom)
+    // Persister les valeurs de salaire pour restauration en mode edit
+    await AsyncStorage.setItem('contrat_saisir_brut', String(obSaisirBrut))
+    if (!obSaisirBrut && obSalNet) await AsyncStorage.setItem('contrat_net_mensuel', obSalNet)
     // Pre-populate monSalaire_padrao from onboarding salary data
-    const existingPadrao = await AsyncStorage.getItem('monSalaire_padrao')
-    if (!existingPadrao) {
-      const hbase = obHbase
-      const salBrut = obSaisirBrut ? (parseFloat(obHvalBrut) || 0) : 0
-      const salNet = obSaisirBrut
-        ? (salBrut > 0 ? salBrut * hbase * 0.79 : 0)
-        : (parseFloat(obSalNet) || 0)
-      const hval = salBrut > 0
-        ? salBrut
-        : (salNet > 0 && hbase > 0 ? Math.round((salNet / hbase) * 100) / 100 : 14.76)
-      const liquidRate = obSaisirBrut && salBrut > 0 ? 0.79 : 0.79
-      const valorDiaConges = salNet > 0 ? Math.round((salNet / 21.67) * 100) / 100 : 136.52
+    const existingPadraoRaw = await AsyncStorage.getItem('monSalaire_padrao')
+    const hbase = obHbase
+    const salBrut = obSaisirBrut ? (parseFloat(obHvalBrut) || 0) : 0
+    const salNet = obSaisirBrut
+      ? (salBrut > 0 ? salBrut * hbase * 0.79 : 0)
+      : (parseFloat(obSalNet) || 0)
+    const hval = salBrut > 0
+      ? salBrut
+      : (salNet > 0 && hbase > 0 ? Math.round((salNet / hbase) * 100) / 100 : 14.76)
+    const liquidRate = 0.79
+    const valorDiaConges = salNet > 0 ? Math.round((salNet / 21.67) * 100) / 100 : 136.52
+    if (!existingPadraoRaw) {
       const padraoInit = {
         descoberto: false, diaSalario: 5, diaFrais: 10,
         defasagemFrais: 1, confianca: 0,
@@ -142,6 +158,21 @@ export default function OnboardingScreen() {
         vehiculo: typeVehicule, cargo: typeCargo,
       }
       await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit))
+    } else if (params.mode === 'edit' && (hbase > 0 || hval > 0)) {
+      // En mode édition, mettre à jour hbase/hval/h25/h50 tout en préservant les données apprises
+      try {
+        const existing = JSON.parse(existingPadraoRaw)
+        const updated = {
+          ...existing,
+          hbase,
+          hval,
+          h25: Math.round(hval * 1.25 * 100) / 100,
+          h50: Math.round(hval * 1.5 * 100) / 100,
+          valorDiaConges,
+          taxaHorariaNetaMedia: hval * (existing.liquidRate ?? liquidRate),
+        }
+        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
+      } catch {}
     }
     router.replace('/(tabs)/fiche')
   }
@@ -334,14 +365,37 @@ export default function OnboardingScreen() {
             ].map(({ h, sub }) => (
               <TouchableOpacity
                 key={h}
-                onPress={() => setObHbase(h)}
-                style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: obHbase === h ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: obHbase === h ? 1.5 : 1, borderColor: obHbase === h ? '#f5a623' : '#2a3045' }}
+                onPress={() => { setObHbase(h); setObHbaseIsCustom(false); setObHbaseCustomInput('') }}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: !obHbaseIsCustom && obHbase === h ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: !obHbaseIsCustom && obHbase === h ? 1.5 : 1, borderColor: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#2a3045' }}
               >
-                <Text style={{ fontSize: 15, fontWeight: '800', color: obHbase === h ? '#f5a623' : '#eef0f5' }}>{h}h</Text>
-                <Text style={{ fontSize: 10, color: obHbase === h ? '#f5a623' : '#6b7394', marginTop: 1 }}>{sub}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#eef0f5' }}>{h}h</Text>
+                <Text style={{ fontSize: 10, color: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#6b7394', marginTop: 1 }}>{sub}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              onPress={() => { setObHbaseIsCustom(true); if (!obHbaseCustomInput) setObHbase(0) }}
+              style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: obHbaseIsCustom ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: obHbaseIsCustom ? 1.5 : 1, borderColor: obHbaseIsCustom ? '#f5a623' : '#2a3045' }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '800', color: obHbaseIsCustom ? '#f5a623' : '#eef0f5' }}>Autre</Text>
+              <Text style={{ fontSize: 10, color: obHbaseIsCustom ? '#f5a623' : '#6b7394', marginTop: 1 }}>saisir manuellement</Text>
+            </TouchableOpacity>
           </View>
+          {obHbaseIsCustom && (
+            <TextInput
+              value={obHbaseCustomInput}
+              onChangeText={v => {
+                const clean = v.replace(/[^0-9]/g, '')
+                setObHbaseCustomInput(clean)
+                const n = parseInt(clean) || 0
+                if (n > 0) setObHbase(n)
+              }}
+              keyboardType="number-pad"
+              placeholder="ex: 151, 186..."
+              placeholderTextColor="#6b7394"
+              maxLength={4}
+              style={{ borderWidth: 1.5, borderColor: obHbaseCustomInput ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 12, textAlign: 'center' }}
+            />
+          )}
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>💶 TON SALAIRE</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>

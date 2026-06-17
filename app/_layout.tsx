@@ -1,6 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import { AppProvider } from '../context/AppContext'
 import { ThemeProvider } from '../context/ThemeContext'
 import { LangueProvider } from '../context/LangueContext'
 import { useEffect } from 'react'
@@ -25,15 +26,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <LangueProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </LangueProvider>
-      </ThemeProvider>
+      <AppProvider>
+        <ThemeProvider>
+          <LangueProvider>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </LangueProvider>
+        </ThemeProvider>
+      </AppProvider>
     </GestureHandlerRootView>
   )
 }

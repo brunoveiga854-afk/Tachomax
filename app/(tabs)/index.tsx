@@ -2,12 +2,13 @@ import { TachoLogo } from '../../src/TachoLogo'
 import { useFocusEffect } from 'expo-router'
 import { Accelerometer } from 'expo-sensors'
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, Dimensions } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, Dimensions, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
+import { useApp } from '../../context/AppContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { LOCATION_TASK_NAME } from '../../src/tasks'
 import { calcularFraisJour } from '../../src/frais'
@@ -16,6 +17,8 @@ import {
   agendarAlertaPausa,
   agendarAlertaAmplitude,
   agendarAlertaConduicaoDiaria,
+  agendarAlertaPauseCC15,
+  agendarAlertaPauseCC45,
   cancelarTodosAlertas,
   cancelarRappelSaisie,
   agendarRappelSaisie,
@@ -29,9 +32,19 @@ import {
   GPS_MOVIMENTO_SALTO_MAX_KM,
   GPS_MOVIMENTO_GAP_S,
   GPS_MOVIMENTO_GAP_MAX_KM,
+  GPS_PRECISAO_MAX,
   VEL_BUFFER_SIZE,
   ACCEL_SALTO_MAX_KMH,
   mediana,
+  GPS_MENTIROSO_ZONA_VEL_MIN,
+  GPS_MENTIROSO_ZONA_VEL_MAX,
+  GPS_MENTIROSO_ZONA_INFERIDA_MAX,
+  GPS_MENTIROSO_ZONA_TICKS,
+  GPS_ANCORA_RAIO_M,
+  GPS_ANCORA_MOVIMENTO_TICKS,
+  HISTERESE_ARRANQUE_KMH,
+  HISTERESE_PARAGEM_KMH,
+  MEDIANA_SUSTENTADA_S,
 } from '../../src/constants'
 type Profil = 'CD' | 'MIXTE' | 'LD'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
@@ -61,6 +74,7 @@ const STORAGE_KEY = 'TACHOOFFICE_estado'
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
   const { t } = useLangue()
+  const { state: appState, recarregarApp } = useApp()
   const [enService, setEnService] = useState(false)
   const [emPausa, setEmPausa] = useState(false)
   const [decouche, setDecouche] = useState(false)
@@ -103,6 +117,8 @@ export default function AujourdhuiScreen() {
   // Pausas CE 561/2006 — rastrear sequência 15+30
   const [pausas, setPausas] = useState<{dur: number, inicio: number}[]>([])
   const [showPausasModal, setShowPausasModal] = useState(false)
+  const [showPausaDuracaoModal, setShowPausaDuracaoModal] = useState(false)
+  const [pausaDuracaoInput, setPausaDuracaoInput] = useState('')
   const [showStats, setShowStats] = useState(false)
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, conduite: true, pauses: true, frais: true, amplitude: true, assiduite: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
@@ -118,6 +134,7 @@ export default function AujourdhuiScreen() {
   const [showCalendario, setShowCalendario] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [storageErro, setStorageErro] = useState<string | null>(null)
+  const [appReady, setAppReady] = useState(false)
   const [snackbar, setSnackbar] = useState<string | null>(null)
   const snackbarTimer = useRef<any>(null)
   const showSnackbar = (msg: string) => {
@@ -145,10 +162,11 @@ export default function AujourdhuiScreen() {
   const [kmInicioAuto, setKmInicioAuto] = useState(false)
   const [showKmInicio, setShowKmInicio] = useState(false)
   const [kmDebutConfirme, setKmDebutConfirme] = useState(false)
+  const [ultimoTerminerTs, setUltimoTerminerTs] = useState<number | null>(null)
 
   const locationSub = useRef<any>(null)
   const tooltipTimer = useRef<any>(null)
-  const appState = useRef(AppState.currentState)
+  const rnAppState = useRef(AppState.currentState)
   const tsBackground = useRef<number | null>(null)
   const ultimaVerificacao = useRef(0)
   const amplitudeAlertado = useRef(false)
@@ -171,7 +189,13 @@ export default function AujourdhuiScreen() {
   const tempoVelCongelada = useRef(0)
   const ultimaVelCongelada = useRef<number | null>(null)
   const velAnteriorRef = useRef(0)
+  const tempoMentirosoZona = useRef(0)
+  const medianaSustentadaS = useRef(0)
+  const ancoraPos = useRef<{ lat: number; lon: number } | null>(null)
+  const ancoraOkTicks = useRef(0)
   const alertado9hDiario = useRef(false)
+  const alertadoPauseCC15 = useRef(false)
+  const alertadoPauseCC45 = useRef(false)
   const accelMovimento = useRef(false)
   const accelSub = useRef<any>(null)
   const estadoAtualRef = useRef<any>({})
@@ -240,7 +264,7 @@ export default function AujourdhuiScreen() {
     setEmConducao(false)
   }
 
-  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number, velGps = 0, velInferida = 0) => {
+  const atualizarConducaoGps = (vel: number, velMedia: number, dtGps: number, velGps = 0, velInferida = 0, lat = 0, lon = 0) => {
     const dt = Math.max(1, dtGps)
 
     // Filtro de coerência de aceleração: salto > 15 km/h a partir de velocidade baixa = spike GPS
@@ -266,6 +290,7 @@ export default function AujourdhuiScreen() {
     }
     const gpsCongelado = tempoVelCongelada.current >= 4
 
+    // GPS mentiroso clássico (velGps > 20 mas posição não mudou)
     if (velGps > 20 && velInferida < 5) {
       tempoGpsMentiroso.current += dt
     } else {
@@ -273,24 +298,60 @@ export default function AujourdhuiScreen() {
     }
     const gpsMentiroso = tempoGpsMentiroso.current >= 5
 
+    // GPS mentiroso zona lenta (8-15 km/h GPS mas posição quase estática)
+    if (velGps >= GPS_MENTIROSO_ZONA_VEL_MIN && velGps <= GPS_MENTIROSO_ZONA_VEL_MAX && velInferida < GPS_MENTIROSO_ZONA_INFERIDA_MAX) {
+      tempoMentirosoZona.current += dt
+    } else {
+      tempoMentirosoZona.current = 0
+    }
+    const gpsMentirosoZona = tempoMentirosoZona.current >= GPS_MENTIROSO_ZONA_TICKS
+
+    // Âncora de posição — previne deriva GPS em repouso
+    const distAncora = ancoraPos.current && lat !== 0 && lon !== 0
+      ? calcularDistancia(ancoraPos.current.lat, ancoraPos.current.lon, lat, lon) * 1000
+      : Infinity
+    const dentroAncora = ancoraPos.current !== null && distAncora < GPS_ANCORA_RAIO_M
+    if (velInferida > 5) {
+      ancoraOkTicks.current++
+      if (ancoraOkTicks.current >= GPS_ANCORA_MOVIMENTO_TICKS) {
+        ancoraPos.current = null
+        ancoraOkTicks.current = 0
+      }
+    } else {
+      ancoraOkTicks.current = 0
+    }
+
     const deveParar =
       paradoAbaixo3Segundos.current >= CONDUCAO_PARAR_ABAIXO_3_S ||
       paradoAbaixo5Segundos.current >= CONDUCAO_PARAR_ABAIXO_5_S ||
       paradoAbaixo7Segundos.current >= CONDUCAO_PARAR_ABAIXO_7_S ||
       gpsCongelado ||
-      gpsMentiroso
+      gpsMentiroso ||
+      gpsMentirosoZona ||
+      dentroAncora
 
     if (deveParar) {
+      // Fixar âncora na posição actual quando a condução pára
+      if (lat !== 0 && lon !== 0) ancoraPos.current = { lat, lon }
+      ancoraOkTicks.current = 0
+      conducaoSegundos.current = 0
+      medianaSustentadaS.current = 0
       pararConducaoGps()
       return
     }
 
-    if (vel >= VELOCIDADE_MIN && velMedia >= VELOCIDADE_MIN) {
+    // Histerese: arranque >= 8 km/h, paragem < 5 km/h, zona [5,8[ → nem incrementa nem reset
+    if (vel >= HISTERESE_ARRANQUE_KMH && velMedia >= HISTERESE_ARRANQUE_KMH) {
       conducaoSegundos.current += dt
-      if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON) setEmConducao(true)
-    } else if (vel < VELOCIDADE_MIN) {
+      medianaSustentadaS.current += dt
+      if (conducaoSegundos.current >= CONDUCAO_SEGUNDOS_ON && medianaSustentadaS.current >= MEDIANA_SUSTENTADA_S) {
+        setEmConducao(true)
+      }
+    } else if (vel < HISTERESE_PARAGEM_KMH) {
       conducaoSegundos.current = 0
+      medianaSustentadaS.current = 0
     }
+    // Zona [HISTERESE_PARAGEM_KMH, HISTERESE_ARRANQUE_KMH[ → nem incrementa nem reset
   }
 
   const limparInputKm = (valor: string) => valor.replace(/[^0-9.,]/g, '')
@@ -511,13 +572,12 @@ export default function AujourdhuiScreen() {
   }
 
   const carregarConfigs = async () => {
-    const p = await AsyncStorage.getItem('profil')
-    if (p) setProfil(p as Profil)
-    // Load driver name: onboarding key takes priority, fallback to Mon Salaire
-    const nomOnboarding = await AsyncStorage.getItem('conducteur_nom')
-    if (nomOnboarding) {
-      setNomeConducteur(nomOnboarding)
+    // profil e nom agora vêm do AppContext (recarregarApp() chamado antes)
+    if (appState.profil) setProfil(appState.profil)
+    if (appState.nom) {
+      setNomeConducteur(appState.nom)
     } else {
+      // fallback: nome legacy guardado em monSalaire_v2
       const dados = await AsyncStorage.getItem('monSalaire_v2')
       if (dados) {
         try {
@@ -535,12 +595,17 @@ export default function AujourdhuiScreen() {
   }
 
   useEffect(() => {
-    carregarConfigs()
+    recarregarApp().then(() => {
+      carregarConfigs()
+      setAppReady(true)
+    })
     limparFraisReglesAoArrancar()
     restaurarEstado()
     carregarDiasMes()
     // Limpar quaisquer notificações pendentes de sessões anteriores ao arrancar
     cancelarTodosAlertas()
+    // Carregar timestamp do último terminer para barra de repouso entre serviços
+    AsyncStorage.getItem('ultimo_terminer').then(v => { if (v) setUltimoTerminerTs(parseInt(v)) })
   }, [])
 
   useEffect(() => {
@@ -549,20 +614,20 @@ export default function AujourdhuiScreen() {
 
   useEffect(() => {
     if (!enService) {
-      AsyncStorage.getItem('km_ultimo_fim').then(v => {
-        if (v && parseFloat(v) > 0 && !kmInicioInput) {
-          setKmInicioInput(v)
-          setKmInicioAuto(true)
-        }
-      })
+      const v = appState.kmUltimoFim
+      if (v > 0 && !kmInicioInput) {
+        setKmInicioInput(String(v))
+        setKmInicioAuto(true)
+      }
       setShowKmInicio(false)
     } else {
       setShowKmInicio(false)
     }
-  }, [enService])
+  }, [enService, appState.kmUltimoFim])
 
   useFocusEffect(
     React.useCallback(() => {
+      recarregarApp()
       // Reset calendário para mês atual sempre que o tab ganha foco
       const hoje = new Date()
       setCalMes(hoje.getMonth())
@@ -650,13 +715,13 @@ export default function AujourdhuiScreen() {
         }
       }
 
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+      if (rnAppState.current.match(/inactive|background/) && nextState === 'active') {
         tsBackground.current = null
         const sincronizado = await sincronizarEstadoPersistido()
         if (sincronizado && !locationSub.current) { iniciarGPS() }
       }
 
-      appState.current = nextState
+      rnAppState.current = nextState
     })
     return () => sub.remove()
   }, [])
@@ -911,6 +976,24 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
   }, [segConducaoHoje, enService, emConducao])
 
+  // Convention collective — alerta pause 15 min avant 6h de service
+  useEffect(() => {
+    if (!enService || emPausa || alertadoPauseCC15.current) return
+    if (segServico >= 5 * 3600 + 45 * 60 && segPausaTotal < 15 * 60) {
+      alertadoPauseCC15.current = true
+      agendarAlertaPauseCC15()
+    }
+  }, [segServico, segPausaTotal, enService, emPausa])
+
+  // Convention collective — alerta 45 min de pause avant 9h de service
+  useEffect(() => {
+    if (!enService || emPausa || alertadoPauseCC45.current) return
+    if (segServico >= 8 * 3600 + 45 * 60 && segPausaTotal < 45 * 60) {
+      alertadoPauseCC45.current = true
+      agendarAlertaPauseCC45()
+    }
+  }, [segServico, segPausaTotal, enService, emPausa])
+
   // Amplitude overflow check — alert if service open > 16h (possible forgot to end)
   useEffect(() => {
     if (!enService || amplitudeAlertado.current) return
@@ -991,8 +1074,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     locationSub.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 },
       (loc) => {
-        // ignorar leituras com precisão fraca (>30m) — evita falsos arranques em cidade
-        if ((loc.coords.accuracy ?? 999) > 30) return
+        // ignorar leituras com precisão fraca — usa GPS_PRECISAO_MAX da constante partilhada
+        if ((loc.coords.accuracy ?? 999) > GPS_PRECISAO_MAX) return
         const agoraGps = loc.timestamp || Date.now()
         const gapGpsS = Math.max(0, (agoraGps - ultimoGpsCallback.current) / 1000)
         const lat = loc.coords.latitude
@@ -1014,7 +1097,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         const dtGps = Math.max(1, Math.min(300, Math.floor(gapGpsS)))
 
         if (!emPausaRef.current) {
-          atualizarConducaoGps(vel, velMedia, dtGps, velGps, velInferida)
+          atualizarConducaoGps(vel, velMedia, dtGps, velGps, velInferida, lat, lon)
         } else {
           pararConducaoGps()
           resetarParagemGps()
@@ -1125,6 +1208,8 @@ const pararGPS = async () => {
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     alertado9hDiario.current = false
+    alertadoPauseCC15.current = false
+    alertadoPauseCC45.current = false
     velAnteriorRef.current = 0
     ultimaVelCongelada.current = null
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
@@ -1217,30 +1302,39 @@ const pararGPS = async () => {
       const tempoRestante = Math.max(PAUSA_MAX - novoSegConducao, 0)
       if (tempoRestante > 0) await agendarAlertaPausa(tempoRestante)
     } else {
-      // Entrar em pausa — registar inicio
-      pausaInicioRef.current = Date.now()
-      segPausaRef.current = 0
-      setEmConducao(false)
-      setEmPausa(true)
-      emPausaRef.current = true
-      setShowPausaBandeau(false)
-      setParadoSegundos(0)
-      setSegPausa(0)
-      await guardarEstado({
-        enService, emPausa: true, emConducao: false, decouche, modeNuit,
-        segServico, segConducao, segConducaoDiario, segAmplitude, segPausa: 0,
-        segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
-        ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
-        lastBgTick: Date.now(),
-        horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
-      })
-      await cancelarTodosAlertas()
-      // Verificação tacógrafo: ao entrar em pausa, se houve pelo menos 1h de condução
-      // desde a última verificação, perguntar ao condutor
-      if (segConducao >= 3600 && segConducao !== ultimaVerificacao.current) {
-        ultimaVerificacao.current = segConducao
-        setTimeout(() => setShowCorrecao(true), 800)
-      }
+      // Ouvrir le modal de durée de pause (remplace l'Alert)
+      setPausaDuracaoInput('')
+      setShowPausaDuracaoModal(true)
+    }
+  }
+
+  const confirmarIniciarPausa = async () => {
+    setShowPausaDuracaoModal(false)
+    pausaInicioRef.current = Date.now()
+    segPausaRef.current = 0
+    setEmConducao(false)
+    setEmPausa(true)
+    emPausaRef.current = true
+    setShowPausaBandeau(false)
+    setParadoSegundos(0)
+    setSegPausa(0)
+    await guardarEstado({
+      enService, emPausa: true, emConducao: false, decouche, modeNuit,
+      segServico, segConducao, segConducaoDiario, segAmplitude, segPausa: 0,
+      segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
+      ultimaLocalizacao: ultimaLocalizacao.current, ultimoGpsCallback: ultimoGpsCallback.current,
+      lastBgTick: Date.now(),
+      horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
+    })
+    await cancelarTodosAlertas()
+    // Si une durée a été saisie, programmer une alerte de fin de pause
+    const parts = pausaDuracaoInput.match(/^(\d{1,2})[h:H]?(\d{2})$/)
+    if (parts) {
+      const duracaoS = parseInt(parts[1]) * 3600 + parseInt(parts[2]) * 60
+      if (duracaoS > 0) await agendarAlertaPausa(duracaoS)
+    } else if (/^\d+$/.test(pausaDuracaoInput)) {
+      const mins = parseInt(pausaDuracaoInput)
+      if (mins > 0) await agendarAlertaPausa(mins * 60)
     }
   }
 
@@ -1290,7 +1384,24 @@ const pararGPS = async () => {
 
   const handleTerminer = () => {
     setKmFimInput('')
-    setShowTerminerModal(true)
+    Alert.alert(
+      '⏹ Terminer le service',
+      `Confirmes les données du tacho ?\nConduite totale : ${fmtHM(segConducaoHoje)}`,
+      [
+        {
+          text: 'Oui, enregistrer',
+          onPress: () => setShowTerminerModal(true),
+        },
+        {
+          text: 'Non, corriger le tacho',
+          style: 'cancel',
+          onPress: () => {
+            ultimaVerificacao.current = segConducao
+            setShowCorrecao(true)
+          },
+        },
+      ]
+    )
   }
 
   const confirmarRecuperarHora = () => {
@@ -1349,6 +1460,13 @@ const pararGPS = async () => {
     await cancelarTodosAlertas()
     await cancelarRappelSaisie()
     await AsyncStorage.removeItem(STORAGE_KEY)
+    const terminadoTs = Date.now()
+    // Só actualizar o timestamp de repouso se o serviço durou pelo menos 30 min
+    // (evita que serviços teste/erro reiniciem o contador de repos)
+    if (segServico >= 1800) {
+      await AsyncStorage.setItem('ultimo_terminer', terminadoTs.toString())
+      setUltimoTerminerTs(terminadoTs)
+    }
     setEnService(false); setEmPausa(false); setEmConducao(false); setModeNuit(false)
     setSegServico(0); setSegConducao(0); setSegConducaoDiario(0); setSegAmplitude(0); setSegPausa(0)
     setSegPausaTotal(0); setKmDiarios(0); setKmInicioTacho(0); setKmInicioInput(''); setKmFimInput(''); setDecouche(false); setDateInicio(null)
@@ -1356,6 +1474,8 @@ const pararGPS = async () => {
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     alertado9hDiario.current = false
+    alertadoPauseCC15.current = false
+    alertadoPauseCC45.current = false
     velAnteriorRef.current = 0
     ultimaVelCongelada.current = null
     setShowPausaBandeau(false); setParadoSegundos(0)
@@ -1414,6 +1534,14 @@ const pararGPS = async () => {
     CD:    { emoji: '🏠', label: 'Courte Distance', max: '52h/sem' },
     MIXTE: { emoji: '🔄', label: 'Mixte',           max: '56h/sem' },
     LD:    { emoji: '🛣️', label: 'Longue Distance', max: '56h/sem' },
+  }
+
+  if (!appReady) {
+    return (
+      <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#f5a623" />
+      </SafeAreaView>
+    )
   }
 
   return (
@@ -1491,6 +1619,51 @@ const pararGPS = async () => {
                 </View>
               )}
             </View>
+
+            {/* ── BARRA DE REPOUSO ENTRE SERVIÇOS ── */}
+            {ultimoTerminerTs && (() => {
+              const reposS = Math.floor((Date.now() - ultimoTerminerTs) / 1000)
+              const reposMin11h = 11 * 3600
+              const reposMin45h = 45 * 3600
+              const pctRepos = Math.min((reposS / reposMin11h) * 100, 100)
+              const reposOk = reposS >= reposMin11h
+              const pctRepos45 = Math.min((reposS / reposMin45h) * 100, 100)
+              const repos45Ok = reposS >= reposMin45h
+              return (
+                <>
+                  <View style={{ marginHorizontal: 16, marginBottom: reposOk ? 4 : 6, backgroundColor: reposOk ? 'rgba(39,174,96,0.08)' : c.card, borderRadius: 12, borderWidth: 1, borderColor: reposOk ? '#27ae60' : c.cardBorder, padding: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: reposOk ? '#27ae60' : c.textLabel, letterSpacing: 0.5 }}>😴 REPOS ENTRE SERVICES</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: reposOk ? '#27ae60' : c.text }}>{fmtHM(reposS)}<Text style={{ fontSize: 10, color: c.textSub }}> / 11h00</Text></Text>
+                    </View>
+                    <View style={{ height: 5, backgroundColor: c.progressBg, borderRadius: 3 }}>
+                      <View style={{ height: 5, width: `${pctRepos}%` as any, backgroundColor: reposOk ? '#27ae60' : pctRepos > 70 ? '#f39c12' : '#e74c3c', borderRadius: 3 }} />
+                    </View>
+                    {!reposOk && (
+                      <Text style={{ fontSize: 10, color: '#e74c3c', fontWeight: '600', marginTop: 4 }}>
+                        Repos min. 11h requis — encore {fmtHM(Math.max(0, reposMin11h - reposS))}
+                      </Text>
+                    )}
+                  </View>
+                  {reposOk && (
+                    <View style={{ marginHorizontal: 16, marginBottom: 6, backgroundColor: repos45Ok ? 'rgba(39,174,96,0.06)' : c.card, borderRadius: 12, borderWidth: 1, borderColor: repos45Ok ? '#27ae60' : c.cardBorder, padding: 12 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: repos45Ok ? '#27ae60' : c.textLabel, letterSpacing: 0.5 }}>🏠 REPOS HEBDO</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '900', color: repos45Ok ? '#27ae60' : c.text }}>{fmtHM(reposS)}<Text style={{ fontSize: 10, color: c.textSub }}> / 45h00</Text></Text>
+                      </View>
+                      <View style={{ height: 5, backgroundColor: c.progressBg, borderRadius: 3 }}>
+                        <View style={{ height: 5, width: `${pctRepos45}%` as any, backgroundColor: repos45Ok ? '#27ae60' : pctRepos45 > 70 ? '#f39c12' : '#2980b9', borderRadius: 3 }} />
+                      </View>
+                      {!repos45Ok && (
+                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 4 }}>
+                          Repos hebdomadaire — encore {fmtHM(Math.max(0, reposMin45h - reposS))}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </>
+              )
+            })()}
 
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
@@ -1779,6 +1952,30 @@ const pararGPS = async () => {
               </Animated.View>
             )}
 
+            {/* ── PONTO 5b — AVISO CONVENTION COLLECTIVE PAUSE 15 MIN ── */}
+            {enService && !emPausa && segServico >= 5 * 3600 + 45 * 60 && segPausaTotal < 15 * 60 && (
+              <View style={{ marginBottom: 6, backgroundColor: 'rgba(243,156,18,0.13)', borderRadius: 10, borderWidth: 1.5, borderColor: '#f39c12', padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#f39c12', textAlign: 'center' }}>
+                  ⚠️ Pause de 15 min requise avant 6h de service
+                </Text>
+                <Text style={{ fontSize: 11, color: '#f39c12', fontWeight: '600', marginTop: 2, textAlign: 'center', opacity: 0.85 }}>
+                  Convention collective transport routier
+                </Text>
+              </View>
+            )}
+
+            {/* ── PONTO 5c — AVISO CONVENTION COLLECTIVE 45 MIN DE PAUSE ── */}
+            {enService && !emPausa && segServico >= 8 * 3600 + 45 * 60 && segPausaTotal < 45 * 60 && (
+              <View style={{ marginBottom: 6, backgroundColor: 'rgba(230,126,34,0.15)', borderRadius: 10, borderWidth: 1.5, borderColor: '#e67e22', padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#e67e22', textAlign: 'center' }}>
+                  🟠 45 min de pause requises avant 9h de service
+                </Text>
+                <Text style={{ fontSize: 11, color: '#e67e22', fontWeight: '600', marginTop: 2, textAlign: 'center', opacity: 0.85 }}>
+                  Convention collective transport routier
+                </Text>
+              </View>
+            )}
+
             {/* ── TIMER CARD ── */}
             <View style={[st.timerCard, { backgroundColor: c.timerBg, borderColor: c.cardBorder, overflow: 'hidden' }]}>
               {/* Top accent bar — green service / orange pause / bright green driving */}
@@ -1988,7 +2185,7 @@ const pararGPS = async () => {
                 { label: t.conduiteAujourdhui,  seg: segConducaoHoje,     max: MAX_CONDUITE, maxLabel: '9h00',                             baseColor: '#27ae60' },
                 { label: t.serviceJournalier,   seg: segServico,         max: MAX_SERVICE,  maxLabel: modeNuit ? '10h00' : '12h00',        baseColor: '#f39c12' },
                 { label: t.amplitudeJournaliere, seg: segAmplitude,      max: MAX_AMPLITUDE, maxLabel: modeNuit ? '13h00' : '15h00',       baseColor: '#2980b9' },
-                { label: 'Semaine en cours',    seg: statsSemaine.heures, max: maxSemaine,  maxLabel: profil === 'CD' ? '52h00' : '56h00', baseColor: '#9b59b6' },
+                { label: 'Semaine en cours',    seg: statsSemaine.heures + (enService ? segServico : 0), max: maxSemaine,  maxLabel: profil === 'CD' ? '52h00' : '56h00', baseColor: '#9b59b6' },
               ].map((item, idx) => {
                 const pct = Math.min((item.seg / item.max) * 100, 100)
                 const barColor = pct > 90 ? '#e74c3c' : pct > 75 ? '#f39c12' : item.baseColor
@@ -2930,6 +3127,73 @@ const pararGPS = async () => {
                   )
                 })()}
               </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL — Durée de pause (remplace l'Alert) */}
+      <Modal visible={showPausaDuracaoModal} transparent animationType="slide" onRequestClose={() => setShowPausaDuracaoModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'flex-end', padding: 16, paddingBottom: 32 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f39c12' }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>⏸ Démarrer une pause</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 18 }}>
+              {'Durée prévue ? (optionnel — alerte à la fin)'}
+            </Text>
+
+            {/* TextInput HH:MM */}
+            <TextInput
+              value={pausaDuracaoInput}
+              onChangeText={v => setPausaDuracaoInput(v.replace(/[^0-9hH:]/g, ''))}
+              placeholder="HH:MM  ou  45"
+              placeholderTextColor="#6b7394"
+              keyboardType="numbers-and-punctuation"
+              maxLength={6}
+              style={{ borderWidth: 1.5, borderColor: pausaDuracaoInput ? '#f39c12' : '#2a3045', borderRadius: 14, padding: 14, fontSize: 28, fontWeight: '900', color: c.text, backgroundColor: c.bg, textAlign: 'center', marginBottom: 16, letterSpacing: 2 }}
+            />
+
+            {/* Presets */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20, justifyContent: 'center' }}>
+              {[
+                { label: '15min', val: '00:15' },
+                { label: '20min', val: '00:20' },
+                { label: '30min', val: '00:30' },
+                { label: '45min', val: '00:45' },
+                { label: '1h00', val: '01:00' },
+              ].map(({ label, val }) => (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => setPausaDuracaoInput(val)}
+                  style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: pausaDuracaoInput === val ? 'rgba(243,156,18,0.18)' : c.bg, borderWidth: pausaDuracaoInput === val ? 1.5 : 1, borderColor: pausaDuracaoInput === val ? '#f39c12' : '#2a3045' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: pausaDuracaoInput === val ? '#f39c12' : c.textSub }}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Bouton confirmer */}
+            <TouchableOpacity
+              style={{ backgroundColor: '#f39c12', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10 }}
+              onPress={confirmarIniciarPausa}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>{'\u25b6 Démarrer la pause'}</Text>
+            </TouchableOpacity>
+
+            {/* Lien tacographe — correction */}
+            <TouchableOpacity
+              style={{ padding: 12, alignItems: 'center' }}
+              onPress={() => {
+                setShowPausaDuracaoModal(false)
+                ultimaVerificacao.current = segConducao
+                setTimeout(() => setShowCorrecao(true), 300)
+              }}
+            >
+              <Text style={{ fontSize: 13, color: '#e74c3c', fontWeight: '700' }}>{'Tacho incorrect \u2014 corriger la conduite'}</Text>
+            </TouchableOpacity>
+
+            {/* Annuler */}
+            <TouchableOpacity style={{ padding: 10, alignItems: 'center' }} onPress={() => setShowPausaDuracaoModal(false)}>
+              <Text style={{ fontSize: 13, color: c.textSub }}>Annuler</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

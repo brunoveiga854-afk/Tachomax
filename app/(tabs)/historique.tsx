@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
+import { useApp } from '../../context/AppContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
@@ -54,8 +55,8 @@ const calcAmplitudeDe = (debut: string, fin: string) => {
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const MOIS_COURT = ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
 const MAX_SEMAINE = 56 * 3600
-function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, index }: {
-  jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, index: number
+function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onDeleteNota, index }: {
+  jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, onDeleteNota: () => void, index: number
 }) {
   const cfg = TYPE_CONFIG[jour.type] || TYPE_CONFIG.TRAB
   const temPausa = jour.segPausa > 0
@@ -151,9 +152,24 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   {jour.nota && (
-                    <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => Alert.alert(
+                          'Supprimer ce commentaire ?',
+                          jour.nota?.texto ? `"${jour.nota.texto}"` : undefined,
+                          [
+                            { text: 'Non', style: 'cancel' },
+                            { text: 'Oui', style: 'destructive', onPress: onDeleteNota },
+                          ]
+                        )}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '800' }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                   <Text style={[st.editHint, { color: c.textSub }]}>✏️ modifier</Text>
                 </View>
@@ -167,6 +183,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, ind
 }
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
+  const { state: appState, recarregarApp } = useApp()
   const [historique, setHistorique] = useState<Jour[]>([])
   const [semaine, setSemaine] = useState(0)
   const [vue, setVue] = useState<'semaine' | 'mois'>('semaine')
@@ -199,7 +216,7 @@ export default function HistoriqueScreen() {
   const [ficheLoading, setFicheLoading] = useState(false)
   const [editKmFim, setEditKmFim] = useState('')
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
-  useFocusEffect(useCallback(() => { setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
+  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   const chargerHistorique = async () => {
     try {
       const data = await AsyncStorage.getItem('historique')
@@ -300,6 +317,11 @@ const getJoursMois = () => {
   }
   const eliminarJour = async (id: string) => {
     const nova = historique.filter(j => j.id !== id)
+    setHistorique(nova)
+    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+  }
+  const eliminarNota = async (id: string) => {
+    const nova = historique.map(j => j.id === id ? { ...j, nota: undefined } : j)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
   }
@@ -780,6 +802,7 @@ const getJoursMois = () => {
             onDelete={() => eliminarJour(jour.id)}
             onEdit={() => abrirEdicao(jour)}
             onNote={() => abrirNota(jour)}
+            onDeleteNota={() => eliminarNota(jour.id)}
           />
         )}
         ListHeaderComponent={<Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>}

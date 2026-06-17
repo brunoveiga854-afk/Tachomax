@@ -12,6 +12,8 @@ export const NOTIF_IDS = {
   AMPLITUDE_ALERTA: 'tachooffice-amplitude-alerta',
   RAPPEL_SAISIE: 'tachooffice-rappel-saisie',
   CONDUITE_DIARIA: 'tachooffice-conduite-diaria',
+  PAUSE_CONV_COL_15: 'tachooffice-pause-convcol-15',
+  PAUSE_CONV_COL_45: 'tachooffice-pause-convcol-45',
 }
 
 Notifications.setNotificationHandler({
@@ -171,5 +173,41 @@ export async function agendarAlertaConduicaoDiaria(segundosAteAlerta: number): P
       seconds: segundosAteAlerta,
       repeats: false,
     },
+  })
+}
+
+/**
+ * Notificação imediata — convention collective: pause 15 min requise avant 6h de service
+ */
+export async function agendarAlertaPauseCC15(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSE_CONV_COL_15).catch(() => {})
+  await Notifications.scheduleNotificationAsync({
+    identifier: NOTIF_IDS.PAUSE_CONV_COL_15,
+    content: {
+      title: '⚠️ TachoOffice — Pause requise',
+      body: 'Tu approches de 6h de service. Une pause de 15 min est requise avant 6h (Convention collective).',
+      sound: 'default',
+      data: { type: 'pause_cc_15' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
+    },
+    trigger: null,
+  })
+}
+
+/**
+ * Notificação imediata — convention collective: 45 min de pause requises avant 9h de service
+ */
+export async function agendarAlertaPauseCC45(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSE_CONV_COL_45).catch(() => {})
+  await Notifications.scheduleNotificationAsync({
+    identifier: NOTIF_IDS.PAUSE_CONV_COL_45,
+    content: {
+      title: '🟠 TachoOffice — 45 min de pause requises',
+      body: 'Tu approches de 9h de service. 45 min de pause sont requises avant 9h (Convention collective).',
+      sound: 'default',
+      data: { type: 'pause_cc_45' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
+    },
+    trigger: null,
   })
 }

@@ -61,7 +61,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tracteurValueRaw,
       remorqueTypeRaw,
       remorqueValueRaw,
-      camposOkRaw,
       padraoRaw,
     ] = await Promise.all([
       AsyncStorage.getItem('profil'),
@@ -71,7 +70,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem('tracteur_value'),
       AsyncStorage.getItem('remorque_type'),
       AsyncStorage.getItem('remorque_value'),
-      AsyncStorage.getItem('campos_obrigatorios_ok'),
       AsyncStorage.getItem('monSalaire_padrao'),
     ])
 
@@ -98,7 +96,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tracteurValue: tracteurValueRaw ?? '',
       remorqueType,
       remorqueValue: remorqueValueRaw ?? '',
-      camposObrigatoriosOk: camposOkRaw === 'true',
+      // Calcula em fresco: profil + hbase + hval (km não é necessário para estimativa)
+      camposObrigatoriosOk: !!(profilRaw) && (padrao?.hbase ?? 0) > 0 && (padrao?.hval ?? 0) > 0,
       padrao,
       hbase: padrao?.hbase ?? 0,
       hval: padrao?.hval ?? 0,

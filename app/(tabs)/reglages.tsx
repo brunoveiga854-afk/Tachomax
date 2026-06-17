@@ -86,7 +86,7 @@ export default function ReglagesScreen() {
       km: parseFloat(kmRaw || '') > 0,
     }
     setCamposOk(novosCampos)
-    const allOk = novosCampos.profil && novosCampos.hbase && novosCampos.hval && novosCampos.km
+    const allOk = novosCampos.profil && novosCampos.hbase && novosCampos.hval  // km não é obrigatório para estimativa
     await AsyncStorage.setItem('campos_obrigatorios_ok', allOk ? 'true' : 'false')
     actualizarCampo('camposObrigatoriosOk', allOk)
   }

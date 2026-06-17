@@ -110,6 +110,9 @@ export default function AujourdhuiScreen() {
   const [showPausaBandeau, setShowPausaBandeau] = useState(false)
   const [showTerminerModal, setShowTerminerModal] = useState(false)
   const [showKmFimInput, setShowKmFimInput] = useState(false)
+  const [showKmModal, setShowKmModal] = useState(false)
+  const kmScaleAnim = useRef(new Animated.Value(0.4)).current
+  const kmOpacityAnim = useRef(new Animated.Value(0)).current
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryData, setSummaryData] = useState<{service: number; conduite: number; km: number; frais: number; semHeures: number; semFrais: number} | null>(null)
   const [showRecuperarHoraModal, setShowRecuperarHoraModal] = useState(false)
@@ -1544,6 +1547,23 @@ const pararGPS = async () => {
     )
   }
 
+  const openKmModal = () => {
+    kmScaleAnim.setValue(0.4)
+    kmOpacityAnim.setValue(0)
+    setShowKmModal(true)
+    Animated.parallel([
+      Animated.spring(kmScaleAnim, { toValue: 1, tension: 120, friction: 7, useNativeDriver: true }),
+      Animated.timing(kmOpacityAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start()
+  }
+
+  const closeKmModal = () => {
+    Animated.parallel([
+      Animated.spring(kmScaleAnim, { toValue: 0.4, tension: 160, friction: 10, useNativeDriver: true }),
+      Animated.timing(kmOpacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+    ]).start(() => setShowKmModal(false))
+  }
+
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       {storageErro && (
@@ -2443,28 +2463,17 @@ const pararGPS = async () => {
                 <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{fmtHM(segServico)}</Text>
                 <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>SERVICE</Text>
               </View>
-              <TouchableOpacity disabled={showKmFimInput} onPress={() => setShowKmFimInput(true)} style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4, borderWidth: showKmFimInput ? 1.5 : 0, borderColor: '#f5a623' }}>
-                {showKmFimInput ? (
-                  <>
-                    <TextInput
-                      value={kmFimInput}
-                      onChangeText={v => setKmFimInput(limparInputKm(v))}
-                      keyboardType="numeric"
-                      autoFocus
-                      placeholder="KM fin"
-                      placeholderTextColor={c.textSub}
-                      onBlur={() => setShowKmFimInput(false)}
-                      style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', width: '100%', padding: 4 }}
-                    />
-                    <Text style={{ fontSize: 10, color: c.textSub }}>início {getKmInicioManual()} km</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={{ fontSize: 22 }}>📍</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: c.text }}>{calcularKmManual()}</Text>
-                    <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
-                    <Text style={{ fontSize: 10, color: c.textSub, opacity: 0.6 }}>✏️ toucher pour saisir</Text>
-                  </>
+              <TouchableOpacity
+                onPress={openKmModal}
+                style={{ flex: 1, backgroundColor: kmFimInput ? 'rgba(245,166,35,0.08)' : c.bg, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4, borderWidth: kmFimInput ? 1.5 : 1, borderColor: kmFimInput ? '#f5a623' : c.cardBorder }}
+              >
+                <Text style={{ fontSize: 22 }}>{kmFimInput ? '📍' : '🎯'}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: kmFimInput ? '#f5a623' : c.text }}>
+                  {kmFimInput ? calcularKmManual() : '—'}
+                </Text>
+                <Text style={{ fontSize: 13, color: c.textSub, fontWeight: '600', letterSpacing: 1 }}>KM</Text>
+                {!kmFimInput && (
+                  <Text style={{ fontSize: 9, color: '#f5a623', fontWeight: '700', letterSpacing: 0.5 }}>SAISIR</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -2476,9 +2485,13 @@ const pararGPS = async () => {
                   <Text style={{ fontSize: 13, color: c.textSub }}>{t.fraisNuitAuto}</Text>
                 </View>
               </View>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: decouche ? '#2980b9' : c.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 14 }}>{decouche ? '✓' : ''}</Text>
-              </View>
+              <Switch
+                value={decouche}
+                onValueChange={v => setDecouche(v)}
+                trackColor={{ false: c.cardBorder, true: '#2980b9' }}
+                thumbColor={'white'}
+                ios_backgroundColor={c.cardBorder}
+              />
             </TouchableOpacity>
             <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }} onPress={() => confirmarTerminer(decouche)}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{decouche ? '🌙 Terminer (Découché)' : '⏹ Terminer le service'}</Text>
@@ -2488,6 +2501,45 @@ const pararGPS = async () => {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* MODAL KM FIM — voa para o centro */}
+      <Modal visible={showKmModal} transparent animationType="none">
+        <Animated.View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', opacity: kmOpacityAnim }}>
+          <Animated.View style={{ transform: [{ scale: kmScaleAnim }], width: '78%', backgroundColor: c.card, borderRadius: 28, padding: 28, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 20, borderWidth: 2, borderColor: '#f5a623' }}>
+            <Text style={{ fontSize: 36, marginBottom: 8 }}>📍</Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4 }}>KM de fin de service</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 20 }}>Début : {getKmInicioManual()} km</Text>
+            <TextInput
+              value={kmFimInput}
+              onChangeText={v => setKmFimInput(limparInputKm(v))}
+              keyboardType="numeric"
+              autoFocus
+              placeholder="ex: 145 230"
+              placeholderTextColor={c.textSub}
+              style={{ fontSize: 32, fontWeight: '900', color: '#f5a623', textAlign: 'center', borderBottomWidth: 2, borderBottomColor: '#f5a623', paddingBottom: 8, marginBottom: 8, width: '100%' }}
+            />
+            {kmFimInput ? (
+              <Text style={{ fontSize: 14, color: c.textSub, marginBottom: 24 }}>
+                {'Distance : '}<Text style={{ color: '#27ae60', fontWeight: '800' }}>{calcularKmManual()} km</Text>
+              </Text>
+            ) : <View style={{ height: 38 }} />}
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity
+                style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                onPress={() => { setKmFimInput(''); closeKmModal() }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Passer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}
+                onPress={closeKmModal}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>{'Confirmer ' + (kmFimInput ? calcularKmManual() + ' km' : '')}</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
 
       <Modal visible={showCorrecao} transparent animationType="fade">

@@ -38,7 +38,7 @@ let bgAncora: { lat: number; lon: number } | null = null
 let bgAncoraOkTicks = 0
 
 // ─── Log GPS em memória ───────────────────────────────────────────────────────
-// Máx 500 entradas FIFO. Flush para AsyncStorage a cada 50 novas entradas.
+// Máx 500 entradas FIFO. Flush para AsyncStorage a cada 20 novas entradas.
 let bgGpsLog: Array<{
   ts: number
   velGps: number
@@ -46,7 +46,10 @@ let bgGpsLog: Array<{
   velMedia: number
   emConducao: boolean
   deveParar: boolean
-  bgMentirosoZonaTicks: number
+  paradoAbaixo3: number
+  paradoAbaixo5: number
+  paradoAbaixo7: number
+  mentirosoZona: number
 }> = []
 let bgGpsLogCounter = 0
 
@@ -257,11 +260,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
         velMedia,
         emConducao: !!next.emConducao,
         deveParar,
-        bgMentirosoZonaTicks: next.bgMentirosoZonaTicks || 0,
+        paradoAbaixo3: next.bgParadoAbaixo3Ticks || 0,
+        paradoAbaixo5: next.bgParadoAbaixo5Ticks || 0,
+        paradoAbaixo7: next.bgParadoAbaixo7Ticks || 0,
+        mentirosoZona: next.bgMentirosoZonaTicks || 0,
       })
       if (bgGpsLog.length > 500) bgGpsLog = bgGpsLog.slice(-500)
       bgGpsLogCounter++
-      if (bgGpsLogCounter >= 50) {
+      if (bgGpsLogCounter >= 20) {
         bgGpsLogCounter = 0
         // fire-and-forget — não bloquear o loop principal
         AsyncStorage.setItem('gps_log', JSON.stringify(bgGpsLog)).catch(() => {})

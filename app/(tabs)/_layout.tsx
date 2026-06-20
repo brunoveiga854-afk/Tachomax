@@ -24,16 +24,6 @@ function TabIcon({
       backgroundColor: focused ? 'rgba(245,166,35,0.18)' : 'transparent',
     }}>
       {children}
-      {focused && (
-        <View style={{
-          position: 'absolute',
-          bottom: 4,
-          width: 16,
-          height: 3,
-          borderRadius: 2,
-          backgroundColor: '#f5a623',
-        }} />
-      )}
     </View>
   )
 }

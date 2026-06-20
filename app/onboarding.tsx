@@ -3,13 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, Keyboa
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router, useLocalSearchParams } from 'expo-router'
+import { useApp } from '../context/AppContext'
 import { TachoLogo } from '../src/TachoLogo'
+import { PADRAO_INICIAL } from '../src/engine/aprendizagem'
 
 const { width } = Dimensions.get('window')
 
 type Profil = 'CD' | 'MIXTE' | 'LD'
 
 export default function OnboardingScreen() {
+  const { recarregarApp } = useApp()
   const [etape, setEtape] = useState(0)
   const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ mode?: string }>()
@@ -73,6 +76,17 @@ export default function OnboardingScreen() {
         if (eGrue === 'true') setEquipGrueAux(true)
         if (saisirBrut !== null) setObSaisirBrut(saisirBrut === 'true')
         if (netMensuel) setObSalNet(netMensuel)
+        // Charger timing de aprendizagem_padrao
+        AsyncStorage.getItem('aprendizagem_padrao').then(apRaw => {
+          if (apRaw) try {
+            const ap = JSON.parse(apRaw)
+            if (ap.diaSalario) setObDiaSalario(ap.diaSalario)
+            if (ap.hlag !== null && ap.hlag !== undefined) setObHlag(ap.hlag)
+            if (ap.diaFrais) setObDiaFrais(ap.diaFrais)
+            if (ap.flag !== null && ap.flag !== undefined) setObFlag(ap.flag)
+            setObFraisMemeJour(ap.diaSalario === ap.diaFrais && ap.hlag === ap.flag)
+          } catch {}
+        })
         setEtape(2)
       })
     }
@@ -102,6 +116,12 @@ export default function OnboardingScreen() {
   const [obSalNet, setObSalNet] = useState('')
   const [obHbaseIsCustom, setObHbaseIsCustom] = useState(false)
   const [obHbaseCustomInput, setObHbaseCustomInput] = useState('')
+  // Timing de paiement
+  const [obDiaSalario, setObDiaSalario] = useState(25)
+  const [obHlag, setObHlag] = useState(1)
+  const [obDiaFrais, setObDiaFrais] = useState(25)
+  const [obFlag, setObFlag] = useState(1)
+  const [obFraisMemeJour, setObFraisMemeJour] = useState(true)
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -158,8 +178,8 @@ export default function OnboardingScreen() {
         vehiculo: typeVehicule, cargo: typeCargo,
       }
       await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit))
-    } else if (params.mode === 'edit' && (hbase > 0 || hval > 0)) {
-      // En mode édition, mettre à jour hbase/hval/h25/h50 tout en préservant les données apprises
+    } else {
+      // Padrao existant — mettre à jour hbase/hval/h25/h50 en préservant les données apprises
       try {
         const existing = JSON.parse(existingPadraoRaw)
         const updated = {
@@ -174,6 +194,20 @@ export default function OnboardingScreen() {
         await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
       } catch {}
     }
+    // Guardar timing no motor de aprendizagem
+    const padraoAprendizado = {
+      ...PADRAO_INICIAL,
+      hlag: obHlag,
+      diaSalario: obDiaSalario,
+      flag: obFraisMemeJour ? obHlag : obFlag,
+      diaFrais: obFraisMemeJour ? obDiaSalario : obDiaFrais,
+      hlagConfirmado: true,
+      flagConfirmado: true,
+      diaSalarioConfirmado: true,
+      diaFraisConfirmado: true,
+    }
+    await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(padraoAprendizado))
+    await recarregarApp()
     router.replace('/(tabs)/fiche')
   }
 
@@ -454,6 +488,53 @@ export default function OnboardingScreen() {
             </>
           )}
 
+
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8, marginTop: 8 }}>📅 JOUR DE PAIEMENT DU SALAIRE</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            {[25, 26, 27, 28, 30].map(d => (
+              <TouchableOpacity key={d} onPress={() => setObDiaSalario(d)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaSalario === d ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaSalario === d ? 1.5 : 1, borderColor: obDiaSalario === d ? '#f5a623' : '#2a3045' }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaSalario === d ? '#f5a623' : '#eef0f5' }}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ce salaire correspond au travail de quel mois�?</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            <TouchableOpacity onPress={() => setObHlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Du mois en cours</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setObHlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 1 ? 1.5 : 1, borderColor: obHlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Du mois précédent</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🧾 FRAIS — MÊME JOUR QUE LE SALAIRE�?</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: obFraisMemeJour ? 20 : 12 }}>
+            <TouchableOpacity onPress={() => setObFraisMemeJour(true)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFraisMemeJour ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFraisMemeJour ? 1.5 : 1, borderColor: obFraisMemeJour ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '800', color: obFraisMemeJour ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Oui, même jour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setObFraisMemeJour(false)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: !obFraisMemeJour ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: !obFraisMemeJour ? 1.5 : 1, borderColor: !obFraisMemeJour ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '800', color: !obFraisMemeJour ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Non, autre jour</Text>
+            </TouchableOpacity>
+          </View>
+          {!obFraisMemeJour && (
+            <>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Jour de réception des frais</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {[25, 26, 27, 28, 30].map(d => (
+                  <TouchableOpacity key={d} onPress={() => setObDiaFrais(d)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaFrais === d ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaFrais === d ? 1.5 : 1, borderColor: obDiaFrais === d ? '#f5a623' : '#2a3045' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaFrais === d ? '#f5a623' : '#eef0f5' }}>{d}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                <TouchableOpacity onPress={() => setObFlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 0 ? 1.5 : 1, borderColor: obFlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                  <Text style={{ fontWeight: '800', color: obFlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>Mois en cours</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setObFlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 1 ? 1.5 : 1, borderColor: obFlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                  <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>Mois précédent</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>

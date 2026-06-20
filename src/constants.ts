@@ -14,9 +14,9 @@ export const VELOCIDADE_MIN = 8            // km/h mínimos para contar conduç�
 export const CONDUCAO_SEGUNDOS_ON = 5
 
 // Paragem de condução: abaixo de X km/h durante Y segundos consecutivos
-export const CONDUCAO_PARAR_ABAIXO_3_S = 3
-export const CONDUCAO_PARAR_ABAIXO_5_S = 6
-export const CONDUCAO_PARAR_ABAIXO_7_S = 10
+export const CONDUCAO_PARAR_ABAIXO_3_S = 1
+export const CONDUCAO_PARAR_ABAIXO_5_S = 3
+export const CONDUCAO_PARAR_ABAIXO_7_S = 5
 
 // GPS — proteção contra saltos de posição impossíveis
 export const GPS_MOVIMENTO_SALTO_MAX_KM = 1    // salto máximo normal entre ticks
@@ -38,7 +38,7 @@ export const ACCEL_SALTO_MAX_KMH = 15
 export const GPS_MENTIROSO_ZONA_VEL_MIN = 8
 export const GPS_MENTIROSO_ZONA_VEL_MAX = 15
 export const GPS_MENTIROSO_ZONA_INFERIDA_MAX = 2
-export const GPS_MENTIROSO_ZONA_TICKS = 3
+export const GPS_MENTIROSO_ZONA_TICKS = 2
 
 // Âncora GPS — se o dispositivo não se moveu mais de RAIO_M metros durante MOVIMENTO_TICKS ticks
 // consecutivos, considera-se parado (ignora deriva GPS em repouso)

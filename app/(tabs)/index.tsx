@@ -196,6 +196,7 @@ export default function AujourdhuiScreen() {
   const medianaSustentadaS = useRef(0)
   const ancoraPos = useRef<{ lat: number; lon: number } | null>(null)
   const ancoraOkTicks = useRef(0)
+  const fgGpsLog = useRef<any[]>([])
   const alertado9hDiario = useRef(false)
   const alertadoPauseCC15 = useRef(false)
   const alertadoPauseCC45 = useRef(false)
@@ -332,6 +333,24 @@ export default function AujourdhuiScreen() {
       gpsMentiroso ||
       gpsMentirosoZona ||
       dentroAncora
+
+    // ── Logging foreground ──────────────────────────────────────────────────
+    fgGpsLog.current.push({
+      ts: Date.now(),
+      velGps,
+      velInferida,
+      velMedia,
+      emConducao: emConducao,
+      deveParar,
+      paradoAbaixo3: paradoAbaixo3Segundos.current,
+      paradoAbaixo5: paradoAbaixo5Segundos.current,
+      paradoAbaixo7: paradoAbaixo7Segundos.current,
+      mentirosoZona: tempoMentirosoZona.current,
+    })
+    if (fgGpsLog.current.length > 500) fgGpsLog.current.shift()
+    if (fgGpsLog.current.length % 20 === 0) {
+      AsyncStorage.setItem('gps_log_fg', JSON.stringify(fgGpsLog.current.slice(-200)))
+    }
 
     if (deveParar) {
       // Fixar âncora na posição actual quando a condução pára
@@ -598,17 +617,17 @@ export default function AujourdhuiScreen() {
   }
 
   useEffect(() => {
-    recarregarApp().then(() => {
-      carregarConfigs()
+    const init = async () => {
+      limparFraisReglesAoArrancar()
+      await restaurarEstado()
+      carregarDiasMes()
+      cancelarTodosAlertas()
+      AsyncStorage.getItem('ultimo_terminer').then(v => {
+        if (v) setUltimoTerminerTs(parseInt(v))
+      })
       setAppReady(true)
-    })
-    limparFraisReglesAoArrancar()
-    restaurarEstado()
-    carregarDiasMes()
-    // Limpar quaisquer notificações pendentes de sessões anteriores ao arrancar
-    cancelarTodosAlertas()
-    // Carregar timestamp do último terminer para barra de repouso entre serviços
-    AsyncStorage.getItem('ultimo_terminer').then(v => { if (v) setUltimoTerminerTs(parseInt(v)) })
+    }
+    init()
   }, [])
 
   useEffect(() => {
@@ -630,14 +649,12 @@ export default function AujourdhuiScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      recarregarApp()
-      // Reset calendário para mês atual sempre que o tab ganha foco
+      recarregarApp().then(() => carregarConfigs())
       const hoje = new Date()
       setCalMes(hoje.getMonth())
       setCalAno(hoje.getFullYear())
       carregarStatsSemaine()
       carregarDiasMes()
-      // Reler modoTacho sempre que o separador fica ativo (pode ter mudado nas Definições)
       AsyncStorage.getItem('modoTacho').then(v => {
         setModoTacho(v === 'decrescente' ? 'decrescente' : 'crescente')
       })
@@ -721,7 +738,14 @@ export default function AujourdhuiScreen() {
       if (rnAppState.current.match(/inactive|background/) && nextState === 'active') {
         tsBackground.current = null
         const sincronizado = await sincronizarEstadoPersistido()
-        if (sincronizado && !locationSub.current) { iniciarGPS() }
+        if (sincronizado) {
+          if (!locationSub.current) { iniciarGPS() }
+          if (estadoAtualRef.current.enService) {
+            await pararGPSBackground()
+            await new Promise(r => setTimeout(r, 500))
+            await iniciarGPSBackground()
+          }
+        }
       }
 
       rnAppState.current = nextState

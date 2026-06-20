@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // ── Tipo do estado global ─────────────────────────────────────────────────────
@@ -106,10 +106,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const actualizarCampo = useCallback(<K extends keyof AppState>(key: K, value: AppState[K]) => {
     setState(prev => ({ ...prev, [key]: value }))
-  }, [])
-
-  useEffect(() => {
-    recarregarApp()
   }, [])
 
   return (

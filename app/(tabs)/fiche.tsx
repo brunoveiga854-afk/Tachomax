@@ -173,6 +173,22 @@ const detectarDrift = (tuplos: DriftTuplo[]): DriftAlert => {
 
 const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
 const TYPES_TRAVAIL = ['work', 'dec', 'TRAB', 'DEC']
+
+// Extrai JSON de resposta da IA mesmo que contenha texto extra antes/depois
+function extrairDocsIA(text: string): any[] {
+  const cleaned = text.replace(/```json\n?|```\n?/g, '').trim()
+  // Tentativa 1: prefill — resposta começa directamente com o corpo do array (sem '[')
+  try { return JSON.parse('[' + cleaned) } catch {}
+  // Tentativa 2: a IA incluiu o '[' na resposta (não deveria acontecer com prefill)
+  try { return JSON.parse(cleaned) } catch {}
+  // Tentativa 3: extrai o primeiro array JSON encontrado no texto
+  const start = cleaned.indexOf('[')
+  const end = cleaned.lastIndexOf(']')
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(cleaned.slice(start, end + 1)) } catch {}
+  }
+  throw new Error('Réponse IA non analysable')
+}
 const TYPES_SANS_FRAIS = ['OFF', 'RC', 'FERIE', 'FER', 'vac', 'CONGE', 'FERIADO', 'hol']
 
 function valRegle(v: any, fallback: number, min: number, max: number) {
@@ -1296,6 +1312,11 @@ export default function MonSalaireScreen() {
   const [respostaMes, setRespostaMes] = useState<number | null>(null)
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
+  const [showConfirmTiming, setShowConfirmTiming] = useState(false)
+  const [confirmTimingNet, setConfirmTimingNet] = useState(0)
+  const [confirmTimingPeriode, setConfirmTimingPeriode] = useState('')
+  const [confirmTimingMesPag, setConfirmTimingMesPag] = useState('')
+  const pendingDocsRef = useRef<DocumentoAnalysado[]>([])
   const router = useRouter()
 
   const breathAnim = useRef(new Animated.Value(1)).current
@@ -1350,14 +1371,16 @@ export default function MonSalaireScreen() {
       if (appState.padrao._conflitHbase) setConflitHbase(appState.padrao._conflitHbase)
       else setConflitHbase(null)
     } else {
-      AsyncStorage.getItem('monSalaire_padrao').then(raw => {
+      AsyncStorage.getItem('monSalaire_padrao').then(async raw => {
         if (raw) {
           try {
             const p = JSON.parse(raw)
             setPadrao(p)
             if (p._conflitHbase) setConflitHbase(p._conflitHbase)
             else setConflitHbase(null)
-          } catch {}
+          } catch {
+            await AsyncStorage.removeItem('monSalaire_padrao')
+          }
         }
       })
     }
@@ -1369,7 +1392,16 @@ export default function MonSalaireScreen() {
         try { setHistCal(JSON.parse(histRaw)) } catch {}
       }
     })
-  }, [appState.padrao, appState.camposObrigatoriosOk]))
+  }, []))
+
+  useEffect(() => {
+    if (histCal.length === 0) return
+    if (!calcResult) return
+    if (camposOk !== 'true') return
+    if (loading) return
+    const timer = setTimeout(() => calcularSalario(), 300)
+    return () => clearTimeout(timer)
+  }, [histCal])
 
   useEffect(() => {
     if (!loading) { setLoadingMsg(0); scrollAnim.setValue(0); dustAnim.setValue(0); return }
@@ -1391,7 +1423,10 @@ export default function MonSalaireScreen() {
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
       const cal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
       const aprendRaw = await AsyncStorage.getItem('aprendizagem_padrao')
-      if (aprendRaw) { try { setPadraoAprendido(JSON.parse(aprendRaw)) } catch {} }
+      if (aprendRaw) {
+        try { setPadraoAprendido(JSON.parse(aprendRaw)) }
+        catch { await AsyncStorage.removeItem('aprendizagem_padrao'); setPadraoAprendido(PADRAO_INICIAL) }
+      }
       const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
       if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
       setHistCal(cal)
@@ -1400,7 +1435,11 @@ export default function MonSalaireScreen() {
         const hist = JSON.parse(data)
         setHistorique(hist)
         // Sempre re-analisa com o algoritmo actual para apanhar melhorias de detecção
-        let base = pData ? { ...padrao, ...JSON.parse(pData) } : { ...padrao }
+        let base: Padrao
+        if (pData) {
+          try { base = { ...padrao, ...JSON.parse(pData) } }
+          catch { await AsyncStorage.removeItem('monSalaire_padrao'); base = { ...padrao } }
+        } else { base = { ...padrao } }
         // Salvaguarda: se hlag/flag ainda está no default de fábrica mas o método directo
         // já provou o valor correcto numa sessão anterior, não regredir.
         // (O guard ≥2 no analisarPadraoV2 trata disso — aqui só garantimos base limpa)
@@ -1437,7 +1476,11 @@ export default function MonSalaireScreen() {
 
   const carregarPadraoAtual = async (histSal: MoisData[], histDiario: any[]) => {
     const pData = await AsyncStorage.getItem('monSalaire_padrao')
-    let atual: Padrao = pData ? { ...padrao, ...JSON.parse(pData) } : { ...padrao }
+    let atual: Padrao
+    if (pData) {
+      try { atual = { ...padrao, ...JSON.parse(pData) } }
+      catch { await AsyncStorage.removeItem('monSalaire_padrao'); atual = { ...padrao } }
+    } else { atual = { ...padrao } }
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : atual.regles)
     if (fraisReglesRaw) await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
@@ -1447,6 +1490,17 @@ export default function MonSalaireScreen() {
       const fv = JSON.parse(fraisValsRaw)
       atual = { ...atual, ptd: fv.ptDej || atual.ptd, dej: fv.dej || atual.dej, din: fv.diner || atual.din, nui: fv.nuit || atual.nui }
     }
+    // Merge timing confirmado do motor de aprendizagem
+    try {
+      const apRaw = await AsyncStorage.getItem('aprendizagem_padrao')
+      if (apRaw) {
+        const ap = JSON.parse(apRaw)
+        if (ap.hlagConfirmado && ap.hlag != null) atual.hlag = ap.hlag
+        if (ap.hlagConfirmado && ap.diaSalario != null) atual.diaSalario = ap.diaSalario
+        if (ap.flagConfirmado && ap.flag != null) atual.flag = ap.flag
+        if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
+      }
+    } catch {}
     setPadrao(atual)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(atual))
     return atual
@@ -1812,14 +1866,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] })
       })
       const data = await response.json()
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
-      const docs: DocumentoAnalysado[] = JSON.parse(data.content[0].text.replace(/```json|```/g, '').trim())
+      const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       processarDocumentos(docs)
-    } catch (e) { mostrarErro("Erreur d'analyse. Essaie avec des fichiers plus nets.") }
+    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.") }
     setLoading(false)
   }
 
@@ -1846,12 +1900,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] })
       })
       const data = await response.json()
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
-      const docs: DocumentoAnalysado[] = JSON.parse(data.content[0].text.replace(/```json|```/g, '').trim())
+      const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       if (docs.length > 0) {
         const d = docs[0] as any
         if (d.ptDejValeur > 0 || d.dejValeur > 0) {
@@ -1876,7 +1930,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         }
       }
       processarDocumentos(docs)
-    } catch (e) { mostrarErro(String(e)) }
+    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.") }
     setLoading(false)
   }
 
@@ -1928,13 +1982,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] }),
       })
       const data = await response.json()
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }
-      const docs: DocumentoAnalysado[] = JSON.parse(data.content[0].text.replace(/```json|```/g, '').trim())
+      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
+      const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       processarDocumentos(docs)
-    } catch (e) { mostrarErro("Erreur d'analyse. Essaie avec une image plus nette.") }
+    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise une image plus nette.") }
     setLoading(false)
   }
 
@@ -1954,6 +2009,30 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   }
 
   const iniciarPerguntas = async (docs: DocumentoAnalysado[]) => {
+    const fiches = docs.filter(d => d.tipo === 'fiche')
+    if (fiches.length === 0) return
+    if (padraoAprendido.hlagConfirmado && padraoAprendido.flagConfirmado) {
+      const moisIdx = fiches[0].moisIndex ?? new Date().getMonth()
+      const ano = fiches[0].annee ?? new Date().getFullYear()
+      const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
+      const mesPagNom = MOIS_NOMS[mesP] ?? ''
+      const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
+      setConfirmTimingNet(pfRaw?.netPaye || 0)
+      setConfirmTimingPeriode(fiches[0].periode || '')
+      setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
+      pendingDocsRef.current = docs
+      setShowConfirmTiming(true)
+      return
+    }
+    await processarPerguntas(docs)
+  }
+
+  const confirmarTimingEProsseguir = async () => {
+    setShowConfirmTiming(false)
+    await processarPerguntas(pendingDocsRef.current)
+  }
+
+  const processarPerguntas = async (docs: DocumentoAnalysado[], padraoOverride?: PadraoAprendido) => {
     const fiches = docs.filter(d => d.tipo === 'fiche')
     if (fiches.length === 0) return
     const confirmados = historique.filter(h => h.salarioConfirmado || h.fraisConfirmado || h.montantTotalRecu > 0).length
@@ -1979,7 +2058,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       }
       // Motor de aprendizagem (modo auto)
       {
-        let padAtual = padraoAprendido
+        let padAtual = padraoOverride ?? padraoAprendido
         for (const ficheDoc of fiches) {
           const pf = ficheDoc.dados || ficheDoc as any
           const boletim: BoletimExtraido = {
@@ -2022,7 +2101,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setShowPerguntas(true)
     // Motor de aprendizagem (modo manual)
     {
-      let padAtual = padraoAprendido
+      let padAtual = padraoOverride ?? padraoAprendido
       const todasPerguntasMotor: PerguntaPendente[] = []
       for (const ficheDoc of fiches) {
         const pf = ficheDoc.dados || ficheDoc as any
@@ -2681,7 +2760,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </Text>
             <TouchableOpacity
               style={{ backgroundColor: '#e74c3c', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, alignSelf: 'flex-start' }}
-              onPress={() => router.navigate('/(tabs)/reglages')}
+              onPress={() => {
+                  try {
+                    router.push('/(tabs)/reglages')
+                  } catch (e) {
+                    console.error('Nav error:', e)
+                  }
+                }}
             >
               <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>{'→ Aller aux Réglages'}</Text>
             </TouchableOpacity>
@@ -3886,6 +3971,39 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </>
             )}
 
+          </View>
+        </View>
+      </Modal>
+      {/* MODAL CONFIRMAÇÃO RÁPIDA DO TIMING */}
+      <Modal visible={showConfirmTiming} transparent animationType="fade" onRequestClose={() => setShowConfirmTiming(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 24, width: '100%', borderWidth: 1, borderColor: c.cardBorder }}>
+            <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6, textAlign: 'center', letterSpacing: 1, fontWeight: '700' }}>CONFIRMATION DU PAIEMENT</Text>
+            <Text style={{ fontSize: 28, fontWeight: '900', color: c.text, textAlign: 'center', marginBottom: 4 }}>
+              {'💰 '}{confirmTimingNet > 0 ? confirmTimingNet.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}{'\u20AC'}
+            </Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>{confirmTimingPeriode}</Text>
+            <View style={{ backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)' }}>
+              <Text style={{ fontSize: 15, color: c.text, textAlign: 'center', lineHeight: 24 }}>
+                {'Reçu en '}<Text style={{ fontWeight: '800', color: '#f5a623' }}>{confirmTimingMesPag}</Text>{'\n'}
+                {'le jour '}<Text style={{ fontWeight: '800', color: '#f5a623' }}>{padraoAprendido.diaSalario}</Text>
+              </Text>
+              <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginTop: 6 }}>{'C\'est correct\u00A0?'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#2ecc71', alignItems: 'center' }}
+                onPress={confirmarTimingEProsseguir}
+              >
+                <Text style={{ fontWeight: '800', color: '#fff', fontSize: 15 }}>{'✅ Oui'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#f5a623', alignItems: 'center' }}
+                onPress={() => { setShowConfirmTiming(false); processarPerguntas(pendingDocsRef.current, { ...padraoAprendido, hlagConfirmado: false, flagConfirmado: false }) }}
+              >
+                <Text style={{ fontWeight: '800', color: '#f5a623', fontSize: 15 }}>{'✏️ Corriger'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

@@ -1,9 +1,9 @@
 import { TachoLogo } from '../../src/TachoLogo'
-import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image } from 'react-native'
+import React, { useState, useEffect, useRef } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image, Share } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
@@ -71,6 +71,10 @@ export default function ReglagesScreen() {
   const [versionTapCount, setVersionTapCount] = useState(0)
   const [secretUnlocked, setSecretUnlocked] = useState(false)
   const [camposOk, setCamposOk] = useState({ profil: true, hbase: true, hval: true, km: true })
+  const scrollViewRef = useRef<import('react-native').ScrollView>(null)
+  const salaireSectionY = useRef(0)
+  const scrolledToSalaire = useRef(false)
+  const { scrollTo: scrollToParam } = useLocalSearchParams<{ scrollTo?: string }>()
 
   // Verifica os 4 campos obrigatórios e persiste o estado
   const atualizarCamposOk = async () => {
@@ -128,6 +132,14 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('equipement_grue_aux').then(v => setEquipGrueAux(v === 'true'))
     atualizarCamposOk()
   }, [])
+
+  // Scroll auto jusqu'à Paramètres Salaire si param scrollTo=salaire
+  useEffect(() => {
+    if (scrollToParam === 'salaire' && salaireSectionY.current > 0 && !scrolledToSalaire.current) {
+      scrolledToSalaire.current = true
+      setTimeout(() => scrollViewRef.current?.scrollTo({ y: salaireSectionY.current, animated: true }), 350)
+    }
+  }, [scrollToParam])
 
   const fmtHM = (seg: number) => {
     const h = Math.floor(seg / 3600)
@@ -288,7 +300,7 @@ export default function ReglagesScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
 
         <View style={st.header}>
           <TachoLogo textColor={c.text} size={26} />
@@ -632,7 +644,15 @@ export default function ReglagesScreen() {
         {/* ── 5. PARAMÈTRES SALAIRE ── */}
         <SecSep label="💶 PARAMÈTRES SALAIRE" />
 
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+        <View
+          onLayout={e => {
+            salaireSectionY.current = e.nativeEvent.layout.y
+            if (scrollToParam === 'salaire' && !scrolledToSalaire.current) {
+              scrolledToSalaire.current = true
+              setTimeout(() => scrollViewRef.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true }), 200)
+            }
+          }}
+          style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>💶 PARAMÈTRES SALAIRE</Text>
           <TouchableOpacity
             style={[st.backupBtn, { backgroundColor: 'rgba(245,166,35,0.08)', borderColor: 'rgba(245,166,35,0.35)' }]}
@@ -640,7 +660,10 @@ export default function ReglagesScreen() {
           >
             <Text style={{ fontSize: 18 }}>✏️</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Modifier mon contrat</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#f5a623' }}>Modifier mon contrat</Text>
+                {(!camposOk.hbase || !camposOk.hval) && <ReqBadge />}
+              </View>
               <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>Relancer l'assistant contrat et salaire</Text>
             </View>
           </TouchableOpacity>
@@ -811,7 +834,58 @@ export default function ReglagesScreen() {
                 />
               </View>
 
-              <View style={{ marginTop: 12 }}>
+              <View style={[st.divider, { backgroundColor: c.divider }]} />
+
+              <TouchableOpacity
+                style={{ backgroundColor: 'rgba(41,128,185,0.1)', borderRadius: 8, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)', marginBottom: 8 }}
+                onPress={async () => {
+                  try {
+                    const [bgRaw, fgRaw] = await Promise.all([
+                      AsyncStorage.getItem('gps_log'),
+                      AsyncStorage.getItem('gps_log_fg'),
+                    ])
+                    const bgLog: any[] = bgRaw ? JSON.parse(bgRaw) : []
+                    const fgLog: any[] = fgRaw ? JSON.parse(fgRaw) : []
+                    const last5bg = bgLog.slice(-5)
+                    const last5fg = fgLog.slice(-5)
+                    const fmt = (e: any) =>
+                      `vel:${Math.round(e.velGps ?? 0)} inf:${Math.round(e.velInferida ?? 0)} cond:${e.emConducao ? 'Y' : 'N'} stop:${e.deveParar ? 'Y' : 'N'}`
+                    const msg = [
+                      `BG: ${bgLog.length} entradas  FG: ${fgLog.length} entradas`,
+                      '',
+                      '── BG (últimas 5) ──',
+                      ...last5bg.map(fmt),
+                      '',
+                      '── FG (últimas 5) ──',
+                      ...last5fg.map(fmt),
+                    ].join('\n')
+                    Alert.alert('📊 Diagnostic GPS', msg, [
+                      {
+                        text: '📤 Partager JSON',
+                        onPress: () => {
+                          const full = JSON.stringify({ bg: bgLog.slice(-200), fg: fgLog.slice(-200) }, null, 2)
+                          Share.share({ message: full, title: 'gps_log.json' }).catch(() => {})
+                        },
+                      },
+                      {
+                        text: '🗑 Vider logs',
+                        onPress: () => {
+                          AsyncStorage.multiRemove(['gps_log', 'gps_log_fg'])
+                            .then(() => Alert.alert('Logs vidés', 'gps_log et gps_log_fg supprimés.'))
+                            .catch(() => {})
+                        },
+                      },
+                      { text: 'Fermer', style: 'cancel' },
+                    ])
+                  } catch (e) {
+                    Alert.alert('Erreur', String(e))
+                  }
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#2980b9' }}>📊 Diagnostic GPS</Text>
+              </TouchableOpacity>
+
+              <View style={{ marginTop: 4 }}>
                 <TouchableOpacity
                   style={{ backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(155,89,182,0.3)' }}
                   onPress={() => { setSecretUnlocked(false); setVersionTapCount(0) }}
@@ -1000,21 +1074,20 @@ export default function ReglagesScreen() {
 
 const st = StyleSheet.create({
   safe: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 16 },
-  appName: { fontSize: 28, fontWeight: '800', letterSpacing: 1 },
-  accent: { color: '#f5a623' },
-  titleSection: { paddingHorizontal: 20, marginBottom: 16 },
-  title: { fontSize: 26, fontWeight: '800' },
-  section: { marginHorizontal: 20, marginBottom: 12, borderWidth: 1, borderRadius: 16, padding: 16 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 3, marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 },
-  profilRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  profilBtn: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: 'center' },
-  profilBtnActive: { borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.1)' },
-  profilBtnText: { fontSize: 14, fontWeight: '700' },
-  infoBox: { borderRadius: 10, padding: 10 },
-  infoText: { fontSize: 14, lineHeight: 18 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  container: { padding: 20, paddingTop: 16, paddingBottom: 40 },
+  section: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 12 },
+  label: { fontSize: 13, fontWeight: '600' },
+  header: { alignItems: 'center', paddingVertical: 20 },
+  titleSection: { paddingHorizontal: 20, paddingBottom: 8 },
+  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  profilRow: { flexDirection: 'row', gap: 8 },
+  profilBtn: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
+  profilBtnActive: { backgroundColor: 'rgba(245,166,35,0.1)' },
+  profilBtnText: { fontSize: 13, fontWeight: '700' },
+  infoBox: { borderRadius: 10, padding: 12, marginTop: 8 },
+  infoText: { fontSize: 13, lineHeight: 18 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   settingLabel: { fontSize: 14, fontWeight: '600' },
   settingSub: { fontSize: 13, marginTop: 2 },
   divider: { height: 1, marginVertical: 14 },

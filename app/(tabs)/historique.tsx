@@ -43,6 +43,11 @@ const fmtHM = (seg: number) => {
   const m = Math.floor((seg % 3600) / 60)
   return `${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`
 }
+const parsePausaStr = (s: string): number => {
+  const parts = (s || '').trim().split(':')
+  if (parts.length === 2) return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0)
+  return parseInt(s || '0') || 0
+}
 const calcAmplitudeDe = (debut: string, fin: string) => {
   const parse = (t: string) => {
     const [h, m] = t.replace('h', ':').split(':').map(Number)
@@ -152,24 +157,9 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   {jour.nota && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => Alert.alert(
-                          'Supprimer ce commentaire ?',
-                          jour.nota?.texto ? `"${jour.nota.texto}"` : undefined,
-                          [
-                            { text: 'Non', style: 'cancel' },
-                            { text: 'Oui', style: 'destructive', onPress: onDeleteNota },
-                          ]
-                        )}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '800' }}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
+                    </TouchableOpacity>
                   )}
                   <Text style={[st.editHint, { color: c.textSub }]}>✏️ modifier</Text>
                 </View>
@@ -199,6 +189,8 @@ export default function HistoriqueScreen() {
   const [editServico, setEditServico] = useState('')
   const [editPausaMin, setEditPausaMin] = useState(0)
   const [showPausaPicker, setShowPausaPicker] = useState(false)
+  const [editPausaStr, setEditPausaStr] = useState('00:00')
+  const [editNotaTexto, setEditNotaTexto] = useState('')
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [timePickerTarget, setTimePickerTarget] = useState<'debut' | 'fin'>('debut')
   const [timePickerDate, setTimePickerDate] = useState(new Date())
@@ -358,6 +350,8 @@ const getJoursMois = () => {
     setEditKm(String(kmDia > 0 ? kmDia : (jour.kmDiarios ?? 0)))
     const pausaMin = Math.floor((jour.segPausa || 0) / 60)
     setEditPausaMin(pausaMin)
+    setEditPausaStr(`${String(Math.floor(pausaMin/60)).padStart(2,'0')}:${String(pausaMin%60).padStart(2,'0')}`)
+    setEditNotaTexto(jour.nota?.texto || '')
     setEditServico(fmtHM(calcServicoDe(jour.debut, jour.fin, pausaMin)))
     setShowEdit(true)
   }
@@ -409,7 +403,8 @@ const getJoursMois = () => {
   }
   const guardarEdicao = async () => {
     if (!jourEdit) return
-    const novoSeg = calcServicoDe(editDebut, editFin, editPausaMin)
+    const pausaMinFinal = parsePausaStr(editPausaStr)
+    const novoSeg = calcServicoDe(editDebut, editFin, pausaMinFinal)
     const novoServicoStr = fmtHM(novoSeg)
     let regles = DEFAULT_FRAIS_REGLES
     let valeurs = DEFAULT_FRAIS_VALEURS
@@ -428,7 +423,7 @@ const getJoursMois = () => {
       type: editType,
       frais: fraisCalculado,
       segServico: novoSeg,
-      segPausa: editPausaMin * 60,
+      segPausa: pausaMinFinal * 60,
       kmInicio: parseFloat(editKmInicio) || 0,
       kmFim: parseFloat(editKmFim) || 0,
       kmDiarios: (() => {
@@ -437,6 +432,11 @@ const getJoursMois = () => {
         if (i > 0 && f > 0) return Math.abs(Math.round(f - i))
         return parseFloat(editKm) || 0
       })(),
+      nota: editNotaTexto.trim()
+        ? (jourEdit.nota
+            ? { ...jourEdit.nota, texto: editNotaTexto.trim() }
+            : { categoria: 'Autre', emoji: '📌', texto: editNotaTexto.trim() })
+        : undefined,
     }
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
@@ -619,17 +619,7 @@ const getJoursMois = () => {
         </View>
         <View style={[st.resumoCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <View style={st.resumoAccentBar} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={[st.resumoTitle, { color: c.textLabel, marginBottom: 0 }]}>{vue === 'semaine' ? 'RÉSUMÉ DE LA SEMAINE' : 'RÉSUMÉ DU MOIS'}</Text>
-            {vue === 'mois' && (
-              <TouchableOpacity
-                onPress={() => { setNoteJour(null); setNoteCategoria(''); setNoteEmoji(''); setNoteTexto(''); setShowNoteModal(true) }}
-                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(245,166,35,0.15)', borderWidth: 1.5, borderColor: '#f5a623', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Text style={{ fontSize: 18, color: '#f5a623', fontWeight: '800', lineHeight: 22 }}>+</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <Text style={[st.resumoTitle, { color: c.textLabel, marginBottom: 12 }]}>{vue === 'semaine' ? 'RÉSUMÉ DE LA SEMAINE' : 'RÉSUMÉ DU MOIS'}</Text>
           <View style={st.resumoRow}>
             <View style={st.resumoItem}>
               <Text style={[st.resumoVal, { color: c.text }]}>{fmtHM(totalService)}</Text>
@@ -791,7 +781,7 @@ const getJoursMois = () => {
             <Text style={[st.emptySub, { color: c.emptySub }]}>Les jours terminés apparaîtront ici</Text>
           </View>
         }
-        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListFooterComponent={<View style={{ height: 24 }} />}
         renderItem={({ item: jour, index: idx }) => (
           <JourCardSwipeable
             key={jour.id}
@@ -855,14 +845,24 @@ const getJoursMois = () => {
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>PAUSE</Text>
-                <TouchableOpacity
-                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#f39c12', alignItems: 'center' }}
-                  onPress={() => setShowPausaPicker(true)}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#f39c12' }}>
-                    {editPausaMin === 0 ? '⏸ Sem pausa' : `⏸ ${editPausaMin >= 60 ? `${Math.floor(editPausaMin/60)}h${String(editPausaMin%60).padStart(2,'0')}` : `${editPausaMin}min`}`}
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#f39c12', fontSize: 16, fontWeight: '700', color: '#f39c12', textAlign: 'center' }}
+                  value={editPausaStr}
+                  onChangeText={v => { setEditPausaStr(v); const m = parsePausaStr(v); if (m >= 0) setEditPausaMin(m) }}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="00:00"
+                  placeholderTextColor={c.textSub}
+                />
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                  {[{ l: '30min', m: 30 }, { l: '45min', m: 45 }, { l: '1h00', m: 60 }].map(item => (
+                    <TouchableOpacity key={item.l}
+                      style={{ flex: 1, borderRadius: 8, borderWidth: 1, borderColor: '#f39c12', paddingVertical: 5, alignItems: 'center' }}
+                      onPress={() => { setEditPausaMin(item.m); setEditPausaStr(`${String(Math.floor(item.m/60)).padStart(2,'0')}:${String(item.m%60).padStart(2,'0')}`) }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#f39c12' }}>{item.l}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600' }}>SERVICE</Text>
@@ -937,6 +937,25 @@ const getJoursMois = () => {
                 </TouchableOpacity>
               ))}
             </View>
+            <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: '600', marginTop: 8 }}>COMMENTAIRE</Text>
+            <View style={{ marginBottom: 16 }}>
+              <TextInput
+                style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 14, color: c.text, minHeight: 60, textAlignVertical: 'top' }}
+                value={editNotaTexto}
+                onChangeText={setEditNotaTexto}
+                placeholder="Ajouter un commentaire..."
+                placeholderTextColor={c.textSub}
+                multiline
+              />
+              {jourEdit?.nota && (
+                <TouchableOpacity
+                  style={{ paddingVertical: 8, alignItems: 'center' }}
+                  onPress={() => setEditNotaTexto('')}
+                >
+                  <Text style={{ fontSize: 12, color: '#e74c3c', opacity: 0.7 }}>🗑️ Supprimer le commentaire</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
@@ -972,44 +991,6 @@ const getJoursMois = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* PAUSE PICKER MODAL */}
-      <Modal visible={showPausaPicker} transparent animationType="slide">
-        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setShowPausaPicker(false)}>
-          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
-            <Text style={{ fontSize: 13, color: '#f39c12', fontWeight: '800', letterSpacing: 2, textAlign: 'center', marginBottom: 4 }}>⏸ PAUSE</Text>
-            <Text style={{ fontSize: 42, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 }}>
-              {editPausaMin === 0 ? '—' : editPausaMin >= 60
-                ? `${Math.floor(editPausaMin/60)}h${String(editPausaMin%60).padStart(2,'0')}`
-                : `${editPausaMin}min`}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-              {[15, 20, 30, 45, 60, 75, 90, 120, 150, 180].map(min => (
-                <TouchableOpacity
-                  key={min}
-                  style={{ borderRadius: 12, borderWidth: 2, borderColor: editPausaMin === min ? '#f39c12' : c.cardBorder, backgroundColor: editPausaMin === min ? 'rgba(243,156,18,0.12)' : 'transparent', paddingHorizontal: 16, paddingVertical: 10 }}
-                  onPress={() => setEditPausaMin(min)}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: editPausaMin === min ? '#f39c12' : c.textSub }}>
-                    {min >= 60 ? `${Math.floor(min/60)}h${min%60 > 0 ? String(min%60).padStart(2,'0') : '00'}` : `${min}min`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={{ borderRadius: 12, borderWidth: 1.5, borderColor: '#e74c3c', padding: 12, alignItems: 'center', marginBottom: 16 }}
-              onPress={() => setEditPausaMin(0)}
-            >
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#e74c3c' }}>✕ Sem pausa</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
-              onPress={() => setShowPausaPicker(false)}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>✓ Confirmar</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       {/* NOTE MODAL */}
       <Modal visible={showNoteModal} transparent animationType="slide">

@@ -183,7 +183,7 @@ export default function OnboardingScreen() {
         descoberto: false, diaSalario: 5, diaFrais: 10,
         defasagemFrais: 1, confianca: 0,
         hbase, hval, h25: Math.round(hval * 1.25 * 100) / 100, lim25: 17, h50: Math.round(hval * 1.5 * 100) / 100,
-        hlag: 1, flag: 1, liquidRate, fraisSepare: false,
+        hlag: obHlag, flag: obFraisMemeJour ? obHlag : obFlag, liquidRate, fraisSepare: false,
         horasExtrasMedia: 0,
         ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
         valorDiaConges, valorDiaFerie: 0, valorDiaRC: 0,

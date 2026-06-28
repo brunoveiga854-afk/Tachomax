@@ -2253,7 +2253,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         anoFraisTrabalho: resp.anoFraisTrabalho ?? anoFraisTrabalhoCalc,
         fonte,
         confiancaAprendizagem: fonte === 'ia' ? 0.65 : 1,
-        netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : netPayeRecurrent(fiche),
+        netPaye: resp.montantSalReel > 0 ? resp.montantSalReel : (fiche.netPaye || 0),
         salairebrut: fiche.salairebrut || 0,
         totalCotisations: fiche.totalCotisations || 0,
         remboursementFrais: fraisFiche,

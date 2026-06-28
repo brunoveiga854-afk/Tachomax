@@ -1835,6 +1835,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       <Modal visible={showAddDia} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => { setShowAddDia(false); setEditandoDiaId(null) }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>{editandoDiaId ? '✏️ Modifier le jour' : '➕ Ajouter un jour'}</Text>
             <Text style={{ fontSize: 14, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>{addDiaLabel}</Text>
@@ -1901,6 +1902,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               </TouchableOpacity>
             )}
           </TouchableOpacity>
+          </ScrollView>
           </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
@@ -2518,6 +2520,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       <Modal visible={showPausaDuracaoModal} transparent animationType="slide" onRequestClose={() => setShowPausaDuracaoModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'flex-end', padding: 16, paddingBottom: 32 }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f39c12' }}>
             <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>⏸ Démarrer une pause</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 18 }}>
@@ -2567,6 +2570,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               <Text style={{ fontSize: 13, color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>

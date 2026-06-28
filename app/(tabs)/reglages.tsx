@@ -1,6 +1,6 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image, Share } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Image, Share, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -48,8 +48,6 @@ export default function ReglagesScreen() {
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
   const [showPrivacy, setShowPrivacy] = useState(false)
-  const [modoDecrescente, setModoDecrescente] = useState(false)
-  const [modeTest, setModeTest] = useState(false)
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
   const [kmTracteurActuel, setKmTracteurActuel] = useState('')
@@ -111,10 +109,6 @@ export default function ReglagesScreen() {
       const ativo = v !== 'false'
       setRappelAtivo(ativo)
     })
-    AsyncStorage.getItem('modoTacho').then(v => {
-      setModoDecrescente(v === 'decrescente')
-    })
-    AsyncStorage.getItem('mode_test').then(v => setModeTest(v === 'true'))
     AsyncStorage.getItem('tracteur_type').then(v => { if (v === 'immat' || v === 'parc') setTracteurType(v) })
     AsyncStorage.getItem('tracteur_value').then(v => { if (v) setTracteurValue(v) })
     AsyncStorage.getItem('km_ultimo_fim').then(v => { if (v && parseFloat(v) > 0) setKmTracteurActuel(v) })
@@ -569,19 +563,6 @@ export default function ReglagesScreen() {
             </View>
             <Switch value={themeSombre} onValueChange={toggleTheme} trackColor={{ false: '#d0d5e8', true: '#f5a623' }} thumbColor="white" />
           </View>
-          <View style={[st.divider, { backgroundColor: c.divider }]} />
-          <View style={st.settingRow}>
-            <Text style={[st.settingLabel, { color: c.text }]}>⏱ Chrono décroissant</Text>
-            <Switch
-              value={modoDecrescente}
-              onValueChange={async (valor) => {
-                setModoDecrescente(valor)
-                await AsyncStorage.setItem('modoTacho', valor ? 'decrescente' : 'crescente')
-              }}
-              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
-              thumbColor="white"
-            />
-          </View>
         </View>
 
         {/* ── 4. NOTIFICATIONS ── */}
@@ -770,7 +751,7 @@ export default function ReglagesScreen() {
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>LÉGAL</Text>
           <TouchableOpacity
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 }}
-            onPress={() => setShowPrivacy(true)}
+            onPress={() => Linking.openURL('https://super-salamander-252e93.netlify.app')}
           >
             <Text style={[st.settingLabel, { color: c.text }]}>🔒 Politique de confidentialité</Text>
             <Text style={{ color: c.textSub, fontSize: 16 }}>›</Text>
@@ -816,74 +797,7 @@ export default function ReglagesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={[st.divider, { backgroundColor: c.divider }]} />
 
-              <View style={st.settingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[st.settingLabel, { color: c.text }]}>🧪 Mode test</Text>
-                  <Text style={[st.settingSub, { color: c.textSub }]}>Affiche le bouton « Stop conduite » pour tests sans polluer les données</Text>
-                </View>
-                <Switch
-                  value={modeTest}
-                  onValueChange={async (valor) => {
-                    setModeTest(valor)
-                    await AsyncStorage.setItem('mode_test', String(valor))
-                  }}
-                  trackColor={{ false: '#d0d5e8', true: '#9b59b6' }}
-                  thumbColor="white"
-                />
-              </View>
-
-              <View style={[st.divider, { backgroundColor: c.divider }]} />
-
-              <TouchableOpacity
-                style={{ backgroundColor: 'rgba(41,128,185,0.1)', borderRadius: 8, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)', marginBottom: 8 }}
-                onPress={async () => {
-                  try {
-                    const [bgRaw, fgRaw] = await Promise.all([
-                      AsyncStorage.getItem('gps_log'),
-                      AsyncStorage.getItem('gps_log_fg'),
-                    ])
-                    const bgLog: any[] = bgRaw ? JSON.parse(bgRaw) : []
-                    const fgLog: any[] = fgRaw ? JSON.parse(fgRaw) : []
-                    const last5bg = bgLog.slice(-5)
-                    const last5fg = fgLog.slice(-5)
-                    const fmt = (e: any) =>
-                      `vel:${Math.round(e.velGps ?? 0)} inf:${Math.round(e.velInferida ?? 0)} cond:${e.emConducao ? 'Y' : 'N'} stop:${e.deveParar ? 'Y' : 'N'}`
-                    const msg = [
-                      `BG: ${bgLog.length} entradas  FG: ${fgLog.length} entradas`,
-                      '',
-                      '── BG (últimas 5) ──',
-                      ...last5bg.map(fmt),
-                      '',
-                      '── FG (últimas 5) ──',
-                      ...last5fg.map(fmt),
-                    ].join('\n')
-                    Alert.alert('📊 Diagnostic GPS', msg, [
-                      {
-                        text: '📤 Partager JSON',
-                        onPress: () => {
-                          const full = JSON.stringify({ bg: bgLog.slice(-200), fg: fgLog.slice(-200) }, null, 2)
-                          Share.share({ message: full, title: 'gps_log.json' }).catch(() => {})
-                        },
-                      },
-                      {
-                        text: '🗑 Vider logs',
-                        onPress: () => {
-                          AsyncStorage.multiRemove(['gps_log', 'gps_log_fg'])
-                            .then(() => Alert.alert('Logs vidés', 'gps_log et gps_log_fg supprimés.'))
-                            .catch(() => {})
-                        },
-                      },
-                      { text: 'Fermer', style: 'cancel' },
-                    ])
-                  } catch (e) {
-                    Alert.alert('Erreur', String(e))
-                  }
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#2980b9' }}>📊 Diagnostic GPS</Text>
-              </TouchableOpacity>
 
               <View style={{ marginTop: 4 }}>
                 <TouchableOpacity

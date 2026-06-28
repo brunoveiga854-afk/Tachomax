@@ -108,8 +108,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(prev => ({ ...prev, [key]: value }))
   }, [])
 
+  const contextValue = React.useMemo(
+    () => ({ state, recarregarApp, actualizarCampo }),
+    [state, recarregarApp, actualizarCampo]
+  )
   return (
-    <AppContext.Provider value={{ state, recarregarApp, actualizarCampo }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   )

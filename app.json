@@ -12,20 +12,17 @@
       "supportsTablet": true
     },
     "android": {
-      "icon": "./assets/images/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#0f1117"
+      },
       "edgeToEdgeEnabled": true,
       "package": "com.tachooffice.app",
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
-      ]
+      "versionCode": 1,
+      "permissions": []
     },
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static"
     },
     "plugins": [
       "expo-router",
@@ -38,15 +35,7 @@
           "backgroundColor": "#0f1117"
         }
       ],
-      "@react-native-community/datetimepicker",
-      [
-        "expo-location",
-        {
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true,
-          "locationAlwaysAndWhenInUsePermission": "O TachoOffice precisa de acesso a localizacao para registar o tempo de conducao mesmo com o ecra bloqueado."
-        }
-      ]
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

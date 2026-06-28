@@ -3,9 +3,9 @@ import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
-import React, { useCallback, useState, useRef } from 'react'
-import { useFocusEffect } from 'expo-router'
-import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl } from 'react-native'
+import React, { useCallback, useState, useRef, useEffect } from 'react'
+import { useFocusEffect, useLocalSearchParams } from 'expo-router'
+import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -208,7 +208,16 @@ export default function HistoriqueScreen() {
   const [ficheLoading, setFicheLoading] = useState(false)
   const [editKmFim, setEditKmFim] = useState('')
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
+  const { scrollToId } = useLocalSearchParams<{ scrollToId?: string }>()
+  const listRef = useRef<FlatList>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
+  useEffect(() => {
+    if (!scrollToId) return
+    setVue('mois')
+    setMoisOffset(0)
+    setHighlightId(scrollToId as string)
+  }, [scrollToId])
   const chargerHistorique = async () => {
     try {
       const data = await AsyncStorage.getItem('historique')
@@ -485,7 +494,18 @@ const getJoursMois = () => {
         })
         const fraisJ = entry ? (() => {
           try {
-            const r = calcularFraisJour({ debut: entry.debut, fin: entry.fin, type: entry.type as any, decouche: entry.decouche, regles, valeurs: fraisVals })
+            const prevDec = diaAnteriorDecouche(entry)
+            const segServ = entry.segServico || 0
+            const r = calcularFraisJour({
+              debut: entry.debut,
+              fin: entry.fin,
+              type: entry.type as any,
+              decouche: entry.decouche,
+              segServico: segServ,
+              prevDecouche: prevDec,
+              regles,
+              valeurs: fraisVals
+            })
             return { ptDej: r.ptd > 0, repas: (r.dej > 0 || r.din > 0), nuit: entry.decouche || false }
           } catch { return { ptDej: false, repas: false, nuit: false } }
         })() : { ptDej: false, repas: false, nuit: false }
@@ -542,6 +562,16 @@ const getJoursMois = () => {
   const barColor = pctSemaine > 90 ? '#e74c3c' : pctSemaine > 75 ? '#f39c12' : '#27ae60'
   const invalidos = joursActuels.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC'))
   const validos = joursActuels.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
+  useEffect(() => {
+    if (!highlightId) return
+    const idx = validos.findIndex(j => j.id === highlightId)
+    if (idx < 0 || !listRef.current) return
+    const t1 = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index: idx, animated: true })
+    }, 300)
+    const t2 = setTimeout(() => setHighlightId(null), 1000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [highlightId, validos])
   const getJoursSemanaOffset = (offset: number) => {
     const maintenant = new Date()
     const lundiBase = new Date(maintenant)
@@ -756,12 +786,14 @@ const getJoursMois = () => {
         )}
       </View>
       <FlatList
+        ref={listRef}
         showsVerticalScrollIndicator={false}
         data={validos}
         keyExtractor={(item) => item.id}
         initialNumToRender={15}
         windowSize={10}
         removeClippedSubviews={true}
+        onScrollToIndexFailed={() => {}}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -783,17 +815,19 @@ const getJoursMois = () => {
         }
         ListFooterComponent={<View style={{ height: 24 }} />}
         renderItem={({ item: jour, index: idx }) => (
-          <JourCardSwipeable
-            key={jour.id}
-            jour={jour}
-            themeSombre={themeSombre}
-            c={c}
-            index={idx}
-            onDelete={() => eliminarJour(jour.id)}
-            onEdit={() => abrirEdicao(jour)}
-            onNote={() => abrirNota(jour)}
-            onDeleteNota={() => eliminarNota(jour.id)}
-          />
+          <View style={jour.id === highlightId ? { borderRadius: 14, borderWidth: 2, borderColor: '#f5a623', marginHorizontal: 2, marginVertical: 2 } : undefined}>
+            <JourCardSwipeable
+              key={jour.id}
+              jour={jour}
+              themeSombre={themeSombre}
+              c={c}
+              index={idx}
+              onDelete={() => eliminarJour(jour.id)}
+              onEdit={() => abrirEdicao(jour)}
+              onNote={() => abrirNota(jour)}
+              onDeleteNota={() => eliminarNota(jour.id)}
+            />
+          </View>
         )}
         ListHeaderComponent={<Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>}
       />
@@ -801,7 +835,9 @@ const getJoursMois = () => {
       {/* MODAL EDIT */}
       <Modal visible={showEdit} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setShowEdit(false)}>
-          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
+          <ScrollView keyboardShouldPersistTaps='handled' contentContainerStyle={{ padding: 24 }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>
               ✏️ Modifier le jour
             </Text>
@@ -987,7 +1023,9 @@ const getJoursMois = () => {
                 }}
               />
             )}
+          </ScrollView>
           </TouchableOpacity>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
 
@@ -995,7 +1033,9 @@ const getJoursMois = () => {
       {/* NOTE MODAL */}
       <Modal visible={showNoteModal} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => { setShowNoteModal(false); setNoteJour(null) }}>
-          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
+          <ScrollView keyboardShouldPersistTaps='handled' contentContainerStyle={{ padding: 24 }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📝 Note du jour</Text>
             {noteJour ? (
               <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>{noteJour.jour} {noteJour.date}</Text>
@@ -1077,7 +1117,9 @@ const getJoursMois = () => {
                 </TouchableOpacity>
               )}
             </View>
+          </ScrollView>
           </TouchableOpacity>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>

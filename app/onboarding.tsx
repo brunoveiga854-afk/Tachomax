@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useApp } from '../context/AppContext'
 import { TachoLogo } from '../src/TachoLogo'
 import { PADRAO_INICIAL } from '../src/engine/aprendizagem'
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 
 const { width } = Dimensions.get('window')
 
@@ -39,7 +40,8 @@ export default function OnboardingScreen() {
         AsyncStorage.getItem('equipement_grue_aux'),
         AsyncStorage.getItem('contrat_net_mensuel'),
         AsyncStorage.getItem('contrat_saisir_brut'),
-      ]).then(([pren, nomV, prof, anc, coef, padraoRaw, vType, cType, tType, tVal, rType, rVal, km, eChar, eHay, eGrue, netMensuel, saisirBrut]) => {
+        AsyncStorage.getItem('date_entree_entreprise'),
+      ]).then(([pren, nomV, prof, anc, coef, padraoRaw, vType, cType, tType, tVal, rType, rVal, km, eChar, eHay, eGrue, netMensuel, saisirBrut, dateEntreeStr]) => {
         if (pren) setPrenom(pren)
         if (nomV) setNom(nomV)
         if (prof === 'CD' || prof === 'MIXTE' || prof === 'LD') setProfil(prof)
@@ -76,6 +78,10 @@ export default function OnboardingScreen() {
         if (eGrue === 'true') setEquipGrueAux(true)
         if (saisirBrut !== null) setObSaisirBrut(saisirBrut === 'true')
         if (netMensuel) setObSalNet(netMensuel)
+        if (dateEntreeStr) {
+          const d = new Date(dateEntreeStr)
+          if (!isNaN(d.getTime())) setDataEntrada(d)
+        }
         // Charger timing de aprendizagem_padrao
         AsyncStorage.getItem('aprendizagem_padrao').then(apRaw => {
           if (apRaw) try {
@@ -107,6 +113,7 @@ export default function OnboardingScreen() {
   // Contrato (etapa 2)
   const [ancienneteAns, setAncienneteAns] = useState('')
   const [ancienneteMois, setAncienneteMois] = useState('')
+  const [dataEntrada, setDataEntrada] = useState<Date | null>(null)
   const [coefficient, setCoefficient] = useState('')
   const [salBaseEstime, setSalBaseEstime] = useState('')
   const [heuresMensuel, setHeuresMensuel] = useState('')
@@ -121,12 +128,19 @@ export default function OnboardingScreen() {
   const [obHlag, setObHlag] = useState(1)
   const [obDiaFrais, setObDiaFrais] = useState(25)
   const [obFlag, setObFlag] = useState(1)
+  const mesActual = new Date().getMonth()
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
   const [obFraisMemeJour, setObFraisMemeJour] = useState(true)
+  const [obDiaSalarioIsAutre, setObDiaSalarioIsAutre] = useState(false)
+  const [obDiaSalarioAutreInput, setObDiaSalarioAutreInput] = useState('')
+  const [obDiaFraisIsAutre, setObDiaFraisIsAutre] = useState(false)
+  const [obDiaFraisAutreInput, setObDiaFraisAutreInput] = useState('')
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
     if (ancienneteAns || ancienneteMois)
       await AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`)
+    if (dataEntrada) await AsyncStorage.setItem('date_entree_entreprise', dataEntrada.toISOString())
     if (coefficient) await AsyncStorage.setItem('coefficient', coefficient)
     if (salBaseEstime) await AsyncStorage.setItem('sal_base_estime', salBaseEstime)
     if (heuresMensuel) await AsyncStorage.setItem('heures_mensuel', heuresMensuel)
@@ -195,8 +209,10 @@ export default function OnboardingScreen() {
       } catch {}
     }
     // Guardar timing no motor de aprendizagem
+    const existingAprendRaw = await AsyncStorage.getItem('aprendizagem_padrao')
+    const existingAprendizagem = existingAprendRaw ? JSON.parse(existingAprendRaw) : PADRAO_INICIAL
     const padraoAprendizado = {
-      ...PADRAO_INICIAL,
+      ...existingAprendizagem,  // preserva dados aprendidos (ptd, dej, din, nui, taxaHorariaNetaMedia, etc.)
       hlag: obHlag,
       diaSalario: obDiaSalario,
       flag: obFraisMemeJour ? obHlag : obFlag,
@@ -350,32 +366,42 @@ export default function OnboardingScreen() {
           </View>
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>📅 ANCIENNETÉ DANS L'ENTREPRISE</Text>
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6, textAlign: 'center' }}>Années</Text>
-              <TextInput
-                value={ancienneteAns}
-                onChangeText={v => setAncienneteAns(v.replace(/[^0-9]/g, ''))}
-                placeholder="ex: 4"
-                placeholderTextColor="#6b7394"
-                keyboardType="number-pad"
-                maxLength={2}
-                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6, textAlign: 'center' }}>Mois</Text>
-              <TextInput
-                value={ancienneteMois}
-                onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; setAncienneteMois(n <= 11 ? String(n || '') : '11') }}
-                placeholder="ex: 5"
-                placeholderTextColor="#6b7394"
-                keyboardType="number-pad"
-                maxLength={2}
-                style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: '#2a3045' }}
-              />
-            </View>
-          </View>
+          <TouchableOpacity
+            onPress={() => {
+              DateTimePickerAndroid.open({
+                value: dataEntrada || new Date(),
+                mode: 'date',
+                is24Hour: true,
+                maximumDate: new Date(),
+                onChange: (event: any, date?: Date) => {
+                  if (event.type === 'set' && date) {
+                    setDataEntrada(date)
+                    const hoje = new Date()
+                    const diffMs = hoje.getTime() - date.getTime()
+                    const diffMeses = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44))
+                    const anos = Math.floor(diffMeses / 12)
+                    const meses = diffMeses % 12
+                    setAncienneteAns(String(anos))
+                    setAncienneteMois(String(meses))
+                  }
+                },
+              })
+            }}
+            style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: dataEntrada ? '#f5a623' : '#2a3045', alignItems: 'center', marginBottom: 8 }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: '800', color: dataEntrada ? '#f5a623' : '#6b7394' }}>
+              {dataEntrada
+                ? `📅 Depuis le ${String(dataEntrada.getDate()).padStart(2, '0')}/${String(dataEntrada.getMonth() + 1).padStart(2, '0')}/${dataEntrada.getFullYear()}`
+                : "📅 Choisir la date d'entrée"}
+            </Text>
+          </TouchableOpacity>
+          {dataEntrada ? (
+            <Text style={{ fontSize: 12, color: '#9ba3b8', marginBottom: 20, textAlign: 'center' }}>
+              {ancienneteAns} an{parseInt(ancienneteAns) > 1 ? 's' : ''} et {ancienneteMois} mois
+            </Text>
+          ) : (
+            <View style={{ marginBottom: 20 }} />
+          )}
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>⚖️ COEFFICIENT CONVENTIONNEL</Text>
           <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 8, lineHeight: 16 }}>Sur ta fiche de paie (ex: 138, 150…). Laisse vide si tu ne sais pas.</Text>
@@ -491,22 +517,47 @@ export default function OnboardingScreen() {
 
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8, marginTop: 8 }}>📅 JOUR DE PAIEMENT DU SALAIRE</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-            {[25, 26, 27, 28, 30].map(d => (
-              <TouchableOpacity key={d} onPress={() => setObDiaSalario(d)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaSalario === d ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaSalario === d ? 1.5 : 1, borderColor: obDiaSalario === d ? '#f5a623' : '#2a3045' }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaSalario === d ? '#f5a623' : '#eef0f5' }}>{d}</Text>
+            {[1, 5, 10, 15, 25].map(d => (
+              <TouchableOpacity key={d} onPress={() => { setObDiaSalario(d); setObDiaSalarioIsAutre(false) }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaSalario === d && !obDiaSalarioIsAutre ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaSalario === d && !obDiaSalarioIsAutre ? 1.5 : 1, borderColor: obDiaSalario === d && !obDiaSalarioIsAutre ? '#f5a623' : '#2a3045' }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaSalario === d && !obDiaSalarioIsAutre ? '#f5a623' : '#eef0f5' }}>{d}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity onPress={() => setObDiaSalarioIsAutre(true)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaSalarioIsAutre ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaSalarioIsAutre ? 1.5 : 1, borderColor: obDiaSalarioIsAutre ? '#f5a623' : '#2a3045' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaSalarioIsAutre ? '#f5a623' : '#eef0f5' }}>Autre</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ce salaire correspond au travail de quel mois�?</Text>
+          {obDiaSalarioIsAutre && (
+            <TextInput
+              value={obDiaSalarioAutreInput}
+              onChangeText={v => {
+                const n = v.replace(/[^0-9]/g, '')
+                setObDiaSalarioAutreInput(n)
+                const num = parseInt(n)
+                if (num >= 1 && num <= 31) setObDiaSalario(num)
+              }}
+              placeholder="Jour du mois (1-31)"
+              placeholderTextColor="#6b7394"
+              keyboardType="number-pad"
+              maxLength={2}
+              style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1.5, borderColor: '#f5a623', marginBottom: 8 }}
+            />
+          )}
+          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ce salaire correspond au travail de quel mois ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             <TouchableOpacity onPress={() => setObHlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-              <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Du mois en cours</Text>
+              <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[mesActual]}</Text>
+              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setObHlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 1 ? 1.5 : 1, borderColor: obHlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-              <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Du mois précédent</Text>
+              <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual + 1) % 12]}</Text>
+              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois après</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setObHlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 2 ? 1.5 : 1, borderColor: obHlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '800', color: obHlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual + 2) % 12]}</Text>
+              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois après</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🧾 FRAIS — MÊME JOUR QUE LE SALAIRE�?</Text>
+          <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🧾 FRAIS — MÊME JOUR QUE LE SALAIRE ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: obFraisMemeJour ? 20 : 12 }}>
             <TouchableOpacity onPress={() => setObFraisMemeJour(true)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFraisMemeJour ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFraisMemeJour ? 1.5 : 1, borderColor: obFraisMemeJour ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obFraisMemeJour ? '#f5a623' : '#eef0f5', fontSize: 13 }}>Oui, même jour</Text>
@@ -519,18 +570,43 @@ export default function OnboardingScreen() {
             <>
               <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Jour de réception des frais</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                {[25, 26, 27, 28, 30].map(d => (
-                  <TouchableOpacity key={d} onPress={() => setObDiaFrais(d)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaFrais === d ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaFrais === d ? 1.5 : 1, borderColor: obDiaFrais === d ? '#f5a623' : '#2a3045' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaFrais === d ? '#f5a623' : '#eef0f5' }}>{d}</Text>
+                {[1, 5, 10, 15, 25].map(d => (
+                  <TouchableOpacity key={d} onPress={() => { setObDiaFrais(d); setObDiaFraisIsAutre(false) }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaFrais === d && !obDiaFraisIsAutre ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaFrais === d && !obDiaFraisIsAutre ? 1.5 : 1, borderColor: obDiaFrais === d && !obDiaFraisIsAutre ? '#f5a623' : '#2a3045' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaFrais === d && !obDiaFraisIsAutre ? '#f5a623' : '#eef0f5' }}>{d}</Text>
                   </TouchableOpacity>
                 ))}
+                <TouchableOpacity onPress={() => setObDiaFraisIsAutre(true)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaFraisIsAutre ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaFraisIsAutre ? 1.5 : 1, borderColor: obDiaFraisIsAutre ? '#f5a623' : '#2a3045' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: obDiaFraisIsAutre ? '#f5a623' : '#eef0f5' }}>Autre</Text>
+                </TouchableOpacity>
               </View>
+              {obDiaFraisIsAutre && (
+                <TextInput
+                  value={obDiaFraisAutreInput}
+                  onChangeText={v => {
+                    const n = v.replace(/[^0-9]/g, '')
+                    setObDiaFraisAutreInput(n)
+                    const num = parseInt(n)
+                    if (num >= 1 && num <= 31) setObDiaFrais(num)
+                  }}
+                  placeholder="Jour du mois (1-31)"
+                  placeholderTextColor="#6b7394"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1.5, borderColor: '#f5a623', marginBottom: 8 }}
+                />
+              )}
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
                 <TouchableOpacity onPress={() => setObFlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 0 ? 1.5 : 1, borderColor: obFlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-                  <Text style={{ fontWeight: '800', color: obFlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>Mois en cours</Text>
+                  <Text style={{ fontWeight: '800', color: obFlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[mesActual]}</Text>
+                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setObFlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 1 ? 1.5 : 1, borderColor: obFlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-                  <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>Mois précédent</Text>
+                  <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual + 1) % 12]}</Text>
+                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois après</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setObFlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 2 ? 1.5 : 1, borderColor: obFlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                  <Text style={{ fontWeight: '800', color: obFlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual + 2) % 12]}</Text>
+                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois après</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -693,62 +769,18 @@ export default function OnboardingScreen() {
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(4)}>
-              <Text style={st.btnNextText}>SUIVANT →</Text>
+            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={terminerOnboarding}>
+              <Text style={st.btnNextText}>DÉMARRER 🚛</Text>
             </TouchableOpacity>
           </View>
         </View>
         </KeyboardAvoidingView>
       )}
 
-      {/* ETAPE 4 — TRIAL */}
-      {etape === 4 && (
-        <View style={st.page}>
-          <View style={st.stepHeader}>
-            <Text style={st.stepNum}>4 / 4</Text>
-            <Text style={st.stepTitle}>60 jours gratuits</Text>
-            <Text style={st.stepSub}>Accès complet à toutes les fonctionnalités</Text>
-          </View>
-
-          <View style={st.trialSection}>
-            <Text style={st.trialEmoji}>🎉</Text>
-            <Text style={st.trialDays}>60</Text>
-            <Text style={st.trialLabel}>jours d'essai gratuit</Text>
-            <Text style={st.trialSub}>Aucune carte bancaire requise</Text>
-          </View>
-
-          <View style={st.trialFeatures}>
-            {[
-              '✅ Chronomètre et historique complet',
-              '✅ Frais calculés automatiquement',
-              '✅ IA lecture fiche de paie',
-              '✅ Alertes limites légales',
-              '✅ Rapport mensuel exportable',
-            ].map(item => (
-              <Text key={item} style={st.trialFeatureText}>{item}</Text>
-            ))}
-          </View>
-
-          <View style={st.trialPrix}>
-            <Text style={st.trialPrixText}>Après 60 jours</Text>
-            <Text style={st.trialPrixVal}>2,99€/mois</Text>
-            <Text style={st.trialPrixSub}>Annulable à tout moment</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(3)}>
-              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[st.btnStart, { flex: 2 }]} onPress={terminerOnboarding}>
-              <Text style={st.btnStartText}>🚛 DÉMARRER</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       {/* DOTS */}
       <View style={st.dots}>
-        {[0, 1, 2, 3, 4].map(i => (
+        {[0, 1, 2, 3].map(i => (
           <View key={i} style={[st.dot, etape === i && st.dotActive]} />
         ))}
       </View>
@@ -803,21 +835,6 @@ const st = StyleSheet.create({
   profilLimites: { fontSize: 11, color: '#6b7394', fontWeight: '700' },
   profilCheck: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#2a3045', alignItems: 'center', justifyContent: 'center' },
   profilCheckActive: { backgroundColor: '#f5a623', borderColor: '#f5a623' },
-
-  // Trial
-  trialSection: { alignItems: 'center', marginBottom: 24 },
-  trialEmoji: { fontSize: 48, marginBottom: 8 },
-  trialDays: { fontSize: 72, fontWeight: '800', color: '#f5a623', lineHeight: 80 },
-  trialLabel: { fontSize: 18, fontWeight: '700', color: '#eef0f5', marginBottom: 4 },
-  trialSub: { fontSize: 13, color: '#6b7394' },
-  trialFeatures: { backgroundColor: '#181c27', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#2a3045', marginBottom: 20, gap: 10 },
-  trialFeatureText: { fontSize: 14, color: '#c4c9d8', fontWeight: '500' },
-
-  // Prix
-  trialPrix: { alignItems: 'center', marginBottom: 24 },
-  trialPrixText: { fontSize: 13, color: '#6b7394', marginBottom: 4 },
-  trialPrixVal: { fontSize: 22, fontWeight: '800', color: '#eef0f5' },
-  trialPrixSub: { fontSize: 12, color: '#6b7394', marginTop: 4 },
 
   // Buttons
   btnNext: { backgroundColor: '#f5a623', borderRadius: 16, padding: 14, alignItems: 'center' },

@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { calcularFraisJour } from '../../src/frais'
@@ -17,7 +18,6 @@ import {
   gerarPerguntasObrigatorias, detectarAnomalias, aplicarRespostaConduteur,
   actualizarPadraoComBoletim, precisaoEstimativa as precisaoEstimativaMotor
 } from '../../src/engine/aprendizagem'
-const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
 
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
@@ -713,7 +713,7 @@ const totalPrimesExceptionnelles = (d: any) =>
   (d?.primeNonAccident || 0) +
   (d?.autresPrimes || 0)
 
-const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, d?.netPaye || 0)
+const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, (d?.netPaye || 0) - (d?.remboursementFrais || 0) - (d?.interessement || 0) - (d?.participationSalariale || 0) - (d?.primeExceptionnelle || 0))
 
 const montantTotalRecuFiche = (d: any) =>
   netPayeRecurrent(d) + totalPrimesExceptionnelles(d) + (d?.remboursementFrais || 0)
@@ -953,7 +953,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     const semFerias = comBruto.filter(d => (d.joursConges || 0) === 0 && (d.joursFeries || 0) === 0)
     const fonte = semFerias.length >= 2 ? semFerias : comBruto
     const taxa = fonte.reduce((a, d) => a + netPayeRecurrent(d) / d.salairebrut, 0) / fonte.length
-    base.liquidRate = Math.round(taxa * 1000) / 1000
+    base.liquidRate = Math.round(Math.min(taxa, 0.95) * 1000) / 1000
   }
 
   // C. Coeficientes salariais reais extraídos das fiches
@@ -1245,6 +1245,7 @@ export default function MonSalaireScreen() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
+  const [rascunhoActual, setRascunhoActual] = useState<any>(null)
   const [perguntaAtual, setPerguntaAtual] = useState(0)
   const [respostas, setRespostas] = useState<any[]>([])
   const [inputValor, setInputValor] = useState('')
@@ -1364,44 +1365,42 @@ export default function MonSalaireScreen() {
   // Recarregar padrao + historique sempre que a aba ganha foco
   // (ex: após editar nas Réglages ou adicionar dia no Historique)
   useFocusEffect(useCallback(() => {
-    recarregarApp()
-    // monSalaire_padrao: AppContext se disponível, senão AsyncStorage
-    if (appState.padrao) {
-      setPadrao(appState.padrao)
-      if (appState.padrao._conflitHbase) setConflitHbase(appState.padrao._conflitHbase)
-      else setConflitHbase(null)
-    } else {
-      AsyncStorage.getItem('monSalaire_padrao').then(async raw => {
-        if (raw) {
-          try {
-            const p = JSON.parse(raw)
-            setPadrao(p)
-            if (p._conflitHbase) setConflitHbase(p._conflitHbase)
-            else setConflitHbase(null)
-          } catch {
-            await AsyncStorage.removeItem('monSalaire_padrao')
+    const sincronizar = async () => {
+      await recarregarApp()
+      // monSalaire_padrao: AppContext se disponível, senão AsyncStorage
+      if (appState.padrao) {
+        setPadrao(appState.padrao)
+        if (appState.padrao._conflitHbase) setConflitHbase(appState.padrao._conflitHbase)
+        else setConflitHbase(null)
+      } else {
+        AsyncStorage.getItem('monSalaire_padrao').then(async raw => {
+          if (raw) {
+            try {
+              const p = JSON.parse(raw)
+              setPadrao(p)
+              if (p._conflitHbase) setConflitHbase(p._conflitHbase)
+              else setConflitHbase(null)
+            } catch {
+              await AsyncStorage.removeItem('monSalaire_padrao')
+            }
           }
+        })
+      }
+      // campos_obrigatorios_ok via AppContext
+      setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
+      // historique não está no AppContext — continua via AsyncStorage
+      AsyncStorage.getItem('historique').then(histRaw => {
+        if (histRaw) {
+          try { setHistCal(JSON.parse(histRaw)) } catch {}
         }
       })
     }
-    // campos_obrigatorios_ok via AppContext
-    setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
-    // historique não está no AppContext — continua via AsyncStorage
-    AsyncStorage.getItem('historique').then(histRaw => {
-      if (histRaw) {
-        try { setHistCal(JSON.parse(histRaw)) } catch {}
-      }
-    })
+    sincronizar()
   }, []))
 
   useEffect(() => {
-    if (histCal.length === 0) return
-    if (!calcResult) return
-    if (camposOk !== 'true') return
-    if (loading) return
-    const timer = setTimeout(() => calcularSalario(), 300)
-    return () => clearTimeout(timer)
-  }, [histCal])
+    setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
+  }, [appState.camposObrigatoriosOk])
 
   useEffect(() => {
     if (!loading) { setLoadingMsg(0); scrollAnim.setValue(0); dustAnim.setValue(0); return }
@@ -1863,10 +1862,10 @@ Congés/absences:
 
 Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
 Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
       })
       const data = await response.json()
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
@@ -1897,10 +1896,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
       }
       content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0,"regles":{"ptDejAte":null,"dejMinAmp":null,"dinerDe":null}},...]\n\nPour le champ "regles", extrait les critères d'attribution si explicitement mentionnés dans le document (sinon laisse null):\n- ptDejAte: heure limite de début de service pour avoir droit au petit déjeuner (nombre décimal, ex: 6.5 pour 06h30)\n- dejMinAmp: amplitude minimale en heures pour avoir droit au déjeuner (ex: 6.017 pour 6h01)\n- dinerDe: heure minimale de fin de service pour avoir droit au dîner (ex: 21.25 pour 21h15)` })
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
       })
       const data = await response.json()
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
@@ -1979,10 +1978,10 @@ Congés/absences:
 
 Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
 Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, messages: [{ role: 'user', content }, { role: 'assistant', content: '[' }] }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] }),
       })
       const data = await response.json()
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }
@@ -2053,7 +2052,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       })
       const semValores = respostasAuto.filter(r => r.montantSalReel <= 0 && r.montantFraisReel <= 0)
       if (semValores.length > 0) {
-        mostrarErro(`Faltam valores extraídos pela IA em ${semValores[0].fiche.periode}.\nCarrega uma fiche mais nítida ou confirma manualmente.`)
+        mostrarErro(`Valeurs manquantes extraites par l'IA pour ${semValores[0].fiche.periode}.\nCharge une fiche plus nette ou confirme manuellement.`)
         return
       }
       // Motor de aprendizagem (modo auto)
@@ -2178,16 +2177,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const novasRespostas = [...respostas, novaResposta]
     setRespostas(novasRespostas)
     if (perguntaAtual < fiches.length - 1) {
-      // Pré-preenche sal + frais para a próxima fiche
-      const pf = fiches[perguntaAtual + 1]?.dados || fiches[perguntaAtual + 1] as any
-      setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
-      setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
-      setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
-      setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
+      // Pré-preenche sal + frais para a próxima fiche (rascunho tem prioridade)
+      const proxIndex = perguntaAtual + 1
+      const temRascunho = rascunhoActual?.index === proxIndex
+      const pf = fiches[proxIndex]?.dados || fiches[proxIndex] as any
+      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : ((pf?.netPaye || 0) > 0 ? String(Math.round((pf?.netPaye || 0) * 100) / 100) : ''))
+      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : ((pf?.remboursementFrais || 0) > 0 ? String(Math.round((pf?.remboursementFrais || 0) * 100) / 100) : ''))
+      setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
+      setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
+      setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
+      if (temRascunho) setRascunhoActual(null)
       setShowVerifDetalhes(false)
       setVerifApplied(false)
-      setInputMoisAtipico(false)
-      setPerguntaAtual(perguntaAtual + 1)
+      setPerguntaAtual(proxIndex)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
     }
@@ -2753,16 +2755,21 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>↩ Retour</Text>
             </TouchableOpacity>
           </Animated.View>
-        ) : camposOk !== 'true' ? (
+        ) : camposOk === 'false' ? (
           <View style={{ marginHorizontal: 20, marginTop: 16, marginBottom: 8, backgroundColor: 'rgba(231,76,60,0.12)', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: 'rgba(231,76,60,0.4)' }}>
             <Text style={{ fontSize: 14, fontWeight: '800', color: '#e74c3c', marginBottom: 10, lineHeight: 21 }}>
               {"⚠️ Pour estimer ton salaire, renseigne d'abord les champs obligatoires dans Réglages."}
             </Text>
             <TouchableOpacity
               style={{ backgroundColor: '#e74c3c', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, alignSelf: 'flex-start' }}
-              onPress={() => {
+              onPress={async () => {
                   try {
-                    router.push('/(tabs)/reglages')
+                    const profilOk = !!(await AsyncStorage.getItem('profil'))
+                    if (!profilOk) {
+                      router.push('/(tabs)/reglages?scrollTo=salaire')
+                    } else {
+                      router.push('/onboarding?mode=edit')
+                    }
                   } catch (e) {
                     console.error('Nav error:', e)
                   }
@@ -2966,7 +2973,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>0%</Text>
                         <Text style={{ fontSize: 10, color: pgColor, fontWeight: '800' }}>
-                          {precisaoGlobal >= 95 ? '🎯 Excellent !' : precisaoGlobal >= 85 ? `${100 - precisaoGlobal}% pour 100%` : `Objectif 100% — carrega mais fiches`}
+                          {precisaoGlobal >= 95 ? '🎯 Excellent !' : precisaoGlobal >= 85 ? `${100 - precisaoGlobal}% pour 100%` : `Objectif 100% — charge plus de fiches`}
                         </Text>
                         <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>100%</Text>
                       </View>
@@ -2977,7 +2984,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         if (semFiche.length > 0) return (
                           <View style={{ marginTop: 10, backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)' }}>
                             <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '700' }}>
-                              💡 Carrega a fiche de {semFiche[0].periode} → precisão sobe para ~{Math.min(99, precisaoGlobal + 8)}%
+                              💡 Charge la fiche de {semFiche[0].periode} → précision monte à ~{Math.min(99, precisaoGlobal + 8)}%
                             </Text>
                           </View>
                         )
@@ -3196,6 +3203,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       {/* MODAL PERGUNTAS */}
       <Modal visible={showPerguntas} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
             {fichaActual && (() => {
               const dadosFicha = (fichaActual.dados || fichaActual) as any
@@ -3204,6 +3212,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               const mesLabel = MESES_PT[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
               const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
               const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
+              const [, mesTravIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.hlag)
+              const mesTravail = MESES_PT[mesTravIdx] || ''
+              const [, mesFraisIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.flag)
+              const mesFraisTravail = MESES_PT[mesFraisIdx] || ''
 
               return (
                 <>
@@ -3262,13 +3274,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )}
 
                   <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20, lineHeight: 28 }}>
-                    En {mesLabel} {fichaActual.annee}, combien as-tu reçu ?
+                    Reçu en {mesLabel} {fichaActual.annee} — pour le travail de {mesTravail}
                   </Text>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        💰 Jour {diaSal} — salaire ?
+                        💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
                       </Text>
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
@@ -3282,7 +3294,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        🍽️ Jour {diaFrais} — frais ?
+                        🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
                       </Text>
                       <TextInput
                         style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
@@ -3354,12 +3366,20 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         if (perguntaAtual > 0) {
                           const popped = respostas[respostas.length - 1]
                           if (popped) {
-                            setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(popped.montantSalReel) : '')
-                            setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(popped.montantFraisReel) : '')
+                            setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(Math.round((popped.montantSalReel || 0) * 100) / 100) : '')
+                            setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(Math.round((popped.montantFraisReel || 0) * 100) / 100) : '')
                           setInputMoisAtipico(popped.moisAtipico || false)
-                          setInputInteressementQ((popped.interessementQ || 0) > 0 ? String(popped.interessementQ) : '')
-                          setInputPrimeNonAccQ((popped.primeNonAccQ || 0) > 0 ? String(popped.primeNonAccQ) : '')
+                          setInputInteressementQ((popped.interessementQ || 0) > 0 ? String(Math.round((popped.interessementQ || 0) * 100) / 100) : '')
+                          setInputPrimeNonAccQ((popped.primeNonAccQ || 0) > 0 ? String(Math.round((popped.primeNonAccQ || 0) * 100) / 100) : '')
                           }
+                          setRascunhoActual({
+                            index: perguntaAtual,
+                            montantSalReel: parseFloat(inputMontantSalQ) || 0,
+                            montantFraisReel: parseFloat(inputMontantFraisQ) || 0,
+                            interessementQ: parseFloat(inputInteressementQ) || 0,
+                            primeNonAccQ: parseFloat(inputPrimeNonAccQ) || 0,
+                            moisAtipico: inputMoisAtipico,
+                          })
                           setPerguntaAtual(perguntaAtual - 1)
                           setRespostas(respostas.slice(0, -1))
                           setShowVerifDetalhes(false)
@@ -3384,6 +3404,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               )
             })()}
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -3500,6 +3521,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       {/* MODAL FRAIS RÉELS */}
       <Modal visible={showModalFraisReel} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#2980b9' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>🍽️ Corriger les frais</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
@@ -3569,12 +3591,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* MODAL SALAIRE NET RÉEL */}
       <Modal visible={showModalSalNet} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#27ae60' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Confirmer le salaire net</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
@@ -3687,6 +3711,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -3700,11 +3725,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={{ gap: 12, marginBottom: 20 }}>
               <View>
-                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>NET PAYÉ (€)</Text>
+                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>NET PAYÉ DE LA FICHE (€) — sans frais, sans primes exceptionnelles</Text>
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editNetPaye} onChangeText={setEditNetPaye} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
               <View>
-                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>FRAIS BOLETIM (€)</Text>
+                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>FRAIS REÇUS (€) — indemnités repas + découché</Text>
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editFraisBoletim} onChangeText={setEditFraisBoletim} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
               <View>
@@ -4024,18 +4049,33 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {(perguntaActual.tipo === 'timing_salario' || perguntaActual.tipo === 'timing_frais') && (
                     <View style={{ gap: 12, marginBottom: 16 }}>
                       <View>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DATE DE PAIEMENT (JJ/MM/AAAA)</Text>
-                        <TextInput
-                          style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 16, color: c.text, borderWidth: 1, borderColor: c.cardBorder }}
-                          value={respostaData}
-                          onChangeText={setRespostaData}
-                          placeholder="ex: 05/01/2025"
-                          placeholderTextColor={c.textSub}
-                          keyboardType="numbers-and-punctuation"
-                        />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DATE DE PAIEMENT</Text>
+                        <TouchableOpacity
+                          style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: respostaData ? '#f5a623' : c.cardBorder, alignItems: 'center' }}
+                          onPress={() => {
+                            const parts = respostaData ? respostaData.split('/') : []
+                            const initDate = parts.length === 3 ? new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])) : new Date()
+                            DateTimePickerAndroid.open({
+                              value: isNaN(initDate.getTime()) ? new Date() : initDate,
+                              mode: 'date',
+                              onChange: (_, date) => {
+                                if (date) {
+                                  const dd = String(date.getDate()).padStart(2, '0')
+                                  const mm = String(date.getMonth() + 1).padStart(2, '0')
+                                  const yyyy = date.getFullYear()
+                                  setRespostaData(`${dd}/${mm}/${yyyy}`)
+                                }
+                              }
+                            })
+                          }}
+                        >
+                          <Text style={{ fontSize: 16, color: respostaData ? c.text : c.textSub, fontWeight: '600' }}>
+                            {respostaData || '📅 Choisir la date'}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                       <View>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>{'MOIS TRAVAILL\u00C9'}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>CE PAIEMENT CORRESPOND AU TRAVAIL DE QUEL MOIS ?</Text>
                         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                           {[0,1,2,3].map((offset: number) => {
                             const d = new Date()

@@ -17,12 +17,11 @@ import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, 
 // Chaves a exportar/importar
 const BACKUP_KEYS = [
   'historique',
-  'monSalaire_v2',
-  'monSalaire_padrao',
-  'frais_valores',
-  'frais_regles',
-  'sal_settings',
-  'profil',
+]
+
+const BACKUP_KEYS_COMPLETO = [
+  'historique', 'monSalaire_v2', 'monSalaire_padrao',
+  'frais_valores', 'frais_regles', 'sal_settings', 'profil',
 ]
 
 export default function ReglagesScreen() {
@@ -244,8 +243,10 @@ export default function ReglagesScreen() {
     setShowModalImport(false)
     try {
       const { backup } = importData
-      for (const [key, val] of Object.entries(backup.data)) {
-        await AsyncStorage.setItem(key, JSON.stringify(val))
+      for (const key of BACKUP_KEYS) {
+        if (backup.data[key] !== undefined) {
+          await AsyncStorage.setItem(key, JSON.stringify(backup.data[key]))
+        }
       }
       await recarregarApp()
       setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nRedémarre l'app pour voir tes données.`)

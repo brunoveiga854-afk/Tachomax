@@ -1311,6 +1311,7 @@ export default function MonSalaireScreen() {
   const [showModalPerguntas, setShowModalPerguntas] = useState(false)
   const [respostaData, setRespostaData] = useState('')
   const [respostaMes, setRespostaMes] = useState<number | null>(null)
+  const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const [showConfirmTiming, setShowConfirmTiming] = useState(false)
@@ -2197,7 +2198,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const handleResponderPergunta = async (resposta: string) => {
     if (!perguntaActual) return
-    const novoPadrao = aplicarRespostaConduteur(perguntaActual, resposta, padraoAprendido, null as any)
+    const dataPag = respostaData ? (() => {
+      const [dd, mm, yyyy] = respostaData.split('/')
+      return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+    })() : null
+    const boletimTiming: BoletimExtraido = {
+      periodo: '', moisIndex: 0, annee: 0, netPaye: 0, salairebrut: 0,
+      hval: null, heuresSuppl25: null, heuresSuppl50: null, heuresNuit: null,
+      joursCongesN: null, joursCongesN1: null, joursRC: null, fraisBoletim: null,
+      rubriquesDesconhecidas: [],
+      dataPagamento: dataPag,
+      mesTrabalho: respostaMes !== null ? respostaMes : null,
+    }
+    const novoPadrao = aplicarRespostaConduteur(perguntaActual, resposta, padraoAprendido, boletimTiming)
     await guardarPadraoAprendido(novoPadrao)
     const restantes = perguntasPendentes.filter(p => p.id !== perguntaActual.id)
     setPerguntasPendentes(restantes)
@@ -4078,7 +4091,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>CE PAIEMENT CORRESPOND AU TRAVAIL DE QUEL MOIS ?</Text>
                         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                           {[0,1,2,3].map((offset: number) => {
-                            const d = new Date()
+                            const base = respostaData ? (() => {
+                              const [dd, mm, yyyy] = respostaData.split('/')
+                              return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+                            })() : new Date()
+                            const d = new Date(base)
                             d.setMonth(d.getMonth() - offset)
                             const idx = d.getMonth()
                             const yr = d.getFullYear()
@@ -4087,7 +4104,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                               <TouchableOpacity
                                 key={offset}
                                 style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: respostaMes === idx ? 2 : 1, borderColor: respostaMes === idx ? '#f5a623' : c.cardBorder, backgroundColor: respostaMes === idx ? 'rgba(245,166,35,0.1)' : c.input }}
-                                onPress={() => setRespostaMes(idx)}
+                                onPress={() => { setRespostaMes(idx); setRespostaMesAno(yr) }}
                               >
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: respostaMes === idx ? '#f5a623' : c.textSub }}>{label}</Text>
                               </TouchableOpacity>
@@ -4114,7 +4131,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <TouchableOpacity
                         style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null) }}
+                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Plus tard</Text>
                       </TouchableOpacity>
@@ -4122,7 +4139,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}
                         onPress={() => {
                           const rep = respostaData || (respostaMes !== null ? String(respostaMes) : '')
-                          if (rep) { handleResponderPergunta(rep); setRespostaData(''); setRespostaMes(null) }
+                          if (rep) { handleResponderPergunta(rep); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }
                         }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Confirmer</Text>

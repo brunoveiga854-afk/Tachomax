@@ -58,7 +58,7 @@ const T = {
     langue: 'LANGUE',
     notifications: 'NOTIFICATIONS',
     alertesPause: 'Alertes pause obligatoire',
-    rappelPause: 'Rappel avant 4h30 de conduite',
+    rappelPause: 'Rappel avant 5h45 de service continu',
     abonnement: 'ABONNEMENT',
     joursEssai: "jours d'essai restants",
     sabonner: "S'abonner — 2,99€/mois",

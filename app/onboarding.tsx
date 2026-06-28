@@ -542,19 +542,19 @@ export default function OnboardingScreen() {
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1.5, borderColor: '#f5a623', marginBottom: 8 }}
             />
           )}
-          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Ce salaire correspond au travail de quel mois ?</Text>
+          <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Tu reçois ton salaire le {obDiaSalario} — les heures de quel mois sont payées ce jour-là ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             <TouchableOpacity onPress={() => setObHlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[mesActual]}</Text>
               <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setObHlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 1 ? 1.5 : 1, borderColor: obHlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-              <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual + 1) % 12]}</Text>
-              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois après</Text>
+              <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual - 1 + 12) % 12]}</Text>
+              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois avant</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setObHlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 2 ? 1.5 : 1, borderColor: obHlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-              <Text style={{ fontWeight: '800', color: obHlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual + 2) % 12]}</Text>
-              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois après</Text>
+              <Text style={{ fontWeight: '800', color: obHlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual - 2 + 12) % 12]}</Text>
+              <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois avant</Text>
             </TouchableOpacity>
           </View>
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🧾 FRAIS — MÊME JOUR QUE LE SALAIRE ?</Text>
@@ -568,7 +568,7 @@ export default function OnboardingScreen() {
           </View>
           {!obFraisMemeJour && (
             <>
-              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Jour de réception des frais</Text>
+              <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Tu reçois tes frais le {obDiaFrais} — les frais de quel mois arrivent ce jour-là ?</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                 {[1, 5, 10, 15, 25].map(d => (
                   <TouchableOpacity key={d} onPress={() => { setObDiaFrais(d); setObDiaFraisIsAutre(false) }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: obDiaFrais === d && !obDiaFraisIsAutre ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obDiaFrais === d && !obDiaFraisIsAutre ? 1.5 : 1, borderColor: obDiaFrais === d && !obDiaFraisIsAutre ? '#f5a623' : '#2a3045' }}>
@@ -601,12 +601,12 @@ export default function OnboardingScreen() {
                   <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setObFlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 1 ? 1.5 : 1, borderColor: obFlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-                  <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual + 1) % 12]}</Text>
-                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois après</Text>
+                  <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual - 1 + 12) % 12]}</Text>
+                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois avant</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setObFlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 2 ? 1.5 : 1, borderColor: obFlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
-                  <Text style={{ fontWeight: '800', color: obFlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual + 2) % 12]}</Text>
-                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois après</Text>
+                  <Text style={{ fontWeight: '800', color: obFlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual - 2 + 12) % 12]}</Text>
+                  <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois avant</Text>
                 </TouchableOpacity>
               </View>
             </>

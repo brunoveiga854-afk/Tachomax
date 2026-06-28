@@ -231,6 +231,8 @@ export default function AujourdhuiScreen() {
       kmDiarios: snap.kmDiarios || 0,
       kmInicioTacho: snap.kmInicioTacho || 0,
       pausaReglementaireOk: !!snap.pausaReglementaireOk,
+      pausaBloco1Feita: !!snap.pausaBloco1Feita,
+      pausaBloco2Feita: !!snap.pausaBloco2Feita,
       pausas: snap.pausas || [],
       horaInicio: snap.horaInicio || '',
       dateInicio: snap.dateInicio?.toISOString(),
@@ -252,6 +254,8 @@ export default function AujourdhuiScreen() {
     setKmFimInput('')
     setSegPausaTotal((estado.segPausaTotal || 0) + (estado.emPausa ? tempoBackground : 0))
     setPausaReglementaireOk(!!estado.pausaReglementaireOk)
+    setPausaBloco1Feita(!!estado.pausaBloco1Feita)
+    setPausaBloco2Feita(!!estado.pausaBloco2Feita)
     if (estado.pausas) setPausas(estado.pausas)
     if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
 

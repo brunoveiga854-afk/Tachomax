@@ -2525,12 +2525,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nConges * (padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval))} €</Text>
                         </View>
                       )}
-                      {calcResult.nFeries > 0 && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🎌 {calcResult.nFeries}j fériés × {(padrao.valorDiaFerie > 0 ? padrao.valorDiaFerie : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nFeries * (padrao.valorDiaFerie > 0 ? padrao.valorDiaFerie : (padrao.hbase / 22) * padrao.hval))} €</Text>
-                        </View>
-                      )}
                       {calcResult.nRC > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🔄 {calcResult.nRC}j R.C. × {(padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
@@ -3296,7 +3290,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
                       </Text>
                       <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: verifApplied ? 2 : 1, borderColor: verifApplied === 'fiche' ? '#f5a623' : verifApplied === 'app' ? '#3498db' : c.cardBorder, textAlign: 'center' }}
                         value={inputMontantSalQ}
                         onChangeText={(v) => { setInputMontantSalQ(v); setVerifApplied(false) }}
                         keyboardType="decimal-pad"
@@ -3310,7 +3304,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
                       </Text>
                       <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: verifApplied ? 2 : 1, borderColor: verifApplied === 'fiche' ? '#f5a623' : verifApplied === 'app' ? '#3498db' : c.cardBorder, textAlign: 'center' }}
                         value={inputMontantFraisQ}
                         onChangeText={(v) => { setInputMontantFraisQ(v); setVerifApplied(false) }}
                         keyboardType="decimal-pad"

@@ -461,7 +461,7 @@ const getJoursMois = () => {
   }
   const jousSemaine = getJoursSemaine()
   const joursMois = getJoursMois()
-  const gerarFicheHebdo = async () => {
+  const gerarFicheHebdo = async (moisFiltre?: number) => {
     setFicheLoading(true)
     try {
       const maintenant = new Date()
@@ -537,22 +537,25 @@ const getJoursMois = () => {
           commentaire: (entry as any)?.nota?.texto || '',
         }
       })
-      const totalKms = jours.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
+      const joursFinal = typeof moisFiltre === 'number'
+        ? jours.filter((_, i) => { const d = new Date(lundi); d.setDate(lundi.getDate() + i); return d.getMonth() === moisFiltre })
+        : jours
+      const totalKms = joursFinal.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
       const totalSec = historique.filter(j => {
         const parts = j.date.split('/'); const m2=parseInt(parts[1])-1; const d2=parseInt(parts[0]); const a2=parts[2]?parseInt(parts[2]):new Date(parseInt(j.id)).getFullYear()
-        const dj=new Date(a2,m2,d2); return dj>=lundi && dj<=sabado
+        const dj=new Date(a2,m2,d2); return dj>=lundi && dj<=sabado && (typeof moisFiltre !== 'number' || dj.getMonth() === moisFiltre)
       }).reduce((s, j) => s + (j.segServico || 0), 0)
       const html = gerarHtmlFiche({
         nom: nom || '', prenom: prenom || '',
         semaine: numSemana,
         dateDebut: fmt(lundi), dateFin: fmt(sabado),
-        jours,
+        jours: joursFinal,
         totalKms: totalKms > 0 ? String(totalKms) : '',
         totalHeures: fmtSec(totalSec),
       })
       const { uri } = await Print.printToFileAsync({ html, base64: false })
       setFicheLoading(false)
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}${typeof moisFiltre === 'number' ? ' — ' + MOIS[moisFiltre] : ''}`, UTI: 'com.adobe.pdf' })
     } catch (e) {
       setFicheLoading(false)
       Alert.alert('Erreur', String(e))
@@ -560,6 +563,9 @@ const getJoursMois = () => {
   }
 
   const joursActuels = vue === 'semaine' ? jousSemaine : joursMois
+  const lundiFiche = (() => { const m = new Date(); const l = new Date(m); l.setDate(m.getDate() - m.getDay() + 1 + (semaine * 7)); l.setHours(0, 0, 0, 0); return l })()
+  const sabadoFiche = (() => { const s = new Date(lundiFiche); s.setDate(lundiFiche.getDate() + 5); return s })()
+  const atravessaMeses = lundiFiche.getMonth() !== sabadoFiche.getMonth()
   const totalService = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
   const totalKm = joursActuels.reduce((a, j) => a + (j.kmDiarios || 0), 0)
@@ -767,15 +773,35 @@ const getJoursMois = () => {
               <Text style={{ fontSize: 15 }}>📤</Text>
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9' }}>Rapport</Text>
             </TouchableOpacity>
-            {vue === 'semaine' && (
+            {vue === 'semaine' && !atravessaMeses && (
               <TouchableOpacity
                 style={{ flex: 1.3, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                onPress={gerarFicheHebdo}
+                onPress={() => gerarFicheHebdo()}
                 disabled={ficheLoading}
               >
                 <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
                 <Text style={{ fontSize: 13, fontWeight: '800', color: '#f5a623' }}>{ficheLoading ? 'Génération...' : 'Fiche semaine PDF'}</Text>
               </TouchableOpacity>
+            )}
+            {vue === 'semaine' && atravessaMeses && (
+              <>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  onPress={() => gerarFicheHebdo(lundiFiche.getMonth())}
+                  disabled={ficheLoading}
+                >
+                  <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{MOIS_COURT[lundiFiche.getMonth()]}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  onPress={() => gerarFicheHebdo(sabadoFiche.getMonth())}
+                  disabled={ficheLoading}
+                >
+                  <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{MOIS_COURT[sabadoFiche.getMonth()]}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>

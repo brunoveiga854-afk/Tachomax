@@ -2044,7 +2044,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           fiche: f,
           frais: fraisDoc.find(fr => fr.moisIndex === f.moisIndex && fr.annee === f.annee) || null,
           montantTotal: montantTotalRecuFiche(pf),
-          montantSalReel: netPayeRecurrent(pf),
+          montantSalReel: pf.netPaye || 0,
           montantFraisReel: pf?.remboursementFrais || 0,
           diaSalario: padrao.diaSalario,
           diaFrais: padrao.diaFrais,

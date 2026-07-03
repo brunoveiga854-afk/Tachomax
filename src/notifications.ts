@@ -53,7 +53,7 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
       identifier: NOTIF_IDS.PAUSA_ALERTA,
       content: {
         title: '⚠️ TachoOffice — Pause dans 30 min',
-        body: "Il te reste 30 min de conduite continue. Prépare-toi à t'arrêter.",
+        body: "Il te reste 30 min de service continu. Prépare-toi à t'arrêter.",
         sound: 'default',
         data: { type: 'pausa_aviso' },
         ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
@@ -70,7 +70,7 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
     identifier: NOTIF_IDS.PAUSA_OBRIGATORIA,
     content: {
       title: '🛑 TachoOffice — PAUSE OBLIGATOIRE',
-      body: "4h30 de conduite atteintes ! Tu dois t'arrêter 45 minutes minimum.",
+      body: "5h45 de service continu atteintes ! Tu dois faire une pause de 45 minutes minimum.",
       sound: 'default',
       data: { type: 'pausa_obrigatoria' },
       ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),

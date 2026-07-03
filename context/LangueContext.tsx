@@ -199,7 +199,7 @@ const T = {
     langue: 'LÍNGUA',
     notifications: 'NOTIFICAÇÕES',
     alertesPause: 'Alertas pausa obrigatória',
-    rappelPause: 'Lembrete antes de 4h30 de condução',
+    rappelPause: 'Lembrete antes de 5h45 de serviço contínuo',
     abonnement: 'SUBSCRIÇÃO',
     joursEssai: 'dias de teste restantes',
     sabonner: 'Subscrever — 2,99€/mês',

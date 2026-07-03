@@ -208,6 +208,12 @@ export default function HistoriqueScreen() {
   const [ficheLoading, setFicheLoading] = useState(false)
   const [editKmFim, setEditKmFim] = useState('')
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
+  const [fraisReglesResumo, setFraisReglesResumo] = useState(DEFAULT_FRAIS_REGLES)
+  useEffect(() => {
+    AsyncStorage.getItem('frais_regles').then(raw => {
+      try { setFraisReglesResumo(sanitizeFraisRegles(raw ? JSON.parse(raw) : {})) } catch {}
+    }).catch(() => {})
+  }, [])
   const { scrollToId } = useLocalSearchParams<{ scrollToId?: string }>()
   const listRef = useRef<FlatList>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -558,6 +564,18 @@ const getJoursMois = () => {
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
   const totalKm = joursActuels.reduce((a, j) => a + (j.kmDiarios || 0), 0)
   const nbDecouche = joursActuels.filter(j => j.decouche).length
+  const fraisDetalhes = joursActuels.map(j => calcularFraisJour({
+    debut: j.debut,
+    fin: j.fin,
+    type: j.type,
+    segServico: j.segServico,
+    decouche: j.decouche,
+    prevDecouche: diaAnteriorDecouche(j),
+    regles: fraisReglesResumo,
+  }))
+  const nbPtDej = fraisDetalhes.filter(f => f.ptd > 0).length
+  const nbDej = fraisDetalhes.filter(f => f.dej > 0).length
+  const nbDiner = fraisDetalhes.filter(f => f.din > 0).length
   const pctSemaine = Math.min((totalService / MAX_SEMAINE) * 100, 100)
   const barColor = pctSemaine > 90 ? '#e74c3c' : pctSemaine > 75 ? '#f39c12' : '#27ae60'
   const invalidos = joursActuels.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC'))
@@ -671,6 +689,9 @@ const getJoursMois = () => {
               <Text style={[st.resumoLabel, { color: c.textSub }]}>km</Text>
             </View>
           </View>
+          <Text style={{ color: c.textSub, fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+            🍵 {nbPtDej}  ·  🍽️ {nbDej}  ·  🌙 {nbDiner}
+          </Text>
           {vue === 'semaine' && (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>

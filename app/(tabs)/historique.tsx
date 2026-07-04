@@ -206,6 +206,9 @@ export default function HistoriqueScreen() {
   const [editKmInicio, setEditKmInicio] = useState('')
   const [showFicheHebdo, setShowFicheHebdo] = useState(false)
   const [ficheLoading, setFicheLoading] = useState(false)
+  const [showFraisDetalhe, setShowFraisDetalhe] = useState(false)
+  const [showModalFicheDias, setShowModalFicheDias] = useState(false)
+  const [diasSelecionados, setDiasSelecionados] = useState<boolean[]>([true,true,true,true,true,true])
   const [editKmFim, setEditKmFim] = useState('')
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
   const [fraisReglesResumo, setFraisReglesResumo] = useState(DEFAULT_FRAIS_REGLES)
@@ -461,7 +464,7 @@ const getJoursMois = () => {
   }
   const jousSemaine = getJoursSemaine()
   const joursMois = getJoursMois()
-  const gerarFicheHebdo = async (moisFiltre?: number) => {
+  const gerarFicheHebdo = async (indicesSelecionados?: number[]) => {
     setFicheLoading(true)
     try {
       const maintenant = new Date()
@@ -537,25 +540,33 @@ const getJoursMois = () => {
           commentaire: (entry as any)?.nota?.texto || '',
         }
       })
-      const joursFinal = typeof moisFiltre === 'number'
-        ? jours.filter((_, i) => { const d = new Date(lundi); d.setDate(lundi.getDate() + i); return d.getMonth() === moisFiltre })
+      const joursFinal = indicesSelecionados
+        ? jours.filter((_, i) => indicesSelecionados.includes(i))
         : jours
       const totalKms = joursFinal.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
-      const totalSec = historique.filter(j => {
-        const parts = j.date.split('/'); const m2=parseInt(parts[1])-1; const d2=parseInt(parts[0]); const a2=parts[2]?parseInt(parts[2]):new Date(parseInt(j.id)).getFullYear()
-        const dj=new Date(a2,m2,d2); return dj>=lundi && dj<=sabado && (typeof moisFiltre !== 'number' || dj.getMonth() === moisFiltre)
-      }).reduce((s, j) => s + (j.segServico || 0), 0)
+      const totalSec = joursFinal.reduce((s, j) => {
+        if (!j.date) return s
+        const [dd2, mm2, yy2] = j.date.split('/')
+        const entry = historique.find(h => {
+          const p = h.date.split('/'); const m2=parseInt(p[1])-1; const d2=parseInt(p[0])
+          const a2 = p[2] ? parseInt(p[2]) : new Date(parseInt(h.id)).getFullYear()
+          return d2 === parseInt(dd2) && m2 === parseInt(mm2)-1 && a2 === parseInt(yy2)
+        })
+        return s + (entry?.segServico || 0)
+      }, 0)
+      const firstJour = joursFinal.find(j => j.date)
+      const lastJour = [...joursFinal].reverse().find(j => j.date)
       const html = gerarHtmlFiche({
         nom: nom || '', prenom: prenom || '',
         semaine: numSemana,
-        dateDebut: fmt(lundi), dateFin: fmt(sabado),
+        dateDebut: firstJour?.date || fmt(lundi), dateFin: lastJour?.date || fmt(sabado),
         jours: joursFinal,
         totalKms: totalKms > 0 ? String(totalKms) : '',
         totalHeures: fmtSec(totalSec),
       })
       const { uri } = await Print.printToFileAsync({ html, base64: false })
       setFicheLoading(false)
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}${typeof moisFiltre === 'number' ? ' — ' + MOIS[moisFiltre] : ''}`, UTI: 'com.adobe.pdf' })
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
     } catch (e) {
       setFicheLoading(false)
       Alert.alert('Erreur', String(e))
@@ -566,6 +577,14 @@ const getJoursMois = () => {
   const lundiFiche = (() => { const m = new Date(); const l = new Date(m); l.setDate(m.getDate() - m.getDay() + 1 + (semaine * 7)); l.setHours(0, 0, 0, 0); return l })()
   const sabadoFiche = (() => { const s = new Date(lundiFiche); s.setDate(lundiFiche.getDate() + 5); return s })()
   const atravessaMeses = lundiFiche.getMonth() !== sabadoFiche.getMonth()
+  const diasComDados = [0,1,2,3,4,5].map(i => {
+    const d = new Date(lundiFiche); d.setDate(lundiFiche.getDate() + i)
+    return !!historique.find(j => {
+      const parts = j.date.split('/'); const m2=parseInt(parts[1])-1; const d2=parseInt(parts[0])
+      const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+      return d2 === d.getDate() && m2 === d.getMonth() && a2 === d.getFullYear()
+    })
+  })
   const totalService = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
   const totalKm = joursActuels.reduce((a, j) => a + (j.kmDiarios || 0), 0)
@@ -685,19 +704,21 @@ const getJoursMois = () => {
               <Text style={[st.resumoLabel, { color: c.textSub }]}>Nuit{nbDecouche > 1 ? 's' : ''}</Text>
             </View>
             <View style={[st.resumoDivider, { backgroundColor: c.cardBorder }]} />
-            <View style={st.resumoItem}>
+            <TouchableOpacity style={st.resumoItem} onPress={() => setShowFraisDetalhe(v => !v)} activeOpacity={0.7}>
               <Text style={[st.resumoVal, { color: '#27ae60' }]}>{totalFrais.toFixed(2)}€</Text>
-              <Text style={[st.resumoLabel, { color: c.textSub }]}>Frais</Text>
-            </View>
+              <Text style={[st.resumoLabel, { color: c.textSub }]}>Frais {showFraisDetalhe ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
             <View style={[st.resumoDivider, { backgroundColor: c.cardBorder }]} />
             <View style={st.resumoItem}>
               <Text style={[st.resumoVal, { color: '#2980b9' }]}>{Math.round(totalKm)}</Text>
               <Text style={[st.resumoLabel, { color: c.textSub }]}>km</Text>
             </View>
           </View>
-          <Text style={{ color: c.textSub, fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-            🍵 {nbPtDej}  ·  🍽️ {nbDej}  ·  🌙 {nbDiner}
-          </Text>
+          {showFraisDetalhe && (
+            <Text style={{ color: c.textSub, fontSize: 12, textAlign: 'center', marginTop: 6 }}>
+              {'🍵'} {nbPtDej} Pt-déj{'  ·  🍽️'} {nbDej} Repas{'  ·  🌙'} {nbDiner} Dîners{'  ·  🛏️'} {nbDecouche} Nuits
+            </Text>
+          )}
           {vue === 'semaine' && (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -773,35 +794,15 @@ const getJoursMois = () => {
               <Text style={{ fontSize: 15 }}>📤</Text>
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9' }}>Rapport</Text>
             </TouchableOpacity>
-            {vue === 'semaine' && !atravessaMeses && (
+            {vue === 'semaine' && (
               <TouchableOpacity
                 style={{ flex: 1.3, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                onPress={() => gerarFicheHebdo()}
+                onPress={() => { setDiasSelecionados([...diasComDados]); setShowModalFicheDias(true) }}
                 disabled={ficheLoading}
               >
                 <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
                 <Text style={{ fontSize: 13, fontWeight: '800', color: '#f5a623' }}>{ficheLoading ? 'Génération...' : 'Fiche semaine PDF'}</Text>
               </TouchableOpacity>
-            )}
-            {vue === 'semaine' && atravessaMeses && (
-              <>
-                <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  onPress={() => gerarFicheHebdo(lundiFiche.getMonth())}
-                  disabled={ficheLoading}
-                >
-                  <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{MOIS_COURT[lundiFiche.getMonth()]}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  onPress={() => gerarFicheHebdo(sabadoFiche.getMonth())}
-                  disabled={ficheLoading}
-                >
-                  <Text style={{ fontSize: 15 }}>{ficheLoading ? '⏳' : '📋'}</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{MOIS_COURT[sabadoFiche.getMonth()]}</Text>
-                </TouchableOpacity>
-              </>
             )}
           </View>
         </View>
@@ -1167,6 +1168,44 @@ const getJoursMois = () => {
           </ScrollView>
           </TouchableOpacity>
           </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
+      <Modal visible={showModalFicheDias} transparent animationType="slide">
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }} onPress={() => setShowModalFicheDias(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }} onPress={() => {}}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📋 Sélectionner les jours</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>Les jours avec données sont pré-sélectionnés (●)</Text>
+            {[0,1,2,3,4,5].map(i => {
+              const d = new Date(lundiFiche); d.setDate(lundiFiche.getDate() + i)
+              const dayLabel = ['Lun','Mar','Mer','Jeu','Ven','Sam'][i]
+              const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`
+              return (
+                <TouchableOpacity key={i}
+                  onPress={() => { const s=[...diasSelecionados]; s[i]=!s[i]; setDiasSelecionados(s) }}
+                  style={{ flexDirection:'row', alignItems:'center', paddingVertical:10, borderBottomWidth:1, borderBottomColor:c.cardBorder }}
+                >
+                  <View style={{ width:22, height:22, borderRadius:4, borderWidth:1.5, borderColor:diasSelecionados[i]?'#f5a623':c.cardBorder, backgroundColor:diasSelecionados[i]?'rgba(245,166,35,0.15)':'transparent', alignItems:'center', justifyContent:'center', marginRight:12 }}>
+                    {diasSelecionados[i] && <Text style={{ color:'#f5a623', fontSize:13, fontWeight:'900' }}>✓</Text>}
+                  </View>
+                  <Text style={{ flex:1, fontSize:15, fontWeight:'700', color:c.text }}>{dayLabel}</Text>
+                  <Text style={{ fontSize:13, color:diasComDados[i]?c.text:c.textSub }}>{dateStr}{diasComDados[i]?' ●':''}</Text>
+                </TouchableOpacity>
+              )
+            })}
+            <TouchableOpacity
+              style={{ backgroundColor: diasSelecionados.some(Boolean) ? '#f5a623' : c.cardBorder, borderRadius:12, padding:14, alignItems:'center', marginTop:16 }}
+              disabled={!diasSelecionados.some(Boolean)}
+              onPress={() => {
+                setShowModalFicheDias(false)
+                const indices = diasSelecionados.map((v,i) => v ? i : -1).filter(i => i >= 0)
+                if (indices.length > 0) gerarFicheHebdo(indices)
+              }}
+            >
+              <Text style={{ fontSize:15, fontWeight:'800', color:'white' }}>
+                {'📋 Générer PDF ('}{diasSelecionados.filter(Boolean).length}{' jour'}{diasSelecionados.filter(Boolean).length !== 1 ? 's' : ''}{')'}
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>

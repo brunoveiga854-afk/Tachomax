@@ -1344,6 +1344,14 @@ export default function MonSalaireScreen() {
     setRespostaMes(dSug.getMonth())
     setRespostaMesAno(dSug.getFullYear())
   }, [respostaData])
+  useEffect(() => {
+    if (montantSalTemp > 0 && (!inputMontantSalQ || inputMontantSalQ === '0'))
+      setInputMontantSalQ(String(montantSalTemp))
+  }, [montantSalTemp])
+  useEffect(() => {
+    if (montantFraisTemp > 0 && (!inputMontantFraisQ || inputMontantFraisQ === '0'))
+      setInputMontantFraisQ(String(montantFraisTemp))
+  }, [montantFraisTemp])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const [showConfirmTiming, setShowConfirmTiming] = useState(false)
@@ -2214,8 +2222,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const proxIndex = perguntaAtual + 1
       const temRascunho = rascunhoActual?.index === proxIndex
       const pf = fiches[proxIndex]?.dados || fiches[proxIndex] as any
-      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : ((pf?.netPaye || 0) > 0 ? String(Math.round((pf?.netPaye || 0) * 100) / 100) : ''))
-      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : ((pf?.remboursementFrais || 0) > 0 ? String(Math.round((pf?.remboursementFrais || 0) * 100) / 100) : ''))
+      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : ((pf?.netPaye || 0) > 0 ? String(Math.round((pf?.netPaye || 0) * 100) / 100) : ''))
+      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : ((pf?.remboursementFrais || 0) > 0 ? String(Math.round((pf?.remboursementFrais || 0) * 100) / 100) : ''))
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)

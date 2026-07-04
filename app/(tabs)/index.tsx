@@ -1210,6 +1210,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               const repos45Ok = reposS >= reposMin45h
               return (
                 <>
+                  {!reposOk && (
                   <View style={{ marginHorizontal: 16, marginBottom: reposOk ? 4 : 6, backgroundColor: reposOk ? 'rgba(39,174,96,0.08)' : c.card, borderRadius: 12, borderWidth: 1, borderColor: reposOk ? '#27ae60' : c.cardBorder, padding: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <Text style={{ fontSize: 10, fontWeight: '800', color: reposOk ? '#27ae60' : c.textLabel, letterSpacing: 0.5 }}>😴 REPOS ENTRE SERVICES</Text>
@@ -1224,6 +1225,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       </Text>
                     )}
                   </View>
+                  )}
                   {reposOk && (
                     <View style={{ marginHorizontal: 16, marginBottom: 6, backgroundColor: repos45Ok ? 'rgba(39,174,96,0.06)' : c.card, borderRadius: 12, borderWidth: 1, borderColor: repos45Ok ? '#27ae60' : c.cardBorder, padding: 12 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>

@@ -1272,6 +1272,8 @@ export default function MonSalaireScreen() {
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
+  const [savedSalBeforeVerif, setSavedSalBeforeVerif] = useState('')
+  const [savedFraisBeforeVerif, setSavedFraisBeforeVerif] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
   const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
@@ -3242,6 +3244,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'fiche' ? 'rgba(39,174,96,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'fiche' ? 1.5 : 1, borderColor: verifApplied === 'fiche' ? '#27ae60' : c.cardBorder }}
                           onPress={() => {
+                            setSavedSalBeforeVerif(inputMontantSalQ)
+                            setSavedFraisBeforeVerif(inputMontantFraisQ)
                             if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
                             if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
                             setVerifApplied('fiche')
@@ -3252,8 +3256,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
-                            setInputMontantSalQ('')
-                            setInputMontantFraisQ('')
+                            setInputMontantSalQ(savedSalBeforeVerif)
+                            setInputMontantFraisQ(savedFraisBeforeVerif)
                             setVerifApplied('app')
                           }}
                         >

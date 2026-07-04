@@ -1369,7 +1369,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         const registo = diasHistorique.find(j => {
                           const parts = j.date.split('/')
                           const dataStr = parts.length === 3 ? `${parts[0]}/${parts[1]}` : j.date
-                          return dataStr === diaStr && (parts.length < 3 || parseInt(parts[2]) === calAno)
+                          const anoEntrada = parts.length >= 3 ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+                          return dataStr === diaStr && anoEntrada === calAno
                         })
                         const isHoje = eMesAtual && numDia === hojeD
                         const isFuturo = calAno > hojeA || (calAno === hojeA && calMes > hojeM) || (eMesAtual && numDia > hojeD)

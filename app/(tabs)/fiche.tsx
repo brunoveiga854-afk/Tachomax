@@ -1321,6 +1321,10 @@ export default function MonSalaireScreen() {
   useEffect(() => {
     setRespostaMesManual(false)
     if (!perguntaActual) return
+    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0)
+      setMontantSalTemp(perguntaActual.valorContexto.netPaye)
+    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0)
+      setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
       : (padraoAprendido.hlag ?? padrao.hlag ?? 2)
@@ -2222,9 +2226,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       // Pré-preenche sal + frais para a próxima fiche (rascunho tem prioridade)
       const proxIndex = perguntaAtual + 1
       const temRascunho = rascunhoActual?.index === proxIndex
-      const pf = fiches[proxIndex]?.dados || fiches[proxIndex] as any
-      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : ((pf?.netPaye || 0) > 0 ? String(Math.round((pf?.netPaye || 0) * 100) / 100) : ''))
-      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : ((pf?.remboursementFrais || 0) > 0 ? String(Math.round((pf?.remboursementFrais || 0) * 100) / 100) : ''))
+      const fichaProx = fiches[proxIndex]
+      const pf = fichaProx?.dados || fichaProx as any
+      const netPayeProx = (fichaProx?.dados?.netPaye || (fichaProx as any)?.netPaye || 0)
+      const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
+      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
+      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)

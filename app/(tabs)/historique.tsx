@@ -224,17 +224,20 @@ export default function HistoriqueScreen() {
   useEffect(() => {
     if (!scrollToId) return
     setVue('mois')
-    if (calMes !== undefined && calAno !== undefined) {
-      const agora = new Date()
-      const mesAlvo = parseInt(calMes as string)
-      const anoAlvo = parseInt(calAno as string)
-      const diffMeses = (anoAlvo - agora.getFullYear()) * 12 + (mesAlvo - agora.getMonth())
-      setMoisOffset(diffMeses)
-    } else {
-      setMoisOffset(0)
-    }
-    setHighlightId(scrollToId as string)
-  }, [scrollToId])
+    const t = setTimeout(() => {
+      if (calMes !== undefined && calAno !== undefined) {
+        const agora = new Date()
+        const mesAlvo = parseInt(calMes as string)
+        const anoAlvo = parseInt(calAno as string)
+        const diffMeses = (anoAlvo - agora.getFullYear()) * 12 + (mesAlvo - agora.getMonth())
+        setMoisOffset(diffMeses)
+      } else {
+        setMoisOffset(0)
+      }
+      setHighlightId(scrollToId as string)
+    }, 100)
+    return () => clearTimeout(t)
+  }, [scrollToId, calMes, calAno])
   const chargerHistorique = async () => {
     try {
       const data = await AsyncStorage.getItem('historique')

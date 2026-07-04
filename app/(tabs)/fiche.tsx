@@ -3,7 +3,7 @@ import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
+import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
@@ -2868,12 +2868,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 {'2 questions en attente pour activer la pr\u00E9vision'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                {perguntaActual && (
                 <TouchableOpacity
                   style={{ backgroundColor: '#f39c12', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 }}
                   onPress={() => setShowModalPerguntas(true)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>{'R\u00E9pondre maintenant'}</Text>
                 </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={{ borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(243,156,18,0.4)' }}
                   onPress={() => setShowCadeado(false)}
@@ -4210,7 +4212,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}
                         onPress={() => {
                           const rep = respostaData || (respostaMes !== null ? String(respostaMes) : '')
-                          if (rep) { handleResponderPergunta(rep); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }
+                          if (!rep) { Alert.alert('', 'Choisis une date et un mois avant de confirmer'); return }
+                          handleResponderPergunta(rep); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear())
                         }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Confirmer</Text>
@@ -4218,6 +4221,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </View>
                   )}
                 </>
+              )}
+              {!perguntaActual && (
+                <TouchableOpacity
+                  style={{ padding: 14, alignItems: 'center' }}
+                  onPress={() => setShowModalPerguntas(false)}
+                >
+                  <Text style={{ color: '#aaa', fontSize: 14 }}>Fermer</Text>
+                </TouchableOpacity>
               )}
             </View>
           </ScrollView>

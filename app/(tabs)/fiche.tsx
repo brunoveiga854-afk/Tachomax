@@ -1314,6 +1314,20 @@ export default function MonSalaireScreen() {
   const [respostaData, setRespostaData] = useState('')
   const [respostaMes, setRespostaMes] = useState<number | null>(null)
   const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
+  useEffect(() => {
+    if (!perguntaActual) return
+    const offsetSugerido = perguntaActual.tipo === 'timing_frais'
+      ? (padraoAprendido.flag ?? padrao.flag ?? 1)
+      : (padraoAprendido.hlag ?? padrao.hlag ?? 2)
+    const baseSug = respostaData ? (() => {
+      const [dd, mm, yyyy] = respostaData.split('/')
+      return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+    })() : new Date()
+    const dSug = new Date(baseSug)
+    dSug.setMonth(dSug.getMonth() - offsetSugerido)
+    setRespostaMes(dSug.getMonth())
+    setRespostaMesAno(dSug.getFullYear())
+  }, [perguntaActual])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const [showConfirmTiming, setShowConfirmTiming] = useState(false)

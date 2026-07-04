@@ -1306,6 +1306,7 @@ export default function MonSalaireScreen() {
   }, [])
   const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
   const [inputMoisAtipico, setInputMoisAtipico] = useState(false)
+  const [editMoisAtipico, setEditMoisAtipico] = useState(false)
   const [camposOk, setCamposOk] = useState('')
   const [padraoAprendido, setPadraoAprendido] = useState<PadraoAprendido>(PADRAO_INICIAL)
   const [perguntasPendentes, setPerguntasPendentes] = useState<PerguntaPendente[]>([])
@@ -3522,6 +3523,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 setEditMoisIndex(modalDetail.moisIndex)
                 setEditAnnee(modalDetail.annee)
                 setEditInteressement(String(modalDetail.interessement || 0))
+                setEditMoisAtipico(modalDetail?.moisAtipico || false)
                 setShowModalEdit(true)
               }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>✏️ Modifier</Text>
@@ -3830,6 +3832,21 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </View>
             </View>
             </ScrollView>
+            <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 6, marginTop: 12 }}>CE MOIS ÉTAIT-IL HABITUEL ?</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', backgroundColor: !editMoisAtipico ? 'rgba(39,174,96,0.2)' : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: !editMoisAtipico ? '#27ae60' : 'rgba(255,255,255,0.1)' }}
+                onPress={() => setEditMoisAtipico(false)}
+              >
+                <Text style={{ color: !editMoisAtipico ? '#27ae60' : '#aaa', fontSize: 12, fontWeight: '700' }}>✅ Oui, normal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', backgroundColor: editMoisAtipico ? 'rgba(243,156,18,0.2)' : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: editMoisAtipico ? '#f39c12' : 'rgba(255,255,255,0.1)' }}
+                onPress={() => setEditMoisAtipico(true)}
+              >
+                <Text style={{ color: editMoisAtipico ? '#f39c12' : '#aaa', fontSize: 12, fontWeight: '700' }}>⚠️ Non, exceptionnel</Text>
+              </TouchableOpacity>
+            </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalEdit(false)}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
@@ -3857,6 +3874,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   interessement: interessEdit,
                   salarioConfirmado: netEdit > 0,
                   fraisConfirmado: fraisEdit > 0,
+                  moisAtipico: editMoisAtipico,
                   pagamentoSalMesIndex: modalDetail.pagamentoSalMesIndex ?? editMoisIndex,
                   pagamentoSalAno: modalDetail.pagamentoSalAno ?? editAnnee,
                   pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? editMoisIndex,

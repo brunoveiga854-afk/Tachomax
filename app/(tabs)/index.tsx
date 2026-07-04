@@ -393,6 +393,7 @@ export default function AujourdhuiScreen() {
       const hoje = new Date()
       setCalMes(hoje.getMonth())
       setCalAno(hoje.getFullYear())
+      recarregarApp()
       carregarStatsSemaine()
       carregarDiasMes()
       AsyncStorage.getItem('modoTacho').then(v => {

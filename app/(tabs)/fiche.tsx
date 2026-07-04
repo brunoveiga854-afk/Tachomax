@@ -704,7 +704,7 @@ const mesFraisTrabalhoDe = (d: MoisData, p: Padrao): [number, number] => {
 }
 
 const contaParaSalarioAprendizagem = (d: MoisData) =>
-  d.salarioConfirmado || (d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0
+  !d.moisAtipico && (d.salarioConfirmado || (d.netPaye || 0) > 0 || (d.salairebrut || 0) > 0)
 
 const totalPrimesExceptionnelles = (d: any) =>
   (d?.interessement || 0) +

@@ -217,14 +217,22 @@ export default function HistoriqueScreen() {
       try { setFraisReglesResumo(sanitizeFraisRegles(raw ? JSON.parse(raw) : {})) } catch {}
     }).catch(() => {})
   }, [])
-  const { scrollToId } = useLocalSearchParams<{ scrollToId?: string }>()
+  const { scrollToId, calMes, calAno } = useLocalSearchParams<{ scrollToId?: string, calMes?: string, calAno?: string }>()
   const listRef = useRef<FlatList>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
   useEffect(() => {
     if (!scrollToId) return
     setVue('mois')
-    setMoisOffset(0)
+    if (calMes !== undefined && calAno !== undefined) {
+      const agora = new Date()
+      const mesAlvo = parseInt(calMes as string)
+      const anoAlvo = parseInt(calAno as string)
+      const diffMeses = (anoAlvo - agora.getFullYear()) * 12 + (mesAlvo - agora.getMonth())
+      setMoisOffset(diffMeses)
+    } else {
+      setMoisOffset(0)
+    }
     setHighlightId(scrollToId as string)
   }, [scrollToId])
   const chargerHistorique = async () => {

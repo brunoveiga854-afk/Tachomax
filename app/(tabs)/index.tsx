@@ -1389,7 +1389,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                               const dataJour = new Date(calAno, calMes, numDia)
                               const label = `${diasSemana[dataJour.getDay()]} ${numDia}/${String(calMes+1).padStart(2,'0')}/${calAno}`
                               if (registo && !isFuturo) {
-                                router.push({ pathname: '/(tabs)/historique', params: { scrollToId: registo.id } })
+                                router.push({ pathname: '/(tabs)/historique', params: { scrollToId: registo.id, calMes: String(calMes), calAno: String(calAno) } })
                               } else if (!isFuturo) {
                                 setAddDiaStr(diaStr)
                                 setAddDiaLabel(label)

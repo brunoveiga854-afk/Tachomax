@@ -1316,7 +1316,9 @@ export default function MonSalaireScreen() {
   const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
   const [montantSalTemp, setMontantSalTemp] = useState<number>(0)
   const [montantFraisTemp, setMontantFraisTemp] = useState<number>(0)
+  const [respostaMesManual, setRespostaMesManual] = useState(false)
   useEffect(() => {
+    setRespostaMesManual(false)
     if (!perguntaActual) return
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
@@ -1330,6 +1332,18 @@ export default function MonSalaireScreen() {
     setRespostaMes(dSug.getMonth())
     setRespostaMesAno(dSug.getFullYear())
   }, [perguntaActual])
+  useEffect(() => {
+    if (!respostaData || respostaMesManual || !perguntaActual) return
+    const offsetSugerido = perguntaActual.tipo === 'timing_frais'
+      ? (padraoAprendido.flag ?? padrao.flag ?? 1)
+      : (padraoAprendido.hlag ?? padrao.hlag ?? 2)
+    const [dd, mm, yyyy] = respostaData.split('/')
+    const base = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+    const dSug = new Date(base)
+    dSug.setMonth(dSug.getMonth() - offsetSugerido)
+    setRespostaMes(dSug.getMonth())
+    setRespostaMesAno(dSug.getFullYear())
+  }, [respostaData])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const [showConfirmTiming, setShowConfirmTiming] = useState(false)
@@ -4135,7 +4149,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                               <TouchableOpacity
                                 key={offset}
                                 style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: respostaMes === idx ? 2 : 1, borderColor: respostaMes === idx ? '#f5a623' : c.cardBorder, backgroundColor: respostaMes === idx ? 'rgba(245,166,35,0.1)' : c.input }}
-                                onPress={() => { setRespostaMes(idx); setRespostaMesAno(yr) }}
+                                onPress={() => { setRespostaMes(idx); setRespostaMesAno(yr); setRespostaMesManual(true) }}
                               >
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: respostaMes === idx ? '#f5a623' : c.textSub }}>{label}</Text>
                               </TouchableOpacity>

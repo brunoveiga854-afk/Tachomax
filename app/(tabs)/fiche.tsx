@@ -2231,11 +2231,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const handleResponderPergunta = async (resposta: string) => {
     if (!perguntaActual) return
     if (perguntaActual.tipo === 'timing_salario') {
-      const sal = parseFloat(inputValor.replace(',', '.')) || 0
+      const sal = perguntaActual.valorContexto?.netPaye || 0
       if (sal > 0) setMontantSalTemp(sal)
     }
     if (perguntaActual.tipo === 'timing_frais') {
-      const fr = parseFloat(inputValor.replace(',', '.')) || 0
+      const fr = perguntaActual.valorContexto?.fraisBoletim || 0
       if (fr > 0) setMontantFraisTemp(fr)
     }
     const dataPag = respostaData ? (() => {

@@ -1314,6 +1314,8 @@ export default function MonSalaireScreen() {
   const [respostaData, setRespostaData] = useState('')
   const [respostaMes, setRespostaMes] = useState<number | null>(null)
   const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
+  const [montantSalTemp, setMontantSalTemp] = useState<number>(0)
+  const [montantFraisTemp, setMontantFraisTemp] = useState<number>(0)
   useEffect(() => {
     if (!perguntaActual) return
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
@@ -2108,8 +2110,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputDiaSal(String(padrao.diaSalario)); setInputDiaFrais(String(padrao.diaFrais))
     // Pré-preenche sal + frais da primeira fiche se a IA os extraiu
     const pf = fiches[0]?.dados || fiches[0] as any
-    setInputMontantSalQ((pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
-    setInputMontantFraisQ((pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+    setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : (pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
+    setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : (pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
@@ -2214,6 +2216,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const handleResponderPergunta = async (resposta: string) => {
     if (!perguntaActual) return
+    if (perguntaActual.tipo === 'timing_salario') {
+      const sal = parseFloat(inputValor.replace(',', '.')) || 0
+      if (sal > 0) setMontantSalTemp(sal)
+    }
+    if (perguntaActual.tipo === 'timing_frais') {
+      const fr = parseFloat(inputValor.replace(',', '.')) || 0
+      if (fr > 0) setMontantFraisTemp(fr)
+    }
     const dataPag = respostaData ? (() => {
       const [dd, mm, yyyy] = respostaData.split('/')
       return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))

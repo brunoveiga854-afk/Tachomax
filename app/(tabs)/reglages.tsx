@@ -68,6 +68,9 @@ export default function ReglagesScreen() {
   const [versionTapCount, setVersionTapCount] = useState(0)
   const [secretUnlocked, setSecretUnlocked] = useState(false)
   const [camposOk, setCamposOk] = useState({ profil: true, hbase: true, hval: true, km: true })
+  const [showDiagModal, setShowDiagModal] = useState(false)
+  const [diagData, setDiagData] = useState('')
+  const [diagLoading, setDiagLoading] = useState(false)
   const scrollViewRef = useRef<import('react-native').ScrollView>(null)
   const salaireSectionY = useRef(0)
   const scrolledToSalaire = useRef(false)
@@ -292,6 +295,78 @@ export default function ReglagesScreen() {
       <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', letterSpacing: 0.3 }}>REQUIS</Text>
     </View>
   )
+
+  const runDiag = async () => {
+    setDiagLoading(true)
+    try {
+      const rawV2 = await AsyncStorage.getItem('monSalaire_v2')
+      const rawPadrao = await AsyncStorage.getItem('monSalaire_padrao')
+      const fiches: any[] = rawV2 ? JSON.parse(rawV2) : []
+      const padrao: any = rawPadrao ? JSON.parse(rawPadrao) : {}
+      const lines: string[] = []
+      lines.push('=== DIAGNOSTIC CALIBRATION ===')
+      lines.push('')
+      lines.push('[PADRAO ACTUEL]')
+      lines.push('liquidRate : ' + (padrao.liquidRate !== undefined ? (padrao.liquidRate * 100).toFixed(2) + '%' : 'N/A'))
+      lines.push('hval       : ' + (padrao.hval !== undefined ? String(padrao.hval) + '€' : 'N/A'))
+      lines.push('hbase      : ' + (padrao.hbase !== undefined ? String(padrao.hbase) + 'h' : 'N/A'))
+      lines.push('')
+      lines.push('Total fiches: ' + String(fiches.length))
+      const avecDonnees = fiches.filter((f: any) => (f.salairebrut > 0 || f.netPaye > 0))
+      lines.push('Avec données: ' + String(avecDonnees.length))
+      lines.push('')
+      lines.push('--- DÉTAIL PAR FICHE ---')
+      const rates: number[] = []
+      const hvals: number[] = []
+      const hbase0: number = padrao.hbase || 0
+      avecDonnees.forEach((f: any, i: number) => {
+        const label: string = f.label || f.mois || f.moisLabel || f.periode || ('#' + String(i + 1))
+        const brut: number = f.salairebrut || f.salaireBrut || 0
+        const net: number = f.netPaye || 0
+        const frais: number = f.remboursementFrais || 0
+        const interes: number = f.interessement || 0
+        const prime: number = f.primeExceptionnelle || 0
+        const parti: number = f.participationSalariale || 0
+        const netRec: number = net - frais - interes - prime - parti
+        const rate: number | null = brut > 0 ? netRec / brut : null
+        const hb: number = f.hbase || hbase0
+        const hv: number | null = hb > 0 ? netRec / hb : null
+        lines.push(label)
+        lines.push('  brut=' + brut.toFixed(2) + ' net=' + net.toFixed(2))
+        if (frais || interes || prime || parti) {
+          lines.push('  -frais=' + frais.toFixed(2) + ' -int=' + interes.toFixed(2) + ' -prime=' + prime.toFixed(2) + ' -part=' + parti.toFixed(2))
+        }
+        lines.push('  netRec=' + netRec.toFixed(2))
+        if (rate !== null) {
+          const rflag = Math.abs(rate - (padrao.liquidRate || 0)) > 0.1 ? ' ⚠️' : ''
+          lines.push('  rate=' + (rate * 100).toFixed(2) + '%' + rflag)
+          rates.push(rate)
+        }
+        if (hv !== null) {
+          const hflag = padrao.hval && Math.abs(hv - (padrao.hval as number)) > 1 ? ' ⚠️' : ''
+          lines.push('  hval=' + hv.toFixed(4) + '€' + hflag)
+          hvals.push(hv)
+        }
+        lines.push('')
+      })
+      lines.push('--- MOYENNES CALCULÉES ---')
+      if (rates.length > 0) {
+        const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length
+        lines.push('avg liquidRate : ' + (avgRate * 100).toFixed(2) + '%')
+      }
+      if (hvals.length > 0) {
+        const avgHval = hvals.reduce((a, b) => a + b, 0) / hvals.length
+        lines.push('avg hval       : ' + avgHval.toFixed(4) + '€')
+      }
+      lines.push('n fiches       : ' + String(rates.length))
+      setDiagData(lines.join('\n'))
+      setShowDiagModal(true)
+    } catch (e) {
+      setDiagData('Erreur: ' + String(e))
+      setShowDiagModal(true)
+    }
+    setDiagLoading(false)
+  }
 
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
@@ -802,6 +877,15 @@ export default function ReglagesScreen() {
 
               <View style={{ marginTop: 4 }}>
                 <TouchableOpacity
+                  style={{ backgroundColor: 'rgba(41,128,185,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)', marginBottom: 8 }}
+                  onPress={runDiag}
+                  disabled={diagLoading}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#2980b9' }}>{diagLoading ? '⏳ Analyse...' : '🔬 Diagnostic calibration'}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ marginTop: 4 }}>
+                <TouchableOpacity
                   style={{ backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(155,89,182,0.3)' }}
                   onPress={() => { setSecretUnlocked(false); setVersionTapCount(0) }}
                 >
@@ -965,6 +1049,21 @@ export default function ReglagesScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalReset(false)}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>{t.annuler}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL DIAGNOSTIC */}
+      <Modal visible={showDiagModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, borderColor: c.cardBorder }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 }}>🔬 Diagnostic calibration</Text>
+            <ScrollView style={{ maxHeight: 480 }}>
+              <Text style={{ fontSize: 11, fontFamily: 'Courier New', color: c.text, lineHeight: 17 }}>{diagData}</Text>
+            </ScrollView>
+            <TouchableOpacity style={{ backgroundColor: '#2980b9', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 16 }} onPress={() => setShowDiagModal(false)}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Fermer</Text>
             </TouchableOpacity>
           </View>
         </View>

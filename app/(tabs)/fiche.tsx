@@ -1346,11 +1346,11 @@ export default function MonSalaireScreen() {
     setRespostaMesAno(dSug.getFullYear())
   }, [respostaData])
   useEffect(() => {
-    if (montantSalTemp > 0 && (!inputMontantSalQ || inputMontantSalQ === '0'))
+    if (montantSalTemp > 0 && parseFloat(inputMontantSalQ || '0') === 0)
       setInputMontantSalQ(String(montantSalTemp))
   }, [montantSalTemp])
   useEffect(() => {
-    if (montantFraisTemp > 0 && (!inputMontantFraisQ || inputMontantFraisQ === '0'))
+    if (montantFraisTemp > 0 && parseFloat(inputMontantFraisQ || '0') === 0)
       setInputMontantFraisQ(String(montantFraisTemp))
   }, [montantFraisTemp])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)

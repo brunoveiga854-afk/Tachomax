@@ -1841,7 +1841,7 @@ Réponds UNIQUEMENT avec un JSON array sans markdown, exactement sous cette form
 [{"tipo":"fiche","periode":"Avril 2026","moisIndex":3,"annee":2026,"netPaye":0,"salairebrut":0,"totalCotisations":0,"interessement":0,"primeExceptionnelle":0,"participationSalariale":0,"autresPrimes":0,"remboursementFrais":0,"entreprise":"","conducteur":"","joursConges":0,"montantConges":0,"joursFeries":0,"montantFeries":0,"joursRC":0,"montantRC":0,"totalHeures":0,"hbase":0,"hval":0,"h25":0,"lim25":0,"h50":0}]
 
 Définition stricte des champs salaire:
-- netPaye: salaire NET RÉCURRENT / net à payer AVANT intéressement, participation, primes exceptionnelles, avantages exceptionnels et tout paiement non récurrent. Si la fiche affiche un net final qui inclut ces montants, SOUSTRAIS-les et mets ici seulement le net salaire récurrent.
+- netPaye: montant “Net payé” APRÈS prélèvement à la source (PAS) — c’est la somme réellement virée sur le compte bancaire du salarié. NE PAS utiliser “Net à payer avant impôt sur le revenu”. NE PAS soustraire le PAS. Si la fiche affiche les deux valeurs, prendre uniquement la valeur finale après PAS.
 - salairebrut: salaire brut de base/récurrent du bulletin, hors intéressement et primes exceptionnelles si elles sont affichées séparément.
 - totalCotisations: total cotisations salariales.
 - interessement: ligne intéressement versé, prime intéressement, ou versement équivalent (ex: 464.80). 0 si absent.
@@ -1957,7 +1957,7 @@ Réponds UNIQUEMENT avec un JSON array sans markdown, exactement sous cette form
 [{"tipo":"fiche","periode":"Avril 2026","moisIndex":3,"annee":2026,"netPaye":0,"salairebrut":0,"totalCotisations":0,"interessement":0,"primeExceptionnelle":0,"participationSalariale":0,"autresPrimes":0,"remboursementFrais":0,"entreprise":"","conducteur":"","joursConges":0,"montantConges":0,"joursFeries":0,"montantFeries":0,"joursRC":0,"montantRC":0,"totalHeures":0,"hbase":0,"hval":0,"h25":0,"lim25":0,"h50":0}]
 
 Définition stricte des champs salaire:
-- netPaye: salaire NET RÉCURRENT / net à payer AVANT intéressement, participation, primes exceptionnelles, avantages exceptionnels et tout paiement non récurrent. Si la fiche affiche un net final qui inclut ces montants, SOUSTRAIS-les et mets ici seulement le net salaire récurrent.
+- netPaye: montant “Net payé” APRÈS prélèvement à la source (PAS) — c’est la somme réellement virée sur le compte bancaire du salarié. NE PAS utiliser “Net à payer avant impôt sur le revenu”. NE PAS soustraire le PAS. Si la fiche affiche les deux valeurs, prendre uniquement la valeur finale après PAS.
 - salairebrut: salaire brut de base/récurrent du bulletin, hors intéressement et primes exceptionnelles si elles sont affichées séparément.
 - totalCotisations: total cotisations salariales.
 - interessement: ligne intéressement versé, prime intéressement, ou versement équivalent (ex: 464.80). 0 si absent.

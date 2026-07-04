@@ -220,7 +220,7 @@ export default function HistoriqueScreen() {
   const { scrollToId, calMes, calAno } = useLocalSearchParams<{ scrollToId?: string, calMes?: string, calAno?: string }>()
   const listRef = useRef<FlatList>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
-  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setMoisOffset(0); chargerHistorique() }, []))
+  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
   useEffect(() => {
     if (!scrollToId) return
     setVue('mois')

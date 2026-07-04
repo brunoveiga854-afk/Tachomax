@@ -134,8 +134,9 @@ function dayBlock(j: JourFiche): string {
 }
 
 export function gerarHtmlFiche(info: InfoFiche): string {
-  const page1Jours = info.jours.slice(0, 3)  // Lun, Mar, Mer
-  const page2Jours = info.jours.slice(3, 6)  // Jeu, Ven, Sam
+  const numDias = info.jours.length
+  const page1Jours = info.jours.slice(0, Math.min(3, numDias))
+  const page2Jours = info.jours.slice(3)
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
@@ -231,6 +232,25 @@ export function gerarHtmlFiche(info: InfoFiche): string {
     </div>
     <div class="legend">*COMMENTAIRES = Changements de vehicule / Panne / Temps Atelier / Temps Clio / Visite medicale / AUTRES</div>`
 
+  const sig = `<div class="signature">TachoOffice &copy; ${new Date().getFullYear()} &mdash; D&eacute;velopp&eacute; par Bruno Veiga</div>`
+
+  if (numDias <= 3) {
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>${css}</style></head>
+<body>
+  <div class="page">
+    ${makeHeader()}
+    ${reglementBlock}
+    <div class="days-area">
+      ${page1Jours.map(j => dayBlock(j)).join('')}
+    </div>
+    ${totalBlock}
+    ${sig}
+  </div>
+</body></html>`
+  }
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>${css}</style></head>
@@ -241,7 +261,7 @@ export function gerarHtmlFiche(info: InfoFiche): string {
     <div class="days-area">
       ${page1Jours.map(j => dayBlock(j)).join('')}
     </div>
-    <div class="signature">TachoOffice &copy; ${new Date().getFullYear()} &mdash; D&eacute;velopp&eacute; par Bruno Veiga</div>
+    ${sig}
   </div>
   <div class="page page-break">
     ${makeHeader()}
@@ -249,7 +269,7 @@ export function gerarHtmlFiche(info: InfoFiche): string {
       ${page2Jours.map(j => dayBlock(j)).join('')}
     </div>
     ${totalBlock}
-    <div class="signature">TachoOffice &copy; ${new Date().getFullYear()} &mdash; D&eacute;velopp&eacute; par Bruno Veiga</div>
+    ${sig}
   </div>
 </body></html>`
 }

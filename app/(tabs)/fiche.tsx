@@ -713,7 +713,7 @@ const totalPrimesExceptionnelles = (d: any) =>
   (d?.primeNonAccident || 0) +
   (d?.autresPrimes || 0)
 
-const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, (d?.netPaye || 0) - (d?.remboursementFrais || 0) - (d?.interessement || 0) - (d?.participationSalariale || 0) - (d?.primeExceptionnelle || 0))
+const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, (d?.netPaye || 0) - (d?.interessement || 0) - (d?.participationSalariale || 0) - (d?.primeExceptionnelle || 0))
 
 const montantTotalRecuFiche = (d: any) =>
   netPayeRecurrent(d) + totalPrimesExceptionnelles(d) + (d?.remboursementFrais || 0)

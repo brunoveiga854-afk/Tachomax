@@ -327,7 +327,7 @@ export default function ReglagesScreen() {
         const interes: number = f.interessement || 0
         const prime: number = f.primeExceptionnelle || 0
         const parti: number = f.participationSalariale || 0
-        const netRec: number = net - frais - interes - prime - parti
+        const netRec: number = net - interes - prime - parti
         const rate: number | null = brut > 0 ? netRec / brut : null
         const hb: number = f.hbase || hbase0
         const hv: number | null = hb > 0 ? netRec / hb : null

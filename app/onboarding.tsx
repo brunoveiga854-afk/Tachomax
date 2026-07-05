@@ -135,6 +135,8 @@ export default function OnboardingScreen() {
   const [obDiaSalarioAutreInput, setObDiaSalarioAutreInput] = useState('')
   const [obDiaFraisIsAutre, setObDiaFraisIsAutre] = useState(false)
   const [obDiaFraisAutreInput, setObDiaFraisAutreInput] = useState('')
+  const [obHlagTouched, setObHlagTouched] = useState(false)
+  const [obFlagTouched, setObFlagTouched] = useState(false)
 
   const terminerOnboarding = async () => {
     await AsyncStorage.setItem('onboardingDone', 'true')
@@ -219,8 +221,8 @@ export default function OnboardingScreen() {
       diaSalario: obDiaSalario,
       flag: obFraisMemeJour ? obHlag : obFlag,
       diaFrais: obFraisMemeJour ? obDiaSalario : obDiaFrais,
-      hlagConfirmado: true,
-      flagConfirmado: true,
+      hlagConfirmado: obHlagTouched,
+      flagConfirmado: obFraisMemeJour ? obHlagTouched : obFlagTouched,
       diaSalarioConfirmado: true,
       diaFraisConfirmado: true,
     }
@@ -546,15 +548,15 @@ export default function OnboardingScreen() {
           )}
           <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Tu reçois ton salaire le {obDiaSalario} — les heures de quel mois sont payées ce jour-là ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-            <TouchableOpacity onPress={() => setObHlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setObHlag(0); setObHlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[mesActual]}</Text>
               <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setObHlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 1 ? 1.5 : 1, borderColor: obHlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setObHlag(1); setObHlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 1 ? 1.5 : 1, borderColor: obHlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obHlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual - 1 + 12) % 12]}</Text>
               <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois avant</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setObHlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 2 ? 1.5 : 1, borderColor: obHlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setObHlag(2); setObHlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 2 ? 1.5 : 1, borderColor: obHlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obHlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[(mesActual - 2 + 12) % 12]}</Text>
               <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois avant</Text>
             </TouchableOpacity>
@@ -598,15 +600,15 @@ export default function OnboardingScreen() {
                 />
               )}
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-                <TouchableOpacity onPress={() => setObFlag(0)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 0 ? 1.5 : 1, borderColor: obFlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => { setObFlag(0); setObFlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 0 ? 1.5 : 1, borderColor: obFlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
                   <Text style={{ fontWeight: '800', color: obFlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[mesActual]}</Text>
                   <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>même mois</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setObFlag(1)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 1 ? 1.5 : 1, borderColor: obFlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => { setObFlag(1); setObFlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 1 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 1 ? 1.5 : 1, borderColor: obFlag === 1 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
                   <Text style={{ fontWeight: '800', color: obFlag === 1 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual - 1 + 12) % 12]}</Text>
                   <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>1 mois avant</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setObFlag(2)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 2 ? 1.5 : 1, borderColor: obFlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => { setObFlag(2); setObFlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFlag === 2 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFlag === 2 ? 1.5 : 1, borderColor: obFlag === 2 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
                   <Text style={{ fontWeight: '800', color: obFlag === 2 ? '#f5a623' : '#eef0f5', fontSize: 12 }}>{MOIS[(mesActual - 2 + 12) % 12]}</Text>
                   <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois avant</Text>
                 </TouchableOpacity>

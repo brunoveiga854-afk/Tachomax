@@ -1216,6 +1216,8 @@ export default function MonSalaireScreen() {
   const [editInteressement, setEditInteressement] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(0)
+  const [calculando, setCalculando] = useState(false)
+  const [calculandoMsg, setCalculandoMsg] = useState('')
   const scrollAnim = useRef(new Animated.Value(0)).current
   const dustAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
@@ -1535,6 +1537,8 @@ export default function MonSalaireScreen() {
   // CÁLCULO PRINCIPAL
   const calcularSalario = async () => {
     if (camposOk !== 'true') return
+    setCalculando(true)
+    setCalculandoMsg('⚡ Recalcul en cours...')
     try {
       const histData = await AsyncStorage.getItem('historique')
       if (!histData) {
@@ -1716,7 +1720,11 @@ export default function MonSalaireScreen() {
       setDriftAlert(detectarDrift(tuplosParaDrift))
       setShowAnalyse(false)
       animarContagem(Math.round(totalLiq), mesAberto)
+      setCalculando(false)
+      setCalculandoMsg('')
     } catch (e) {
+      setCalculando(false)
+      setCalculandoMsg('')
       mostrarErro('Erreur: ' + String(e))
     }
   }
@@ -2838,7 +2846,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         ) : (
           <TouchableOpacity style={st.calcularBtn} onPress={calcularSalario} disabled={loading}>
             <Text style={st.calcularIcon}>💰</Text>
-            <Text style={st.calcularLabel}>CALCULER</Text>
+            <Text style={st.calcularLabel}>{calculando ? calculandoMsg : 'CALCULER'}</Text>
             <Text style={st.calcularSub}>Combien tu vas recevoir ce mois</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
               <View style={{

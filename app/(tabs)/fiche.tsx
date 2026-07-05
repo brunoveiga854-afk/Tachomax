@@ -76,6 +76,7 @@ type Padrao = {
   fraisFactorReal: number
   _conflitHbase?: { extraido: number; onboarding: number } | null
   _hbaseManual?: boolean
+  _hvalManual?: boolean
   vehiculo?: string
   cargo?: string
 }
@@ -955,7 +956,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     const h50s   = comCoef.map(d => d.h50   || 0).filter(v => v > 0)
     // Só actualiza hbase se não foi definido manualmente pelo utilizador
     if (hbases.length > 0 && !base._hbaseManual) base.hbase = Math.round(avg(hbases) * 100) / 100
-    if (hvals.length  > 0) base.hval  = Math.round(avg(hvals)  * 1000) / 1000
+    if (hvals.length  > 0 && !base._hvalManual) base.hval  = Math.round(avg(hvals)  * 1000) / 1000
     if (h25s.length   > 0) base.h25   = Math.round(avg(h25s)   * 1000) / 1000
     if (lim25s.length > 0) base.lim25 = Math.round(avg(lim25s) * 100) / 100
     if (h50s.length   > 0) base.h50   = Math.round(avg(h50s)   * 1000) / 1000

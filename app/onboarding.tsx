@@ -190,6 +190,7 @@ export default function OnboardingScreen() {
         taxaHorariaNetaMedia: hval * liquidRate,
         fraisFactorReal: 0,
         vehiculo: typeVehicule, cargo: typeCargo,
+        _hvalManual: salBrut > 0,
       }
       await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit))
     } else {
@@ -204,6 +205,7 @@ export default function OnboardingScreen() {
           h50: Math.round(hval * 1.5 * 100) / 100,
           valorDiaConges,
           taxaHorariaNetaMedia: hval * (existing.liquidRate ?? liquidRate),
+          _hvalManual: salBrut > 0,
         }
         await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
       } catch {}

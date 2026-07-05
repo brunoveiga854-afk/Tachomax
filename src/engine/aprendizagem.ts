@@ -33,6 +33,7 @@ export type PadraoAprendido = {
     mes?: number
   } | null
   versao: number
+  _hvalErroConfirmado?: number | null
 }
 
 export type BoletimExtraido = {
@@ -154,7 +155,8 @@ export function detectarAnomalias(
   if (
     boletim.hval !== null &&
     padrao.hval !== null &&
-    Math.abs(boletim.hval - padrao.hval) > 0.01
+    Math.abs(boletim.hval - padrao.hval) > 0.01 &&
+    padrao._hvalErroConfirmado !== boletim.hval
   ) {
     perguntas.push({
       id: gerarId('taxa_mudou', boletim.periodo),
@@ -287,6 +289,8 @@ export function aplicarRespostaConduteur(
     case 'taxa_mudou': {
       if (resposta.startsWith('Oui') && boletim.hval !== null) {
         novo.hval = boletim.hval
+      } else if (resposta.startsWith('Non') && boletim.hval !== null) {
+        novo._hvalErroConfirmado = boletim.hval
       }
       break
     }

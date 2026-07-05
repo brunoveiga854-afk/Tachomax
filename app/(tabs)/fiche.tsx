@@ -950,8 +950,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   const comBruto = comSalarioAprendizagem.filter(d => d.salairebrut > 0 && netPayeRecurrent(d) > 0)
   const comBrutoOuNet = comSalarioAprendizagem.filter(d => (d.salairebrut || 0) > 0 || (d.netPaye || 0) > 0)
   if (comBruto.length > 0) {
-    const semFerias = comBruto.filter(d => (d.joursConges || 0) === 0 && (d.joursFeries || 0) === 0)
-    const fonte = semFerias.length >= 2 ? semFerias : comBruto
+    const fonte = comBruto
     const taxa = fonte.reduce((a, d) => a + netPayeRecurrent(d) / d.salairebrut, 0) / fonte.length
     base.liquidRate = Math.round(Math.min(taxa, 0.95) * 1000) / 1000
   }
@@ -2271,6 +2270,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
     const novoPadrao = aplicarRespostaConduteur(perguntaActual, resposta, padraoAprendido, boletimTiming)
     await guardarPadraoAprendido(novoPadrao)
+    if (perguntaActual.tipo === 'taxa_mudou' && resposta.startsWith('Oui') && novoPadrao.hval !== null) {
+      const padraoActualizado = { ...padrao, hval: novoPadrao.hval, h25: Math.round(novoPadrao.hval * 1.25 * 100) / 100, h50: Math.round(novoPadrao.hval * 1.5 * 100) / 100 }
+      setPadrao(padraoActualizado)
+      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoActualizado))
+    }
     const restantes = perguntasPendentes.filter(p => p.id !== perguntaActual.id)
     setPerguntasPendentes(restantes)
     if (restantes.length > 0) {

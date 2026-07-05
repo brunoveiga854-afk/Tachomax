@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text } from 'react-native'
-import Svg, { Circle, Line, G } from 'react-native-svg'
+import Svg, { Circle, Line } from 'react-native-svg'
 
 // Speedometer/tachometer gauge icon — matches the app logo
 function GaugeIcon({ size = 34, color = '#f5a623' }: { size?: number; color?: string }) {

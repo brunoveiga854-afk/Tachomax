@@ -1,4 +1,3 @@
-import React from 'react'
 
 interface Props { onCapture: (uri: string) => void; onClose: () => void }
 

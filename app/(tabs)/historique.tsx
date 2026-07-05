@@ -173,7 +173,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
 }
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
-  const { state: appState, recarregarApp } = useApp()
+  const { recarregarApp } = useApp()
   const [historique, setHistorique] = useState<Jour[]>([])
   const [semaine, setSemaine] = useState(0)
   const [vue, setVue] = useState<'semaine' | 'mois'>('semaine')
@@ -183,12 +183,11 @@ export default function HistoriqueScreen() {
   const [showEdit, setShowEdit] = useState(false)
   const [editDebut, setEditDebut] = useState('')
   const [editFin, setEditFin] = useState('')
-  const [editDecouche, setEditDecouche] = useState(false)
   const [editType, setEditType] = useState<JourType>('TRAB')
+  const [editDecouche, setEditDecouche] = useState(false)
   const [editFrais, setEditFrais] = useState('')
   const [editServico, setEditServico] = useState('')
   const [editPausaMin, setEditPausaMin] = useState(0)
-  const [showPausaPicker, setShowPausaPicker] = useState(false)
   const [editPausaStr, setEditPausaStr] = useState('00:00')
   const [editNotaTexto, setEditNotaTexto] = useState('')
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -204,7 +203,6 @@ export default function HistoriqueScreen() {
   const [showNotaDatePicker, setShowNotaDatePicker] = useState(false)
   const [editKm, setEditKm] = useState('')
   const [editKmInicio, setEditKmInicio] = useState('')
-  const [showFicheHebdo, setShowFicheHebdo] = useState(false)
   const [ficheLoading, setFicheLoading] = useState(false)
   const [showFraisDetalhe, setShowFraisDetalhe] = useState(false)
   const [showModalFicheDias, setShowModalFicheDias] = useState(false)
@@ -504,7 +502,6 @@ const getJoursMois = () => {
       try { if (reglesRaw) regles = JSON.parse(reglesRaw) } catch { regles = {} }
       const jours = JOURS_LABELS.map((label, i) => {
         const dataJour = new Date(lundi); dataJour.setDate(lundi.getDate() + i)
-        const ddmm = `${String(dataJour.getDate()).padStart(2,'0')}/${String(dataJour.getMonth()+1).padStart(2,'0')}`
         const ddmmyyyy = fmt(dataJour)
         const entry = historique.find(j => {
           const parts = j.date.split('/')
@@ -587,7 +584,6 @@ const getJoursMois = () => {
   const joursActuels = vue === 'semaine' ? jousSemaine : joursMois
   const lundiFiche = (() => { const m = new Date(); const l = new Date(m); l.setDate(m.getDate() - m.getDay() + 1 + (semaine * 7)); l.setHours(0, 0, 0, 0); return l })()
   const sabadoFiche = (() => { const s = new Date(lundiFiche); s.setDate(lundiFiche.getDate() + 5); return s })()
-  const atravessaMeses = lundiFiche.getMonth() !== sabadoFiche.getMonth()
   const diasComDados = [0,1,2,3,4,5].map(i => {
     const d = new Date(lundiFiche); d.setDate(lundiFiche.getDate() + i)
     return !!historique.find(j => {

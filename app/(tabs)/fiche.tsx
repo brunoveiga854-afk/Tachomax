@@ -221,12 +221,6 @@ function defasagemProtegida(valor: number, count: number, baseValue: number): nu
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
-function pT(s: string): number | null {
-  if (!s) return null
-  const [h, mi] = s.split(':').map(Number)
-  return isNaN(h) || isNaN(mi) ? null : h + mi / 60
-}
-
 function calcFraisHorario(
   type: string,
   inicio: string,
@@ -499,13 +493,6 @@ const moneyMatches = (a: number, b: number) =>
 const isLagValide = (lag: number) => lag >= 0 && lag <= 3
 
 const moisLabelToIndex = (label: string) => MOIS_NOMS.indexOf(label)
-
-function choisirVoteMajoritaire(votes: number[]): number | null {
-  if (votes.length === 0) return null
-  const counts: Record<number, number> = {}
-  votes.forEach(v => { counts[v] = (counts[v] || 0) + 1 })
-  return +Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-}
 
 const mesFicheDe = (d: MoisData): [number, number] => [
   d.anoFiche ?? d.annee,
@@ -1228,8 +1215,6 @@ export default function MonSalaireScreen() {
   const [editInteressement, setEditInteressement] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(0)
-  const truckAnim = useRef(new Animated.Value(-40)).current
-  const wheelAnim = useRef(new Animated.Value(0)).current
   const scrollAnim = useRef(new Animated.Value(0)).current
   const dustAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
@@ -1283,12 +1268,9 @@ export default function MonSalaireScreen() {
   const [onbFraisSepare, setOnbFraisSepare] = useState(false)
   const [onbDiaSalario, setOnbDiaSalario] = useState(5)
   const [onbDiaFrais, setOnbDiaFrais] = useState(10)
-  const [onbHbase, setOnbHbase] = useState(169)
-  const [onbSalNet, setOnbSalNet] = useState('')
-  const [onbSaisirBrut, setOnbSaisirBrut] = useState(true)  // true=taux brut/h, false=net mensuel
-  const [onbHvalBrut, setOnbHvalBrut] = useState('')
   const [onbVehiculo, setOnbVehiculo] = useState('porteur')
   const [onbCargo, setOnbCargo] = useState('general')
+  const [onbHbase, setOnbHbase] = useState(169)
   // pré-preencher tipo veículo, cargo e hbase do onboarding se já definidos
   React.useEffect(() => {
     AsyncStorage.getItem('vehicule_type').then(v => { if (v) setOnbVehiculo(v) })

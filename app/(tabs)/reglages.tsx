@@ -18,11 +18,6 @@ const BACKUP_KEYS = [
   'historique',
 ]
 
-const BACKUP_KEYS_COMPLETO = [
-  'historique', 'monSalaire_v2', 'monSalaire_padrao',
-  'frais_valores', 'frais_regles', 'sal_settings', 'profil',
-]
-
 export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
@@ -135,12 +130,6 @@ export default function ReglagesScreen() {
       setTimeout(() => scrollViewRef.current?.scrollTo({ y: salaireSectionY.current, animated: true }), 350)
     }
   }, [scrollToParam])
-
-  const fmtHM = (seg: number) => {
-    const h = Math.floor(seg / 3600)
-    const m = Math.floor((seg % 3600) / 60)
-    return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`
-  }
 
   const apagaHistorique = async () => {
     await AsyncStorage.removeItem('historique')

@@ -56,17 +56,15 @@ export default function AujourdhuiScreen() {
   const [kmFimInput, setKmFimInput] = useState('')
   const [horaInicio, setHoraInicio] = useState('')
   const [dateInicio, setDateInicio] = useState<Date | null>(null)
-  const [profil, setProfil] = useState<Profil>('MIXTE')
   const [modoTacho, setModoTacho] = useState<'crescente' | 'decrescente'>('crescente')
+  const [profil, setProfil] = useState<Profil>('MIXTE')
   const [nomeConducteur, setNomeConducteur] = useState('Bruno')
   const [showProfil, setShowProfil] = useState(false)
   const [statsSemaine, setStatsSemaine] = useState({ heures: 0, decouche: 0, frais: 0, jours: 0 })
   const [modeNuit, setModeNuit] = useState(false)
-  const [inputHoras, setInputHoras] = useState('')
-  const [inputMinutos, setInputMinutos] = useState('')
   const [showTerminerModal, setShowTerminerModal] = useState(false)
-  const [showKmFimInput, setShowKmFimInput] = useState(false)
   const [showKmModal, setShowKmModal] = useState(false)
+  const [showKmFimInput, setShowKmFimInput] = useState(false)
   const kmScaleAnim = useRef(new Animated.Value(0.4)).current
   const kmOpacityAnim = useRef(new Animated.Value(0)).current
   const [showSummaryModal, setShowSummaryModal] = useState(false)
@@ -153,7 +151,6 @@ export default function AujourdhuiScreen() {
   const amplitudeAlertado = useRef(false)
   const segPausaRef = useRef(0)
   const autoGuardarTimer = useRef<any>(null)
-  const paradoTimer = useRef<any>(null)
   const emPausaRef = useRef(false)
   const pulsarBtn = useRef(new Animated.Value(1)).current
   const fadeIn = useRef(new Animated.Value(1)).current
@@ -331,29 +328,6 @@ export default function AujourdhuiScreen() {
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
     } catch (e) { }
-  }
-
-  const carregarConfigs = async () => {
-    // profil e nom agora vêm do AppContext (recarregarApp() chamado antes)
-    if (appState.profil) setProfil(appState.profil)
-    if (appState.nom) {
-      setNomeConducteur(appState.nom)
-    } else {
-      // fallback: nome legacy guardado em monSalaire_v2
-      const dados = await AsyncStorage.getItem('monSalaire_v2')
-      if (dados) {
-        try {
-          const hist = JSON.parse(dados)
-          if (hist.length > 0 && hist[0].conducteur) {
-            const primeiroNome = hist[0].conducteur.split(' ')[0]
-            setNomeConducteur(primeiroNome)
-          }
-        } catch {
-          await AsyncStorage.removeItem('monSalaire_v2')
-          setStorageErro('Données salaire corrompues — réinitialisées.')
-        }
-      }
-    }
   }
 
   useEffect(() => {
@@ -760,20 +734,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return `${dias[agora.getDay()]} ${agora.getDate()} ${mois[agora.getMonth()]} · ${h}h${m}`
   }
 
-  const abrirPickerCorrecao = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: correcaoPickerDate,
-        mode: 'time',
-        is24Hour: true,
-        display: 'default',
-        onChange: (event, date) => {
-          if (event.type === 'set' && date) setCorrecaoPickerDate(date)
-        },
-      })
-    }
-  }
-
   const maxSemaine = profil === 'CD' ? 52 * 3600 : 56 * 3600
   const pctSemaine = Math.min((statsSemaine.heures / maxSemaine) * 100, 100)
   const semaineColor = pctSemaine > 90 ? '#e74c3c' : pctSemaine > 75 ? '#f39c12' : '#27ae60'
@@ -844,9 +804,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
     return false
   }
-
-  const pausaTotalLista = (lista: {dur: number, inicio: number}[]): number =>
-    lista.reduce((a, p) => a + p.dur, 0)
 
   const handlePause = async () => {
     if (emPausa) {

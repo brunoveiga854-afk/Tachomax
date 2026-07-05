@@ -2136,9 +2136,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setRespostas([]); setPerguntaAtual(0); setInputValor('')
     setInputDiaSal(String(padrao.diaSalario)); setInputDiaFrais(String(padrao.diaFrais))
     // Pré-preenche sal + frais da primeira fiche se a IA os extraiu
-    const pf = fiches[0]?.dados || fiches[0] as any
-    setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : (pf?.netPaye || 0) > 0 ? String(pf.netPaye) : '')
-    setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : (pf?.remboursementFrais || 0) > 0 ? String(pf.remboursementFrais) : '')
+    const fichaZero = fiches[0]
+    const pf = fichaZero?.dados || fichaZero as any
+    const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
+    const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
+    setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
+    setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)

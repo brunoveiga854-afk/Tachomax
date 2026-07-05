@@ -2241,10 +2241,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     if (perguntaActual.tipo === 'timing_salario') {
       const sal = perguntaActual.valorContexto?.netPaye || 0
       if (sal > 0) setMontantSalTemp(sal)
+      if (sal > 0) setSavedSalBeforeVerif(String(sal))
     }
     if (perguntaActual.tipo === 'timing_frais') {
       const fr = perguntaActual.valorContexto?.fraisBoletim || 0
       if (fr > 0) setMontantFraisTemp(fr)
+      if (fr > 0) setSavedFraisBeforeVerif(String(fr))
     }
     const dataPag = respostaData ? (() => {
       const [dd, mm, yyyy] = respostaData.split('/')

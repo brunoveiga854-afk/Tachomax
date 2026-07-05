@@ -1302,9 +1302,9 @@ export default function MonSalaireScreen() {
   useEffect(() => {
     setRespostaMesManual(false)
     if (!perguntaActual) return
-    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0)
+    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0 && montantSalTemp === 0)
       setMontantSalTemp(perguntaActual.valorContexto.netPaye)
-    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0)
+    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0)
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
@@ -2043,8 +2043,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      if ((pfRaw?.netPaye || 0) > 0) { setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye)) }
-      if ((pfRaw?.remboursementFrais || 0) > 0) { setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais)) }
+      if ((pfRaw?.netPaye || 0) > 0 && montantSalTemp === 0) { setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye)) }
+      if ((pfRaw?.remboursementFrais || 0) > 0 && montantFraisTemp === 0) { setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais)) }
       setConfirmTimingNet(pfRaw?.netPaye || 0)
       setConfirmTimingPeriode(fiches[0].periode || '')
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)

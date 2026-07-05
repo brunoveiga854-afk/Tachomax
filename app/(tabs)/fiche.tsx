@@ -2048,6 +2048,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
       pendingDocsRef.current = docs
       setShowPerguntas(false)
+      setShowModalPerguntas(false)
       setShowConfirmTiming(true)
       return
     }

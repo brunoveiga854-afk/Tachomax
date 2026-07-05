@@ -1331,12 +1331,10 @@ export default function MonSalaireScreen() {
     setRespostaMesAno(dSug.getFullYear())
   }, [respostaData])
   useEffect(() => {
-    if (montantSalTemp > 0 && parseFloat(inputMontantSalQ || '0') === 0)
-      setInputMontantSalQ(String(montantSalTemp))
+    if (montantSalTemp > 0) setInputMontantSalQ(String(montantSalTemp))
   }, [montantSalTemp])
   useEffect(() => {
-    if (montantFraisTemp > 0 && parseFloat(inputMontantFraisQ || '0') === 0)
-      setInputMontantFraisQ(String(montantFraisTemp))
+    if (montantFraisTemp > 0) setInputMontantFraisQ(String(montantFraisTemp))
   }, [montantFraisTemp])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
@@ -2043,10 +2041,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
+      if ((pfRaw?.netPaye || 0) > 0) setMontantSalTemp(pfRaw.netPaye)
+      if ((pfRaw?.remboursementFrais || 0) > 0) setMontantFraisTemp(pfRaw.remboursementFrais)
       setConfirmTimingNet(pfRaw?.netPaye || 0)
       setConfirmTimingPeriode(fiches[0].periode || '')
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
       pendingDocsRef.current = docs
+      setShowPerguntas(false)
       setShowConfirmTiming(true)
       return
     }

@@ -1459,11 +1459,7 @@ export default function MonSalaireScreen() {
       const data = await AsyncStorage.getItem('monSalaire_v2')
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
       const cal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
-      const aprendRaw = await AsyncStorage.getItem('aprendizagem_padrao')
-      if (aprendRaw) {
-        try { setPadraoAprendido(JSON.parse(aprendRaw)) }
-        catch { await AsyncStorage.removeItem('aprendizagem_padrao'); setPadraoAprendido(PADRAO_INICIAL) }
-      }
+      setPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL)
       const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
       if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
       setHistCal(cal)

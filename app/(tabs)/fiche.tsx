@@ -1496,7 +1496,7 @@ export default function MonSalaireScreen() {
     } catch (e) { }
   }
 
-  const guardarPadraoAprendido = async (novoPadrao: PadraoAprendido) => {
+  const persistirPadraoAprendido = async (novoPadrao: PadraoAprendido) => {
     await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
     setPadraoAprendido(novoPadrao)
   }
@@ -1527,16 +1527,11 @@ export default function MonSalaireScreen() {
       atual = { ...atual, ptd: fv.ptDej || atual.ptd, dej: fv.dej || atual.dej, din: fv.diner || atual.din, nui: fv.nuit || atual.nui }
     }
     // Merge timing confirmado do motor de aprendizagem
-    try {
-      const apRaw = await AsyncStorage.getItem('aprendizagem_padrao')
-      if (apRaw) {
-        const ap = JSON.parse(apRaw)
-        if (ap.hlagConfirmado && ap.hlag != null) atual.hlag = ap.hlag
-        if (ap.hlagConfirmado && ap.diaSalario != null) atual.diaSalario = ap.diaSalario
-        if (ap.flagConfirmado && ap.flag != null) atual.flag = ap.flag
-        if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
-      }
-    } catch {}
+    const ap = padraoAprendido
+    if (ap.hlagConfirmado && ap.hlag != null) atual.hlag = ap.hlag
+    if (ap.hlagConfirmado && ap.diaSalario != null) atual.diaSalario = ap.diaSalario
+    if (ap.flagConfirmado && ap.flag != null) atual.flag = ap.flag
+    if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
     await persistirPadrao(atual)
     return atual
   }
@@ -2120,7 +2115,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           }
           padAtual = actualizarPadraoComBoletim(boletim, padAtual)
         }
-        await guardarPadraoAprendido(padAtual)
+        await persistirPadraoAprendido(padAtual)
         if (!padAtual.hlagConfirmado || !padAtual.flagConfirmado) setShowCadeado(true)
       }
       await guardarTudo(respostasAuto)
@@ -2177,7 +2172,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         setPerguntaActual(todasPerguntasMotor[0])
         setShowModalPerguntas(true)
       } else {
-        await guardarPadraoAprendido(padAtual)
+        await persistirPadraoAprendido(padAtual)
       }
       if (!padAtual.hlagConfirmado || !padAtual.flagConfirmado) setShowCadeado(true)
     }
@@ -2268,7 +2263,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       mesTrabalho: respostaMes !== null ? respostaMes : null,
     }
     const novoPadrao = aplicarRespostaConduteur(perguntaActual, resposta, padraoAprendido, boletimTiming)
-    await guardarPadraoAprendido(novoPadrao)
+    await persistirPadraoAprendido(novoPadrao)
     if (perguntaActual.tipo === 'taxa_mudou' && resposta.startsWith('Oui') && novoPadrao.hval !== null) {
       const padraoActualizado = { ...padrao, hval: novoPadrao.hval, h25: Math.round(novoPadrao.hval * 1.25 * 100) / 100, h50: Math.round(novoPadrao.hval * 1.5 * 100) / 100 }
       await persistirPadrao(padraoActualizado)

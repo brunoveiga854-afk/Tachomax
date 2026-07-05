@@ -561,6 +561,11 @@ export default function OnboardingScreen() {
               <Text style={{ fontWeight: '400', color: '#9ba3b8', fontSize: 10 }}>2 mois avant</Text>
             </TouchableOpacity>
           </View>
+          {!obHlagTouched && (
+            <Text style={{ fontSize:11, color:'#f5a623', marginBottom:8 }}>
+              ⚠️ Confirme le timing pour de meilleures estimations
+            </Text>
+          )}
           <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>🧾 FRAIS — MÊME JOUR QUE LE SALAIRE ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: obFraisMemeJour ? 20 : 12 }}>
             <TouchableOpacity onPress={() => setObFraisMemeJour(true)} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obFraisMemeJour ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obFraisMemeJour ? 1.5 : 1, borderColor: obFraisMemeJour ? '#f5a623' : '#2a3045', alignItems: 'center' }}>

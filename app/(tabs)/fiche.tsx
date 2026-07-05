@@ -1387,6 +1387,11 @@ export default function MonSalaireScreen() {
     charger()
   }, [])
 
+  const persistirPadrao = async (p: Padrao) => {
+    setPadrao(p)
+    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
+  }
+
   // Recarregar padrao + historique sempre que a aba ganha foco
   // (ex: após editar nas Réglages ou adicionar dia no Historique)
   useFocusEffect(useCallback(() => {
@@ -1486,8 +1491,7 @@ export default function MonSalaireScreen() {
         if (hlagValidado !== base.hlag) base = { ...base, hlag: hlagValidado }
 
         const p = analisarPadraoV2(hist, cal, base)
-        setPadrao(p)
-        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
+        await persistirPadrao(p)
       }
     } catch (e) { }
   }
@@ -1533,8 +1537,7 @@ export default function MonSalaireScreen() {
         if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
       }
     } catch {}
-    setPadrao(atual)
-    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(atual))
+    await persistirPadrao(atual)
     return atual
   }
 
@@ -2268,8 +2271,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await guardarPadraoAprendido(novoPadrao)
     if (perguntaActual.tipo === 'taxa_mudou' && resposta.startsWith('Oui') && novoPadrao.hval !== null) {
       const padraoActualizado = { ...padrao, hval: novoPadrao.hval, h25: Math.round(novoPadrao.hval * 1.25 * 100) / 100, h50: Math.round(novoPadrao.hval * 1.5 * 100) / 100 }
-      setPadrao(padraoActualizado)
-      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoActualizado))
+      await persistirPadrao(padraoActualizado)
     }
     const restantes = perguntasPendentes.filter(p => p.id !== perguntaActual.id)
     setPerguntasPendentes(restantes)
@@ -2392,8 +2394,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
     if (hlagValidado !== padraoBase.hlag) padraoBase = { ...padraoBase, hlag: hlagValidado }
     const novoPadrao = analisarPadraoV2(novoHist, histCal, padraoBase)
-    setPadrao(novoPadrao)
-    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+    await persistirPadrao(novoPadrao)
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
@@ -2718,8 +2719,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                     const val = parseFloat(editHbaseVal.replace(',', '.'))
                                     if (!isNaN(val) && val > 0) {
                                       const p = { ...padrao, hbase: val, _conflitHbase: null, _hbaseManual: true }
-                                      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
-                                      setPadrao(p)
+                                      await persistirPadrao(p)
                                     }
                                     setEditHbaseVisible(false)
                                   }}>
@@ -2746,8 +2746,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           style={{ flex: 1, backgroundColor: 'rgba(255,160,0,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
                             const p = { ...padrao, hbase: conflitHbase.onboarding, _conflitHbase: null, _hbaseManual: true }
-                            await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
-                            setPadrao(p)
+                            await persistirPadrao(p)
                             setConflitHbase(null)
                           }}>
                           <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{`Garder ${conflitHbase.onboarding}h`}</Text>
@@ -2757,8 +2756,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.3)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                           onPress={async () => {
                             const p = { ...padrao, hbase: conflitHbase.extraido, _conflitHbase: null, _hbaseManual: true }
-                            await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
-                            setPadrao(p)
+                            await persistirPadrao(p)
                             setConflitHbase(null)
                           }}>
                           <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{`Utiliser ${conflitHbase.extraido}h`}</Text>
@@ -3089,8 +3087,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         setHistorique(nova)
                         await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
                         const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
-                        setPadrao(novoPadrao)
-                        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                        await persistirPadrao(novoPadrao)
                       }}
                     >
                       <Text style={{ fontSize: 20 }}>🗑️</Text>
@@ -3655,8 +3652,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
                     const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
-                    setPadrao(novoPadrao)
-                    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                    await persistirPadrao(novoPadrao)
                   }
                   setShowModalFraisReel(false)
                 }}
@@ -3775,8 +3771,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
                     const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
-                    setPadrao(novoPadrao)
-                    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                    await persistirPadrao(novoPadrao)
                   }
                   setShowModalSalNet(false)
                   setInputInteressement('')
@@ -3900,8 +3895,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
                 const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
-                setPadrao(novoPadrao)
-                await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(novoPadrao))
+                await persistirPadrao(novoPadrao)
                 setModalDetail(updated)
                 setShowModalEdit(false)
               }}>
@@ -4077,8 +4071,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         vehiculo: onbVehiculo,
                         cargo: onbCargo,
                       }
-                      setPadrao(newPadrao)
-                      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(newPadrao))
+                      await persistirPadrao(newPadrao)
                       await AsyncStorage.setItem('onboarding_salaire_done', 'true')
                       setShowOnboardingSalaire(false)
                       setOnbStep(1)

@@ -15,6 +15,7 @@ export type AppState = {
   hbase: number
   hval: number
   padrao: any | null
+  padraoAprendido: any | null
 }
 
 const INITIAL_STATE: AppState = {
@@ -29,6 +30,7 @@ const INITIAL_STATE: AppState = {
   hbase: 0,
   hval: 0,
   padrao: null,
+  padraoAprendido: null,
 }
 
 // ── Tipo do contexto ──────────────────────────────────────────────────────────
@@ -76,6 +78,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let padrao: any | null = null
     try { if (padraoRaw) padrao = JSON.parse(padraoRaw) } catch {}
 
+    let padraoAprendido: any | null = null
+    try { const apRaw = await AsyncStorage.getItem('aprendizagem_padrao'); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch {}
+
     const profil = (profilRaw === 'CD' || profilRaw === 'MIXTE' || profilRaw === 'LD')
       ? profilRaw
       : null
@@ -99,6 +104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Calcula em fresco: profil + hbase + hval (km não é necessário para estimativa)
       camposObrigatoriosOk: !!(profilRaw) && (padrao?.hbase ?? 0) > 0 && (padrao?.hval ?? 0) > 0,
       padrao,
+      padraoAprendido,
       hbase: padrao?.hbase ?? 0,
       hval: padrao?.hval ?? 0,
     })

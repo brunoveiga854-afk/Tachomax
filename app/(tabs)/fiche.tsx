@@ -2041,8 +2041,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      if ((pfRaw?.netPaye || 0) > 0) setMontantSalTemp(pfRaw.netPaye)
-      if ((pfRaw?.remboursementFrais || 0) > 0) setMontantFraisTemp(pfRaw.remboursementFrais)
+      if ((pfRaw?.netPaye || 0) > 0) { setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye)) }
+      if ((pfRaw?.remboursementFrais || 0) > 0) { setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais)) }
       setConfirmTimingNet(pfRaw?.netPaye || 0)
       setConfirmTimingPeriode(fiches[0].periode || '')
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
@@ -2124,7 +2124,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
     setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
+    setSavedSalBeforeVerif(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
     setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
+    setSavedFraisBeforeVerif(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
@@ -2217,7 +2219,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const netPayeProx = (fichaProx?.dados?.netPaye || (fichaProx as any)?.netPaye || 0)
       const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
       setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
+      setSavedSalBeforeVerif(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
       setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
+      setSavedFraisBeforeVerif(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)

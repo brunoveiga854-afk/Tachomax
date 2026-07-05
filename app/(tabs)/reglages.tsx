@@ -21,7 +21,7 @@ const BACKUP_KEYS = [
 export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
-  const { recarregarApp, actualizarCampo } = useApp()
+  const { state: appState, recarregarApp, actualizarCampo } = useApp()
   const [profil, setProfil] = useState<'CD' | 'MIXTE' | 'LD'>('MIXTE')
   const [conducteurPrenom, setConducteurPrenom] = useState('')
   const [conducteurNom, setConducteurNom] = useState('')
@@ -73,10 +73,9 @@ export default function ReglagesScreen() {
   // Verifica os 4 campos obrigatórios e persiste o estado
   const atualizarCamposOk = async () => {
     const pSalvo = await AsyncStorage.getItem('profil')
-    const padData = await AsyncStorage.getItem('monSalaire_padrao')
     const kmRaw = await AsyncStorage.getItem('km_ultimo_fim')
-    let hbase = 0, hval = 0
-    if (padData) { try { const p = JSON.parse(padData); hbase = p.hbase || 0; hval = p.hval || 0 } catch {} }
+    let hbase = appState.padrao?.hbase || 0
+    let hval = appState.padrao?.hval || 0
     const novosCampos = {
       profil: !!pSalvo,
       hbase: hbase > 0,

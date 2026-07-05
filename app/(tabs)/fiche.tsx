@@ -1421,7 +1421,15 @@ export default function MonSalaireScreen() {
       })
     }
     sincronizar()
-  }, []))
+  }, [appState.padrao]))
+
+  useEffect(() => {
+    if (appState.padrao) {
+      setPadrao(appState.padrao)
+      if (appState.padrao._conflitHbase) setConflitHbase(appState.padrao._conflitHbase)
+      else setConflitHbase(null)
+    }
+  }, [appState.padrao])
 
   useEffect(() => {
     setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')

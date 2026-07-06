@@ -65,6 +65,8 @@ export default function ReglagesScreen() {
   const [showDiagModal, setShowDiagModal] = useState(false)
   const [diagData, setDiagData] = useState('')
   const [diagLoading, setDiagLoading] = useState(false)
+  const [showSanteModal, setShowSanteModal] = useState(false)
+  const [santeData, setSanteData] = useState('')
   const scrollViewRef = useRef<import('react-native').ScrollView>(null)
   const salaireSectionY = useRef(0)
   const scrolledToSalaire = useRef(false)
@@ -353,6 +355,38 @@ export default function ReglagesScreen() {
       setShowDiagModal(true)
     }
     setDiagLoading(false)
+  }
+
+  const runSante = () => {
+    const p = appState.padrao
+    const ap = appState.padraoAprendido
+    const lines: string[] = []
+
+    lines.push("=== SANTÉ DE L'APP ===\n")
+
+    lines.push('📋 DONNÉES ESSENTIELLES')
+    lines.push((appState.camposObrigatoriosOk ? '✅' : '❌') + ' Profil conducteur: ' + (appState.profil || 'manquant'))
+    lines.push(((p?.hbase || 0) > 0 ? '✅' : '❌') + ' Heures base: ' + (p?.hbase || 0) + 'h')
+    lines.push(((p?.hval || 0) > 0 ? '✅' : '❌') + ' Taux horaire: ' + (p?.hval || 0) + '€/h')
+
+    lines.push('\n📊 CALIBRATION')
+    const lr = p?.liquidRate || 0
+    const lrOk = lr >= 0.60 && lr <= 0.95
+    lines.push((lrOk ? '✅' : '⚠️') + ' LiquidRate: ' + Math.round(lr * 100) + '%' + (!lrOk ? ' (anomalie — attendu 60–95%)' : ''))
+    lines.push((ap?.hlagConfirmado ? '✅' : '⚠️') + ' Timing salaire confirmé: ' + (ap?.hlagConfirmado ? 'Oui (hlag=' + ap?.hlag + ')' : 'Non — utilise défaut'))
+    lines.push((ap?.flagConfirmado ? '✅' : '⚠️') + ' Timing frais confirmé: ' + (ap?.flagConfirmado ? 'Oui (flag=' + ap?.flag + ')' : 'Non — utilise défaut'))
+
+    lines.push('\n🔄 SYNCHRONISATION')
+    const padraoOk = !!p && (p.hbase || 0) > 0 && (p.hval || 0) > 0
+    lines.push((padraoOk ? '✅' : '❌') + ' Contrat en mémoire: ' + (padraoOk ? 'OK' : 'Incomplet'))
+    const apOk = !!ap && (ap.hlag != null || ap.flag != null)
+    lines.push((apOk ? '✅' : '⚠️') + ' Apprentissage en mémoire: ' + (apOk ? 'OK' : 'Vide'))
+
+    lines.push('\n🧠 MOTEUR')
+    lines.push(ap?._hvalErroConfirmado ? '✅ Taux erroné mémorisé: ' + ap._hvalErroConfirmado + '€/h (ne sera plus demandé)' : 'ℹ️ Aucun taux erroné mémorisé')
+
+    setSanteData(lines.join('\n'))
+    setShowSanteModal(true)
   }
 
   return (
@@ -873,6 +907,14 @@ export default function ReglagesScreen() {
               </View>
               <View style={{ marginTop: 4 }}>
                 <TouchableOpacity
+                  style={{ backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.3)', marginBottom: 8 }}
+                  onPress={runSante}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60' }}>🩺 Santé de l'app</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ marginTop: 4 }}>
+                <TouchableOpacity
                   style={{ backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(155,89,182,0.3)' }}
                   onPress={() => { setSecretUnlocked(false); setVersionTapCount(0) }}
                 >
@@ -1051,6 +1093,20 @@ export default function ReglagesScreen() {
             </ScrollView>
             <TouchableOpacity style={{ backgroundColor: '#2980b9', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 16 }} onPress={() => setShowDiagModal(false)}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showSanteModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '70%' }}>
+            <Text style={{ color: '#27ae60', fontWeight: '800', fontSize: 16, marginBottom: 12 }}>🩺 Santé de l'app</Text>
+            <ScrollView>
+              <Text style={{ color: '#e0e0e0', fontFamily: 'Courier New', fontSize: 12, lineHeight: 20 }}>{santeData}</Text>
+            </ScrollView>
+            <TouchableOpacity onPress={() => setShowSanteModal(false)} style={{ marginTop: 16, padding: 12, backgroundColor: '#27ae60', borderRadius: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
             </TouchableOpacity>
           </View>
         </View>

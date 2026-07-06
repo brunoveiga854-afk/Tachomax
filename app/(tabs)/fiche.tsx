@@ -1346,12 +1346,7 @@ export default function MonSalaireScreen() {
       }
       // campos_obrigatorios_ok via AppContext
       setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
-      // historique não está no AppContext — continua via AsyncStorage
-      AsyncStorage.getItem('historique').then(histRaw => {
-        if (histRaw) {
-          try { setHistCal(JSON.parse(histRaw)) } catch {}
-        }
-      })
+      if (appState.histCal) setHistCal(appState.histCal)
     }
     sincronizar()
   }, [appState.padrao]))
@@ -1390,16 +1385,16 @@ export default function MonSalaireScreen() {
 
   const charger = async () => {
     try {
-      const data = await AsyncStorage.getItem('monSalaire_v2')
+      const data = appState.histSal  // já parsed pelo AppContext
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
-      const cal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+      const cal = appState.histCal ?? []
       setPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL)
       const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
       if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
       setHistCal(cal)
       const reglesLimpas = await limparFraisReglesAoArrancar()
       if (data) {
-        const hist = JSON.parse(data)
+        const hist = data
         setHistorique(hist)
         // Sempre re-analisa com o algoritmo actual para apanhar melhorias de detecção
         let base: Padrao
@@ -1469,15 +1464,13 @@ export default function MonSalaireScreen() {
     setCalculando(true)
     setCalculandoMsg('⚡ Recalcul en cours...')
     try {
-      const histData = await AsyncStorage.getItem('historique')
-      if (!histData) {
+      const hist = appState.histCal
+      if (!hist || hist.length === 0) {
         mostrarErro("Aucun historique trouvé.\nAjoute tes jours dans l'onglet Aujourd'hui ou le Calendrier.")
         return
       }
-      const hist = JSON.parse(histData)
-      const histSalData = await AsyncStorage.getItem('monSalaire_v2')
-      const histSal: MoisData[] = histSalData ? JSON.parse(histSalData) : historique
-      if (histSalData) setHistorique(histSal)
+      const histSal: MoisData[] = appState.histSal ?? historique
+      if (appState.histSal) setHistorique(histSal)
       const p = await carregarPadraoAtual(histSal, hist)
       if (p._conflitHbase) {
         setConflitHbase(p._conflitHbase)
@@ -2307,7 +2300,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
 
     // Analisar padrão com horários do calendário
-    const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+    const histCal = appState.histCal ?? []
     // Aplicar valores de frais dos boletins se existirem
     const fraisValsRaw = appState.fraisValores  // já parsed pelo AppContext
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
@@ -3581,7 +3574,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
-                    const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+                    const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                   }
@@ -3700,7 +3693,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
 
-                    const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+                    const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                   }
@@ -3824,7 +3817,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 nova.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                 setHistorique(nova)
                 await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
-                const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
+                const histCal = appState.histCal ?? []
                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                 await persistirPadrao(novoPadrao)
                 setModalDetail(updated)

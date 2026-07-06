@@ -453,9 +453,8 @@ export default function AujourdhuiScreen() {
 
   const carregarStatsSemaine = async () => {
     try {
-      const data = await AsyncStorage.getItem('historique')
-      if (!data) return
-      const historique = JSON.parse(data)
+      const historique = appState.histCal
+      if (!historique) return
       const maintenant = new Date()
       const lundi = new Date(maintenant)
       lundi.setDate(maintenant.getDate() - maintenant.getDay() + 1)
@@ -493,8 +492,7 @@ export default function AujourdhuiScreen() {
 
   const carregarDiasMes = async () => {
     try {
-      const data = await AsyncStorage.getItem('historique')
-      if (data) setDiasHistorique(JSON.parse(data))
+      if (appState.histCal) setDiasHistorique(appState.histCal)
     } catch (e) {}
   }
 
@@ -551,12 +549,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     try {
       if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles = await carregarFraisRegles()
-      const existente = await AsyncStorage.getItem('historique')
-      try {
-        const lista = existente ? JSON.parse(existente) : []
-        const [dia, mes] = addDiaStr.split('/').map(Number)
-        if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
-      } catch { await AsyncStorage.removeItem('historique'); setStorageErro('Historique corrompu — réinitialisé.') }
+      const lista = appState.histCal ?? []
+      const [dia, mes] = addDiaStr.split('/').map(Number)
+      if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
     } catch (e) {}
     const result = calcularFraisJour({
       type,
@@ -954,8 +949,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     try {
       if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles2 = await carregarFraisRegles()
-      const existente = await AsyncStorage.getItem('historique')
-      prevDecResumo = dateInicio ? diaAnteriorDecouche(existente ? JSON.parse(existente) : [], dateInicio) : false
+      prevDecResumo = dateInicio ? diaAnteriorDecouche(appState.histCal ?? [], dateInicio) : false
     } catch (e) {}
     const snapFrais = calcularFraisJour({
       type: (comDecouche || decouche) ? 'DEC' : 'TRAB',

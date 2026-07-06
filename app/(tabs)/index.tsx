@@ -531,13 +531,8 @@ export default function AujourdhuiScreen() {
     } catch {
       await AsyncStorage.removeItem('frais_regles')
     }
-    // Limpa/valida frais_valores
-    try {
-      const valsData = await AsyncStorage.getItem('frais_valores')
-      if (valsData) JSON.parse(valsData) // só valida — se falhar, apaga
-    } catch {
-      await AsyncStorage.removeItem('frais_valores')
-    }
+    // frais_valores — validação delegada ao AppContext
+    if (!appState.fraisValores) await AsyncStorage.removeItem('frais_valores').catch(() => {})
   }
   const diaAnteriorDecouche = (lista: any[], dataAtual: Date) => {
     const anterior = new Date(dataAtual)
@@ -554,11 +549,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let regles = DEFAULT_FRAIS_REGLES
     let prevDec = false
     try {
-      const fvData = await AsyncStorage.getItem('frais_valores')
-      if (fvData) {
-        try { fv = { ...fv, ...JSON.parse(fvData) } }
-        catch { await AsyncStorage.removeItem('frais_valores') }
-      }
+      if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
       try {
@@ -891,8 +882,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let regles = DEFAULT_FRAIS_REGLES
     let lista: any[] = []
     try {
-      const fvData = await AsyncStorage.getItem('frais_valores')
-      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
       lista = existente ? JSON.parse(existente) : []
@@ -962,8 +952,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let regles2 = DEFAULT_FRAIS_REGLES
     let prevDecResumo = false
     try {
-      const fvData = await AsyncStorage.getItem('frais_valores')
-      if (fvData) fv = { ...fv, ...JSON.parse(fvData) }
+      if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles2 = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
       prevDecResumo = dateInicio ? diaAnteriorDecouche(existente ? JSON.parse(existente) : [], dateInicio) : false

@@ -173,7 +173,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
 }
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
-  const { recarregarApp } = useApp()
+  const { state: appState, recarregarApp } = useApp()
   const [historique, setHistorique] = useState<Jour[]>([])
   const [semaine, setSemaine] = useState(0)
   const [vue, setVue] = useState<'semaine' | 'mois'>('semaine')
@@ -211,10 +211,8 @@ export default function HistoriqueScreen() {
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
   const [fraisReglesResumo, setFraisReglesResumo] = useState(DEFAULT_FRAIS_REGLES)
   useEffect(() => {
-    AsyncStorage.getItem('frais_regles').then(raw => {
-      try { setFraisReglesResumo(sanitizeFraisRegles(raw ? JSON.parse(raw) : {})) } catch {}
-    }).catch(() => {})
-  }, [])
+    setFraisReglesResumo(sanitizeFraisRegles(appState.fraisRegles ?? {}))
+  }, [appState.fraisRegles])
   const { scrollToId, calMes, calAno } = useLocalSearchParams<{ scrollToId?: string, calMes?: string, calAno?: string }>()
   const listRef = useRef<FlatList>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -435,12 +433,8 @@ const getJoursMois = () => {
     const novoServicoStr = fmtHM(novoSeg)
     let regles = DEFAULT_FRAIS_REGLES
     let valeurs = DEFAULT_FRAIS_VALEURS
-    try {
-      const reglesData = await AsyncStorage.getItem('frais_regles')
-      const valeursData = await AsyncStorage.getItem('frais_valores')
-      try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { regles = DEFAULT_FRAIS_REGLES }
-      try { valeurs = sanitizeFraisValeurs(valeursData ? JSON.parse(valeursData) : {}) } catch { valeurs = DEFAULT_FRAIS_VALEURS }
-    } catch (e) {}
+    regles = sanitizeFraisRegles(appState.fraisRegles ?? {})
+    valeurs = sanitizeFraisValeurs(appState.fraisValores ?? {})
     const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit), regles, valeurs)
     const jourAtualizado: Jour = {
       ...jourEdit,
@@ -494,12 +488,8 @@ const getJoursMois = () => {
       const nom = conducteurPrenom ? (conducteurNom || '') : ''
       const JOURS_LABELS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
       const JOURS_COURTS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
-            const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
-      let fraisVals: any = {}
-      try { if (fraisValsRaw) fraisVals = JSON.parse(fraisValsRaw) } catch { fraisVals = {} }
-      const reglesRaw = await AsyncStorage.getItem('frais_regles')
-      let regles: any = {}
-      try { if (reglesRaw) regles = JSON.parse(reglesRaw) } catch { regles = {} }
+      const fraisVals: any = appState.fraisValores ?? {}
+      const regles: any = appState.fraisRegles ?? {}
       const jours = JOURS_LABELS.map((label, i) => {
         const dataJour = new Date(lundi); dataJour.setDate(lundi.getDate() + i)
         const ddmmyyyy = fmt(dataJour)

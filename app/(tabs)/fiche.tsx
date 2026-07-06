@@ -1411,9 +1411,8 @@ export default function MonSalaireScreen() {
         // já provou o valor correcto numa sessão anterior, não regredir.
         // (O guard ≥2 no analisarPadraoV2 trata disso — aqui só garantimos base limpa)
         base = { ...base, regles: reglesLimpas }
-        const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
-        if (fraisValsRaw) {
-          const fv = JSON.parse(fraisValsRaw)
+        if (appState.fraisValores) {
+          const fv = appState.fraisValores
           base = { ...base, ptd: fv.ptDej || base.ptd, dej: fv.dej || base.dej, din: fv.diner || base.din, nui: fv.nuit || base.nui }
         }
         // Valida hlag com totais confirmados — mais fiável que detecção por bruto estimado
@@ -1451,9 +1450,8 @@ export default function MonSalaireScreen() {
     const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : atual.regles)
     if (fraisReglesRaw) await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
     atual = { ...atual, regles: reglesLimpas }
-    const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
-    if (fraisValsRaw) {
-      const fv = JSON.parse(fraisValsRaw)
+    if (appState.fraisValores) {
+      const fv = appState.fraisValores
       atual = { ...atual, ptd: fv.ptDej || atual.ptd, dej: fv.dej || atual.dej, din: fv.diner || atual.din, nui: fv.nuit || atual.nui }
     }
     // Merge timing confirmado do motor de aprendizagem
@@ -2311,12 +2309,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     // Analisar padrão com horários do calendário
     const histCal = JSON.parse(await AsyncStorage.getItem('historique') || '[]')
     // Aplicar valores de frais dos boletins se existirem
-    const fraisValsRaw = await AsyncStorage.getItem('frais_valores')
+    const fraisValsRaw = appState.fraisValores  // já parsed pelo AppContext
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     let padraoBase = { ...padrao, hlag: DEF_SAL.hlag, flag: DEF_SAL.flag }
     if (fraisValsRaw) {
-      const fv = JSON.parse(fraisValsRaw)
-      padraoBase = { ...padraoBase, ptd: fv.ptDej || padraoBase.ptd, dej: fv.dej || padraoBase.dej, din: fv.diner || padraoBase.din, nui: fv.nuit || padraoBase.nui }
+      padraoBase = { ...padraoBase, ptd: fraisValsRaw.ptDej || padraoBase.ptd, dej: fraisValsRaw.dej || padraoBase.dej, din: fraisValsRaw.diner || padraoBase.din, nui: fraisValsRaw.nuit || padraoBase.nui }
     }
     if (fraisReglesRaw) {
       const reglesLimpas = sanitizeFraisRegles(JSON.parse(fraisReglesRaw))

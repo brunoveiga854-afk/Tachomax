@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
-import { calcularFraisJour } from '../../src/frais'
+import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import DocumentScanner from '../../src/components/DocumentScanner'
 import {
   PADRAO_INICIAL, PadraoAprendido, PerguntaPendente, BoletimExtraido,
@@ -112,13 +112,6 @@ type DriftAlert = {
 type DriftTuplo = { est: number; real: number; estFrais: number; realFrais: number; estSal: number; realSal: number }
 
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-
-const shiftMois = (ano: number, mes: number, delta: number): [number, number] => {
-  let m = mes + delta, a = ano
-  while (m < 0) { m += 12; a-- }
-  while (m > 11) { m -= 12; a++ }
-  return [a, m]
-}
 
 const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
   let p = 40
@@ -222,73 +215,6 @@ function defasagemProtegida(valor: number, count: number, baseValue: number): nu
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
-function calcFraisHorario(
-  type: string,
-  inicio: string,
-  fim: string,
-  prevDec: boolean,
-  p: Padrao,
-  segServico?: number,
-  decouche?: boolean,
-): { ptd: number; dej: number; din: number; nui: number; total: number } {
-  return calcularFraisJour({
-    type,
-    debut: inicio,
-    fin: fim,
-    prevDecouche: prevDec,
-    segServico,
-    decouche,
-    regles: p.regles,
-    valeurs: { ptDej: p.ptd, dej: p.dej, diner: p.din, nuit: p.nui },
-  })
-}
-
-function calcFraisMesPorHorarios(
-  hist: any[],
-  ano: number,
-  mes: number,
-  p: Padrao
-): { total: number; ptd: number; dej: number; din: number; nui: number } {
-  const diasMes = hist
-    .filter((j: any) => {
-      const parts = j.date?.split('/')
-      if (!parts || parts.length < 2) return false
-      const m = parseInt(parts[1]) - 1
-      const a = j.id ? new Date(parseInt(j.id)).getFullYear() : ano
-      return m === mes && a === ano
-    })
-    .sort((a: any, b: any) => {
-      const da = parseInt(a.date?.split('/')[0] || '0')
-      const db = parseInt(b.date?.split('/')[0] || '0')
-      return da - db
-    })
-
-  let total = 0, ptd = 0, dej = 0, din = 0, nui = 0
-
-  // Normalize time format: historique stores "HHhMM", pT() expects "HH:MM"
-  const normTime = (t: string) => t ? t.replace('h', ':') : ''
-
-  for (let i = 0; i < diasMes.length; i++) {
-    const j = diasMes[i]
-    const type = j.type || 'TRAB'
-    const prevDec = i > 0 && ['dec', 'DEC'].includes(diasMes[i - 1].type || '') && !isSansFrais(type)
-
-    if (isTravailFrais(type)) {
-      // Recalcular pelos horários evita propagar frais antigos guardados com regras erradas.
-      const debut = normTime(j.debut || j.inicio || '')
-      const fin = normTime(j.fin || j.fim || '')
-      if (debut && fin) {
-        const f = calcFraisHorario(type, debut, fin, prevDec, p, j.segServico || 0, !!j.decouche)
-        total += f.total; ptd += f.ptd; dej += f.dej; din += f.din; nui += f.nui
-      } else if (j.frais != null && j.frais > 0) {
-        total += j.frais
-        ptd += 1
-      }
-    }
-  }
-
-  return { total, ptd, dej, din, nui }
-}
 
 // ── VÉRIFICATION CROISÉE FICHE vs APP ─────────────────────────────────────────
 type VerifNivel = 'ok' | 'warn' | 'alert'

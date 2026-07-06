@@ -1439,6 +1439,12 @@ export default function MonSalaireScreen() {
   }, [appState.padrao])
 
   useEffect(() => {
+    if (appState.padraoAprendido) {
+      setPadraoAprendido(appState.padraoAprendido)
+    }
+  }, [appState.padraoAprendido])
+
+  useEffect(() => {
     setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
   }, [appState.camposObrigatoriosOk])
 

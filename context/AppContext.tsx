@@ -18,6 +18,8 @@ export type AppState = {
   padraoAprendido: any | null
   fraisRegles: any | null
   fraisValores: any | null
+  histSal: any[] | null
+  histCal: any[] | null
 }
 
 const INITIAL_STATE: AppState = {
@@ -35,6 +37,8 @@ const INITIAL_STATE: AppState = {
   padraoAprendido: null,
   fraisRegles: null,
   fraisValores: null,
+  histSal: null,
+  histCal: null,
 }
 
 // ── Tipo do contexto ──────────────────────────────────────────────────────────
@@ -90,6 +94,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const fraisValoresRaw = await AsyncStorage.getItem('frais_valores')
     const fraisValores = fraisValoresRaw ? JSON.parse(fraisValoresRaw) : null
 
+    const histSalRaw = await AsyncStorage.getItem('monSalaire_v2')
+    const histSal = histSalRaw ? JSON.parse(histSalRaw) : null
+    const histCalRaw = await AsyncStorage.getItem('historique')
+    const histCal = histCalRaw ? JSON.parse(histCalRaw) : null
+
     const profil = (profilRaw === 'CD' || profilRaw === 'MIXTE' || profilRaw === 'LD')
       ? profilRaw
       : null
@@ -116,6 +125,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       padraoAprendido,
       fraisRegles,
       fraisValores,
+      histSal,
+      histCal,
       hbase: padrao?.hbase ?? 0,
       hval: padrao?.hval ?? 0,
     })

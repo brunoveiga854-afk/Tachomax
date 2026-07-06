@@ -2435,7 +2435,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
         {showPrevision && calcResult ? (
           <Animated.View style={[st.previsionCard, { transform: [{ scale: calcResult.mesAberto ? pulseAnim : breathAnim }] }]}>
-            <Text style={st.previsionLabel}>ESTIMÉ {calcResult.mesHorasLabel.split(' ')[0].toUpperCase()} {calcResult.mesHorasLabel.split(' ')[1]}</Text>
+            <Text style={st.previsionLabel}>ESTIMÉ {calcResult.mesReceber.split(' ')[0].toUpperCase()} {calcResult.mesReceber.split(' ')[1]}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
               {calcResult.mesAberto && (
                 <Text style={{ fontSize: 28, color: 'rgba(255,255,255,0.8)', fontWeight: '800', marginTop: 8, marginRight: 4 }}>≈</Text>

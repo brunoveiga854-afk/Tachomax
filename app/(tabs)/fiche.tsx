@@ -2407,6 +2407,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
     setShowModalSucesso(true)
+    setMontantSalTemp(0)
+    setMontantFraisTemp(0)
   }
 
   const fiches = documentosAnalisados.filter(d => d.tipo === 'fiche')

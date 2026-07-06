@@ -357,33 +357,199 @@ export default function ReglagesScreen() {
     setDiagLoading(false)
   }
 
-  const runSante = () => {
+  const runSante = async () => {
+    const t0 = Date.now()
     const p = appState.padrao
     const ap = appState.padraoAprendido
+    const warnings: string[] = []
     const lines: string[] = []
 
     lines.push("=== SANTÉ DE L'APP ===\n")
 
+    // ── 1. DONNÉES ESSENTIELLES ────────────────────────────────────
     lines.push('📋 DONNÉES ESSENTIELLES')
-    lines.push((appState.camposObrigatoriosOk ? '✅' : '❌') + ' Profil conducteur: ' + (appState.profil || 'manquant'))
-    lines.push(((p?.hbase || 0) > 0 ? '✅' : '❌') + ' Heures base: ' + (p?.hbase || 0) + 'h')
-    lines.push(((p?.hval || 0) > 0 ? '✅' : '❌') + ' Taux horaire: ' + (p?.hval || 0) + '€/h')
+    const profilOk = appState.camposObrigatoriosOk
+    lines.push((profilOk ? '✅' : '❌') + ' Profil complet: ' + (profilOk ? 'Oui' : 'Non'))
+    if (!profilOk) warnings.push('Profil incomplet — estimations désactivées')
+    lines.push('   Conducteur: ' + (appState.nom || '—'))
+    lines.push('   Profil: ' + (appState.profil || '—'))
+    lines.push('   Tracteur: ' + (appState.tracteurType || '—') + (appState.tracteurValue ? ' · ' + appState.tracteurValue : ''))
+    lines.push('   km dernier trajet: ' + (appState.kmUltimoFim || '—'))
+    const hbaseOk = (p?.hbase || 0) > 0
+    const hvalOk  = (p?.hval  || 0) > 0
+    lines.push((hbaseOk ? '✅' : '❌') + ' Heures base: ' + (p?.hbase || 0) + 'h')
+    if (!hbaseOk) warnings.push('hbase manquant')
+    lines.push((hvalOk ? '✅' : '❌') + ' Taux horaire: ' + (p?.hval || 0) + '€/h')
+    if (!hvalOk) warnings.push('hval manquant')
 
+    // ── 2. CALIBRATION ───────────────────────────────────────────
     lines.push('\n📊 CALIBRATION')
-    const lr = p?.liquidRate || 0
+    const lr   = p?.liquidRate || 0
     const lrOk = lr >= 0.60 && lr <= 0.95
     lines.push((lrOk ? '✅' : '⚠️') + ' LiquidRate: ' + Math.round(lr * 100) + '%' + (!lrOk ? ' (anomalie — attendu 60–95%)' : ''))
-    lines.push((ap?.hlagConfirmado ? '✅' : '⚠️') + ' Timing salaire confirmé: ' + (ap?.hlagConfirmado ? 'Oui (hlag=' + ap?.hlag + ')' : 'Non — utilise défaut'))
-    lines.push((ap?.flagConfirmado ? '✅' : '⚠️') + ' Timing frais confirmé: ' + (ap?.flagConfirmado ? 'Oui (flag=' + ap?.flag + ')' : 'Non — utilise défaut'))
+    if (!lrOk) warnings.push('LiquidRate hors range (' + Math.round(lr * 100) + '%)')
+    lines.push('   hval: ' + (p?.hval || 0) + '€/h  |  hbase: ' + (p?.hbase || 0) + 'h')
+    lines.push('   hlag: ' + (p?.hlag ?? '—') + ' mois  |  flag: ' + (p?.flag ?? '—') + ' mois')
+    lines.push('   Jour salaire: ' + (p?.diaSalario || '—') + '  |  Jour frais: ' + (p?.diaFrais || '—'))
+    const hlagConf = ap?.hlagConfirmado ?? false
+    const flagConf = ap?.flagConfirmado  ?? false
+    lines.push((hlagConf ? '✅' : '⚠️') + ' hlagConfirmado: ' + (hlagConf ? 'Oui (hlag=' + ap?.hlag + ', jour=' + ap?.diaSalario + ')' : 'Non — utilise défaut'))
+    if (!hlagConf) warnings.push('Timing salaire non confirmé')
+    lines.push((flagConf ? '✅' : '⚠️') + ' flagConfirmado: ' + (flagConf ? 'Oui (flag=' + ap?.flag + ', jour=' + ap?.diaFrais + ')' : 'Non — utilise défaut'))
+    if (!flagConf) warnings.push('Timing frais non confirmé')
+    lines.push(ap?._hvalErroConfirmado
+      ? '✅ hval erroné bloqué: ' + ap._hvalErroConfirmado + '€/h (ne sera plus demandé)'
+      : 'ℹ️ Aucun hval erroné mémorisé')
 
-    lines.push('\n🔄 SYNCHRONISATION')
-    const padraoOk = !!p && (p.hbase || 0) > 0 && (p.hval || 0) > 0
-    lines.push((padraoOk ? '✅' : '❌') + ' Contrat en mémoire: ' + (padraoOk ? 'OK' : 'Incomplet'))
-    const apOk = !!ap && (ap.hlag != null || ap.flag != null)
-    lines.push((apOk ? '✅' : '⚠️') + ' Apprentissage en mémoire: ' + (apOk ? 'OK' : 'Vide'))
+    // ── 3. ASYNCSTORAGE ──────────────────────────────────────────
+    lines.push('\n💾 ASYNCSTORAGE')
+    const AS_KEYS = [
+      'monSalaire_padrao',
+      'aprendizagem_padrao',
+      'monSalaire_v2',
+      'historique',
+      'frais_regles',
+      'frais_valores',
+      'aprendizagem_meses_confirmados',
+    ]
+    const rawMap: Record<string, string | null> = {}
+    for (const key of AS_KEYS) {
+      rawMap[key] = await AsyncStorage.getItem(key)
+    }
+    for (const key of AS_KEYS) {
+      const raw = rawMap[key]
+      if (raw === null) {
+        lines.push('   ❌ ' + key + ': absent')
+        if (key !== 'frais_regles' && key !== 'frais_valores' && key !== 'aprendizagem_meses_confirmados') {
+          warnings.push(key + ' absent')
+        }
+      } else {
+        const chars = raw.length
+        let detail = chars + ' car.'
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) detail += ', ' + parsed.length + ' entrée' + (parsed.length > 1 ? 's' : '')
+        } catch {}
+        lines.push('   ✅ ' + key + ': ' + detail)
+      }
+    }
 
+    // ── 4. FICHES ──────────────────────────────────────────────
+    lines.push('\n🧾 FICHES (monSalaire_v2)')
+    const fichesRaw = rawMap['monSalaire_v2']
+    if (fichesRaw) {
+      try {
+        const fiches = JSON.parse(fichesRaw) as any[]
+        const total      = fiches.length
+        const comNetPaye = fiches.filter(f => (f.netPaye || 0) > 0).length
+        const atipicos   = fiches.filter(f => !!f.moisAtipico).length
+        lines.push('   Total: ' + total + '  |  avec netPaye>0: ' + comNetPaye + '  |  atypiques: ' + atipicos)
+        const anomalos = fiches.filter(f => {
+          if (!(f.netPaye > 0) || !(f.salairebrut > 0)) return false
+          const rate = f.netPaye / f.salairebrut
+          return rate > 0.95 || rate < 0.60 || f.netPaye > f.salairebrut
+        })
+        if (anomalos.length > 0) {
+          lines.push('   ⚠️ ' + anomalos.length + ' fiche(s) avec rate anormal:')
+          for (const f of anomalos.slice(0, 6)) {
+            const rate  = f.salairebrut > 0 ? (f.netPaye / f.salairebrut * 100).toFixed(1) : '?'
+            const label = f.periodo || (f.moisIndex + '/' + f.annee)
+            lines.push('     • ' + label + ' — net=' + Math.round(f.netPaye) + '€ brut=' + Math.round(f.salairebrut) + '€ rate=' + rate + '%')
+          }
+          warnings.push(anomalos.length + ' fiche(s) avec rate anormal')
+        } else {
+          lines.push('   ✅ Aucun rate anormal')
+        }
+      } catch {
+        lines.push('   ❌ Erreur parsing fiches')
+        warnings.push('monSalaire_v2 illisible')
+      }
+    } else {
+      lines.push('   ❌ Aucune fiche enregistrée')
+    }
+
+    // ── 5. HISTORIQUE ──────────────────────────────────────────
+    lines.push('\n📅 HISTORIQUE')
+    const histRaw = rawMap['historique']
+    if (histRaw) {
+      try {
+        const hist = JSON.parse(histRaw) as any[]
+        lines.push('   Total jours: ' + hist.length)
+        if (hist.length === 0) warnings.push('Historique vide')
+        const counts: Record<string, number> = {}
+        for (const j of hist) { const tp = j.type || 'TRAB'; counts[tp] = (counts[tp] || 0) + 1 }
+        const breakdown = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([t, n]) => t + ':' + n).join('  ')
+        lines.push('   Types: ' + (breakdown || '—'))
+        const comId = hist.filter(j => j.id).map(j => parseInt(j.id)).filter(n => !isNaN(n))
+        if (comId.length > 0) {
+          const maxId = Math.max(...comId)
+          const d = new Date(maxId)
+          const MNOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+          lines.push('   Jour le plus récent: ' + d.getDate() + ' ' + MNOMS[d.getMonth()] + ' ' + d.getFullYear())
+        }
+      } catch {
+        lines.push('   ❌ Erreur parsing historique')
+        warnings.push('historique illisible')
+      }
+    } else {
+      lines.push('   ❌ Historique absent')
+      warnings.push('Historique absent')
+    }
+
+    // ── 6. MOTEUR ──────────────────────────────────────────────
     lines.push('\n🧠 MOTEUR')
-    lines.push(ap?._hvalErroConfirmado ? '✅ Taux erroné mémorisé: ' + ap._hvalErroConfirmado + '€/h (ne sera plus demandé)' : 'ℹ️ Aucun taux erroné mémorisé')
+    const mesesConfRaw = rawMap['aprendizagem_meses_confirmados']
+    const mesesConf = mesesConfRaw ? (parseInt(mesesConfRaw) || 0) : 0
+    lines.push('   Meses confirmados: ' + mesesConf)
+    if (mesesConf === 0) warnings.push('Aucun mois confirmé — précision réduite')
+    const timingSal = hlagConf
+      ? 'J+' + (ap?.hlag || 0) + ' mois, le ' + (ap?.diaSalario || '?')
+      : 'non confirmé (défaut: ' + (p?.hlag || '?') + ' mois)'
+    lines.push((hlagConf ? '✅' : '⚠️') + ' Timing salaire: ' + timingSal)
+    const timingFrais = flagConf
+      ? 'J+' + (ap?.flag || 0) + ' mois, le ' + (ap?.diaFrais || '?')
+      : 'non confirmé (défaut: ' + (p?.flag || '?') + ' mois)'
+    lines.push((flagConf ? '✅' : '⚠️') + ' Timing frais: ' + timingFrais)
+    if (ap?._hvalErroConfirmado) {
+      lines.push('✅ hval erroné bloqué: ' + ap._hvalErroConfirmado + '€/h')
+    }
+
+    // ── 7. PERFORMANCE ─────────────────────────────────────────
+    const elapsed = Date.now() - t0
+    lines.push('\n⏱️ PERFORMANCE')
+    lines.push('   Temps exécution: ' + elapsed + 'ms')
+
+    // ── 8. BILAN / WARNINGS ────────────────────────────────────
+    lines.push('\n' + (warnings.length === 0 ? '✅' : '⚠️') + ' BILAN')
+    if (warnings.length === 0) {
+      lines.push('   Aucun problème détecté.')
+    } else {
+      lines.push('   ' + warnings.length + ' problème(s):')
+      for (const w of warnings) lines.push('   • ' + w)
+    }
+
+    // ── 9. CONECTIVIDADE ────────────────────────────────────────
+    lines.push('\n🔌 CONECTIVIDADE')
+    const padraoSync = p?.hval === (appState.hval || 0)
+    lines.push((padraoSync ? '✅' : '⚠️') + ' AppContext ↔ AsyncStorage: ' + (padraoSync ? 'Sincronizado' : 'Dessincronizado'))
+    if (!padraoSync) warnings.push('AppContext dessincronizado do AsyncStorage')
+    const apReativo = !!ap && !!appState.padraoAprendido
+    lines.push((apReativo ? '✅' : '⚠️') + ' padraoAprendido reactivo: ' + (apReativo ? 'OK' : 'Não inicializado'))
+    try {
+      const t1 = Date.now()
+      const resp = await fetch('https://super-salamander-252e93.netlify.app/privacy-policy', { method: 'HEAD' })
+      const ping = Date.now() - t1
+      lines.push((resp.ok ? '✅' : '⚠️') + ' Proxy Netlify: ' + (resp.ok ? 'OK (' + ping + 'ms)' : 'Erro ' + resp.status))
+      if (!resp.ok) warnings.push('Proxy Netlify inacessível')
+    } catch {
+      lines.push('❌ Proxy Netlify: inacessível')
+      warnings.push('Proxy Netlify inacessível')
+    }
+
+    // ── SCORE GERAL ──────────────────────────────────────────────
+    const score = Math.max(0, 100 - warnings.length * 10)
+    const scoreEmoji = score >= 90 ? '🟢' : score >= 70 ? '🟡' : '🔴'
+    lines.unshift(scoreEmoji + ' SAÚDE GERAL: ' + score + '% — ' + warnings.length + ' problema(s)\n')
 
     setSanteData(lines.join('\n'))
     setShowSanteModal(true)

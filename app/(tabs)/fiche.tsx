@@ -1536,7 +1536,6 @@ export default function MonSalaireScreen() {
     if (ap.hlagConfirmado && ap.diaSalario != null) atual.diaSalario = ap.diaSalario
     if (ap.flagConfirmado && ap.flag != null) atual.flag = ap.flag
     if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
-    await persistirPadrao(atual)
     return atual
   }
 

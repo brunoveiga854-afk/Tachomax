@@ -16,6 +16,8 @@ export type AppState = {
   hval: number
   padrao: any | null
   padraoAprendido: any | null
+  fraisRegles: any | null
+  fraisValores: any | null
 }
 
 const INITIAL_STATE: AppState = {
@@ -31,6 +33,8 @@ const INITIAL_STATE: AppState = {
   hval: 0,
   padrao: null,
   padraoAprendido: null,
+  fraisRegles: null,
+  fraisValores: null,
 }
 
 // ── Tipo do contexto ──────────────────────────────────────────────────────────
@@ -81,6 +85,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let padraoAprendido: any | null = null
     try { const apRaw = await AsyncStorage.getItem('aprendizagem_padrao'); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch {}
 
+    const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
+    const fraisRegles = fraisReglesRaw ? JSON.parse(fraisReglesRaw) : null
+    const fraisValoresRaw = await AsyncStorage.getItem('frais_valores')
+    const fraisValores = fraisValoresRaw ? JSON.parse(fraisValoresRaw) : null
+
     const profil = (profilRaw === 'CD' || profilRaw === 'MIXTE' || profilRaw === 'LD')
       ? profilRaw
       : null
@@ -105,6 +114,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       camposObrigatoriosOk: !!(profilRaw) && (padrao?.hbase ?? 0) > 0 && (padrao?.hval ?? 0) > 0,
       padrao,
       padraoAprendido,
+      fraisRegles,
+      fraisValores,
       hbase: padrao?.hbase ?? 0,
       hval: padrao?.hval ?? 0,
     })

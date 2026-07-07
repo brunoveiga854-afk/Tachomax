@@ -1319,6 +1319,7 @@ export default function MonSalaireScreen() {
   const persistirPadrao = async (p: Padrao) => {
     setPadrao(p)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
+    log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
   }
 
   // Recarregar padrao + historique sempre que a aba ganha foco
@@ -1424,6 +1425,7 @@ export default function MonSalaireScreen() {
   const persistirPadraoAprendido = async (novoPadrao: PadraoAprendido) => {
     await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
     setPadraoAprendido(novoPadrao)
+    log.info('fiche', 'padraoAprendido persistido', { hlagConfirmado: novoPadrao.hlagConfirmado, flagConfirmado: novoPadrao.flagConfirmado })
   }
 
   const onRefresh = async () => {
@@ -1464,6 +1466,7 @@ export default function MonSalaireScreen() {
     if (camposOk !== 'true') return
     setCalculando(true)
     setCalculandoMsg('⚡ Recalcul en cours...')
+    log.info('fiche', 'calcularSalario iniciado', { histLen: appState.histCal?.length ?? 0 })
     try {
       const hist = appState.histCal
       if (!hist || hist.length === 0) {
@@ -1643,6 +1646,7 @@ export default function MonSalaireScreen() {
       setDriftAlert(detectarDrift(tuplosParaDrift))
       setShowAnalyse(false)
       animarContagem(Math.round(totalLiq), mesAberto)
+      log.info('fiche', 'calcularSalario concluído', { totalLiq: Math.round(totalLiq) })
       setCalculando(false)
       setCalculandoMsg('')
     } catch (e) {
@@ -1980,6 +1984,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const iniciarPerguntas = async (docs: DocumentoAnalysado[]) => {
     const fiches = docs.filter(d => d.tipo === 'fiche')
     if (fiches.length === 0) return
+    log.info('fiche', 'iniciarPerguntas', { numFiches: fiches.length, jaConfirmado: padraoAprendido.hlagConfirmado && padraoAprendido.flagConfirmado })
     if (padraoAprendido.hlagConfirmado && padraoAprendido.flagConfirmado) {
       const moisIdx = fiches[0].moisIndex ?? new Date().getMonth()
       const ano = fiches[0].annee ?? new Date().getFullYear()
@@ -2181,6 +2186,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const handleResponderPergunta = async (resposta: string) => {
     if (!perguntaActual) return
+    log.info('fiche', 'resposta pergunta', { tipo: perguntaActual.tipo, resposta })
     if (perguntaActual.tipo === 'timing_salario') {
       const sal = perguntaActual.valorContexto?.netPaye || 0
       if (sal > 0) setMontantSalTemp(sal)
@@ -2224,6 +2230,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   }
 
   const guardarTudo = async (resps: any[]) => {
+    log.info('fiche', 'guardarTudo iniciado', { numRespostas: resps.length })
     const novoHist = [...historique]
     for (const resp of resps) {
       const fiche = resp.fiche.dados || resp.fiche
@@ -2332,6 +2339,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await persistirPadrao(novoPadrao)
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
+    log.info('fiche', 'guardarTudo concluído', { numMeses: novoHist.length, hlag: novoPadrao.hlag, flag: novoPadrao.flag, confianca: novoPadrao.confianca })
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
     const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)

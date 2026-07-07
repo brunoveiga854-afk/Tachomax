@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { log } from '../src/utils/logger'
 
 // ── Tipo do estado global ─────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(INITIAL_STATE)
 
   const recarregarApp = useCallback(async () => {
+    log.info('AppContext', 'recarregarApp iniciado')
     const [
       profilRaw,
       nomRaw,
@@ -130,6 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hbase: padrao?.hbase ?? 0,
       hval: padrao?.hval ?? 0,
     })
+    log.info('AppContext', 'estado carregado', { profil, histCalLen: histCal?.length ?? 0, histSalLen: histSal?.length ?? 0 })
   }, [])
 
   const actualizarCampo = useCallback(<K extends keyof AppState>(key: K, value: AppState[K]) => {

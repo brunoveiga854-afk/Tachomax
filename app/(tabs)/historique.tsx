@@ -251,6 +251,7 @@ export default function HistoriqueScreen() {
       const mudou = migrada.some((j: any, i: number) => j.date !== lista[i].date)
       if (mudou) await AsyncStorage.setItem('historique', JSON.stringify(migrada))
       setHistorique(migrada)
+      log.info('historique', 'histórico carregado', { count: migrada.length })
     } catch (e) { log.error('historique', 'carregarHistorique falhou', e) }
   }
   const c = {
@@ -337,6 +338,7 @@ const getJoursMois = () => {
     const nova = historique.filter(j => j.id !== id)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    log.info('historique', 'dia eliminado', { id })
   }
   const eliminarNota = async (id: string) => {
     const nova = historique.map(j => j.id === id ? { ...j, nota: undefined } : j)
@@ -463,6 +465,7 @@ const getJoursMois = () => {
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    log.info('historique', 'dia editado', { id: jourEdit.id })
     setShowEdit(false)
     setJourEdit(null)
   }

@@ -328,6 +328,7 @@ export default function AujourdhuiScreen() {
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
+      log.info('index', 'estado restaurado', { enService: estado.enService, emPausa: estado.emPausa })
     } catch (e) { log.error('index', 'restaurarEstado falhou', e) }
   }
 
@@ -771,6 +772,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
       tsBackground: null,
     })
+    log.info('index', 'serviço iniciado', { decouche, modeNuit: isNuit, horaInicio: `${h}h${m}` })
 
     // 5. Agendar notificações
     if (notifOk) {
@@ -833,6 +835,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
+      log.info('index', 'pausa terminada')
       await agendarAlertaPausa(PAUSA_MAX)
     } else {
       // Ouvrir le modal de durée de pause (remplace l'Alert)
@@ -856,6 +859,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lastBgTick: Date.now(),
       horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
     })
+    log.info('index', 'pausa iniciada')
     await cancelarTodosAlertas()
     // Si une durée a été saisie, programmer une alerte de fin de pause
     const parts = pausaDuracaoInput.match(/^(\d{1,2})[h:H]?(\d{2})$/)
@@ -908,6 +912,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
+      log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
   }
 

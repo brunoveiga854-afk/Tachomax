@@ -3087,12 +3087,26 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <Swipeable key={i} renderRightActions={() => (
                     <TouchableOpacity
                       style={{ backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 80, marginBottom: 8, borderRadius: 14, marginHorizontal: 4 }}
-                      onPress={async () => {
-                        const nova = historique.filter(h => h.periode !== m.periode)
-                        setHistorique(nova)
-                        await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
-                        const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
-                        await persistirPadrao(novoPadrao)
+                      onPress={() => {
+                        Alert.alert(
+                          'Supprimer ce mois ?',
+                          `${m.periode} — cette action est irréversible.`,
+                          [
+                            { text: 'Annuler', style: 'cancel' },
+                            {
+                              text: 'Supprimer',
+                              style: 'destructive',
+                              onPress: async () => {
+                                const nova = historique.filter(h => h.periode !== m.periode)
+                                setHistorique(nova)
+                                await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
+                                log.warn('fiche', 'mês eliminado', { periode: m.periode })
+                                const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+                                await persistirPadrao(novoPadrao)
+                              }
+                            }
+                          ]
+                        )
                       }}
                     >
                       <Text style={{ fontSize: 20 }}>🗑️</Text>

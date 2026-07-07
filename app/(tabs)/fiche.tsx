@@ -11,6 +11,7 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
+import { log } from '../../src/utils/logger'
 import DocumentScanner from '../../src/components/DocumentScanner'
 import {
   PADRAO_INICIAL, PadraoAprendido, PerguntaPendente, BoletimExtraido,
@@ -1417,7 +1418,7 @@ export default function MonSalaireScreen() {
         const p = analisarPadraoV2(hist, cal, base)
         await persistirPadrao(p)
       }
-    } catch (e) { }
+    } catch (e) { log.error('fiche', 'carregarPadraoAtual falhou', e) }
   }
 
   const persistirPadraoAprendido = async (novoPadrao: PadraoAprendido) => {
@@ -1763,6 +1764,33 @@ export default function MonSalaireScreen() {
 
   const importerDocumentos = () => setShowEscolhaModal(true)
 
+  const PROXY_URL = 'https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy'
+
+  const chamarProxy = async (body: object): Promise<any> => {
+    const tentativa = async () => {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 30_000)
+      try {
+        const res = await fetch(PROXY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        })
+        return await res.json()
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    try {
+      return await tentativa()
+    } catch (e1) {
+      log.warn('fiche', 'Proxy tentativa 1 falhou, a retentar em 2s', e1)
+      await new Promise(r => setTimeout(r, 2000))
+      return await tentativa()
+    }
+  }
+
   const importerImagens = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['image/*', 'application/pdf'],
@@ -1819,12 +1847,7 @@ Congés/absences:
 
 Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
 Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
-      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
-      })
-      const data = await response.json()
+      const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
@@ -1853,12 +1876,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
       }
       content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0,"regles":{"ptDejAte":null,"dejMinAmp":null,"dinerDe":null}},...]\n\nPour le champ "regles", extrait les critères d'attribution si explicitement mentionnés dans le document (sinon laisse null):\n- ptDejAte: heure limite de début de service pour avoir droit au petit déjeuner (nombre décimal, ex: 6.5 pour 06h30)\n- dejMinAmp: amplitude minimale en heures pour avoir droit au déjeuner (ex: 6.017 pour 6h01)\n- dinerDe: heure minimale de fin de service pour avoir droit au dîner (ex: 21.25 pour 21h15)` })
-      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
-      })
-      const data = await response.json()
+      const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
@@ -1935,14 +1953,9 @@ Congés/absences:
 
 Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
 Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
-      const response = await fetch('https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] }),
-      })
-      const data = await response.json()
-      if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }
+      const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
+      if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       processarDocumentos(docs)
     } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise une image plus nette.") }

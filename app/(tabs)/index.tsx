@@ -9,6 +9,7 @@ import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { calcularFraisJour } from '../../src/frais'
+import { log } from '../../src/utils/logger'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -211,7 +212,7 @@ export default function AujourdhuiScreen() {
   const guardarEstado = async (estado: any) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(estado))
-    } catch (e) { }
+    } catch (e) { log.error('index', 'guardarEstado falhou', e) }
   }
 
   const criarEstadoSnapshot = (overrides: any = {}) => {
@@ -327,7 +328,7 @@ export default function AujourdhuiScreen() {
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
-    } catch (e) { }
+    } catch (e) { log.error('index', 'restaurarEstado falhou', e) }
   }
 
   useEffect(() => {
@@ -487,7 +488,7 @@ export default function AujourdhuiScreen() {
         frais: semaine.reduce((a: number, j: any) => a + (j.frais || 0), 0),
         jours: semaine.filter((j: any) => j.type === 'TRAB' || j.type === 'DEC').length,
       })
-    } catch (e) { }
+    } catch (e) { log.warn('index', 'carregarStatsSemaine falhou', e) }
   }
 
   const carregarDiasMes = async () => {
@@ -631,7 +632,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(lista)
       setEditandoDiaId(null)
       setShowAddDia(false)
-    } catch (e) { }
+    } catch (e) { log.error('index', 'guardarDia (addEdit) falhou', e) }
   }
 
   const guardarProfil = async (p: Profil) => {
@@ -907,7 +908,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
-    } catch (e) { }
+    } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
   }
 
   const handleTerminer = () => {
@@ -950,7 +951,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
       regles2 = await carregarFraisRegles()
       prevDecResumo = dateInicio ? diaAnteriorDecouche(appState.histCal ?? [], dateInicio) : false
-    } catch (e) {}
+    } catch (e) { log.error('index', 'confirmarTerminer frais falhou', e) }
     const snapFrais = calcularFraisJour({
       type: (comDecouche || decouche) ? 'DEC' : 'TRAB',
       debut: horaInicio,

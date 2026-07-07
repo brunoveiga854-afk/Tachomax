@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
+import { log } from '../../src/utils/logger'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -250,7 +251,7 @@ export default function HistoriqueScreen() {
       const mudou = migrada.some((j: any, i: number) => j.date !== lista[i].date)
       if (mudou) await AsyncStorage.setItem('historique', JSON.stringify(migrada))
       setHistorique(migrada)
-    } catch (e) { }
+    } catch (e) { log.error('historique', 'carregarHistorique falhou', e) }
   }
   const c = {
     bg: themeSombre ? '#0f1117' : '#f0f2f8',

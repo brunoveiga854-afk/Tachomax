@@ -57,6 +57,8 @@ type MoisData = {
   estimativaSnapshot?: number
 }
 
+const PADRAO_VERSAO_ACTUAL = 1
+
 type Padrao = {
   descoberto: boolean; diaSalario: number; diaFrais: number
   defasagemFrais: number; confianca: number
@@ -78,8 +80,24 @@ type Padrao = {
   _conflitHbase?: { extraido: number; onboarding: number } | null
   _hbaseManual?: boolean
   _hvalManual?: boolean
+  versao?: number
   vehiculo?: string
   cargo?: string
+}
+
+const migrarPadrao = (raw: any): Padrao => {
+  const versao = raw?.versao ?? 0
+  const migrado = { ...raw }
+  if (versao < 1) {
+    log.warn('fiche', 'migrarPadrao: schema v0 detectado — a migrar para v1', { campos: Object.keys(raw) })
+    if (migrado.taxaHorariaNetaMedia === undefined) migrado.taxaHorariaNetaMedia = 0
+    if (migrado.fraisFactorReal === undefined) migrado.fraisFactorReal = 1
+    if (migrado.valorDiaConges === undefined) migrado.valorDiaConges = 0
+    if (migrado.valorDiaFerie === undefined) migrado.valorDiaFerie = 0
+    if (migrado.valorDiaRC === undefined) migrado.valorDiaRC = 0
+    migrado.versao = PADRAO_VERSAO_ACTUAL
+  }
+  return migrado as Padrao
 }
 
 type DocumentoAnalysado = {
@@ -1210,7 +1228,7 @@ export default function MonSalaireScreen() {
       setOnbHbase(appState.padrao.hbase)
     } else {
       AsyncStorage.getItem('monSalaire_padrao').then(raw => {
-        if (raw) { try { const p = JSON.parse(raw); if (p.hbase) setOnbHbase(p.hbase) } catch {} }
+        if (raw) { try { const p = migrarPadrao(JSON.parse(raw)); if (p.hbase) setOnbHbase(p.hbase) } catch {} }
       })
     }
   }, [])
@@ -1348,7 +1366,7 @@ export default function MonSalaireScreen() {
         AsyncStorage.getItem('monSalaire_padrao').then(async raw => {
           if (raw) {
             try {
-              const p = JSON.parse(raw)
+              const p = migrarPadrao(JSON.parse(raw))
               setPadrao(p)
               if (p._conflitHbase) setConflitHbase(p._conflitHbase)
               else setConflitHbase(null)
@@ -1413,7 +1431,7 @@ export default function MonSalaireScreen() {
         // Sempre re-analisa com o algoritmo actual para apanhar melhorias de detecção
         let base: Padrao
         if (pData) {
-          try { base = { ...padrao, ...JSON.parse(pData) } }
+          try { base = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
           catch { await AsyncStorage.removeItem('monSalaire_padrao'); base = { ...padrao } }
         } else { base = { ...padrao } }
         // Salvaguarda: se hlag/flag ainda está no default de fábrica mas o método directo
@@ -1471,7 +1489,7 @@ export default function MonSalaireScreen() {
     const pData = await AsyncStorage.getItem('monSalaire_padrao')
     let atual: Padrao
     if (pData) {
-      try { atual = { ...padrao, ...JSON.parse(pData) } }
+      try { atual = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
       catch { await AsyncStorage.removeItem('monSalaire_padrao'); atual = { ...padrao } }
     } else { atual = { ...padrao } }
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')

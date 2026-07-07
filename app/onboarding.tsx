@@ -137,8 +137,10 @@ export default function OnboardingScreen() {
   const [obDiaFraisAutreInput, setObDiaFraisAutreInput] = useState('')
   const [obHlagTouched, setObHlagTouched] = useState(false)
   const [obFlagTouched, setObFlagTouched] = useState(false)
+  const [terminando, setTerminando] = useState(false)
 
   const terminerOnboarding = async () => {
+    setTerminando(true)
     await AsyncStorage.setItem('onboardingDone', 'true')
     if (ancienneteAns || ancienneteMois)
       await AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`)
@@ -228,6 +230,7 @@ export default function OnboardingScreen() {
     }
     await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(padraoAprendizado))
     await recarregarApp()
+    setTerminando(false)
     router.replace('/(tabs)/fiche')
   }
 
@@ -547,6 +550,9 @@ export default function OnboardingScreen() {
             />
           )}
           <Text style={{ fontSize: 11, color: '#9ba3b8', marginBottom: 6 }}>Tu reçois ton salaire le {obDiaSalario} — les heures de quel mois sont payées ce jour-là ?</Text>
+          <Text style={{ fontSize: 12, color: '#9ba3b8', marginBottom: 8, lineHeight: 18 }}>
+            💡 Exemple: si tu travailles en janvier et reçois ton salaire le 5 février, choisir "Janvier" (1 mois avant).
+          </Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             <TouchableOpacity onPress={() => { setObHlag(0); setObHlagTouched(true) }} style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: obHlag === 0 ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obHlag === 0 ? 1.5 : 1, borderColor: obHlag === 0 ? '#f5a623' : '#2a3045', alignItems: 'center' }}>
               <Text style={{ fontWeight: '800', color: obHlag === 0 ? '#f5a623' : '#eef0f5', fontSize: 13 }}>{MOIS[mesActual]}</Text>
@@ -778,8 +784,8 @@ export default function OnboardingScreen() {
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={terminerOnboarding}>
-              <Text style={st.btnNextText}>DÉMARRER 🚛</Text>
+            <TouchableOpacity style={[st.btnNext, { flex: 2, opacity: terminando ? 0.5 : 1 }]} onPress={terminerOnboarding} disabled={terminando}>
+              <Text style={st.btnNextText}>{terminando ? 'En cours...' : 'DÉMARRER 🚛'}</Text>
             </TouchableOpacity>
           </View>
         </View>

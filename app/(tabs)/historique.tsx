@@ -236,6 +236,7 @@ export default function HistoriqueScreen() {
     return () => clearTimeout(t)
   }, [scrollToId, calMes, calAno])
   const chargerHistorique = async () => {
+    setRefreshing(true)
     try {
       const data = await AsyncStorage.getItem('historique')
       if (!data) return
@@ -253,6 +254,7 @@ export default function HistoriqueScreen() {
       setHistorique(migrada)
       log.info('historique', 'histórico carregado', { count: migrada.length })
     } catch (e) { log.error('historique', 'carregarHistorique falhou', e) }
+    finally { setRefreshing(false) }
   }
   const c = {
     bg: themeSombre ? '#0f1117' : '#f0f2f8',

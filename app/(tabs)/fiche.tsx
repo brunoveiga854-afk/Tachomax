@@ -2290,6 +2290,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   }
 
   const guardarTudo = async (resps: any[]) => {
+    setLoading(true)
     log.info('fiche', 'guardarTudo iniciado', { numRespostas: resps.length })
     const novoHist = [...historique]
     for (const resp of resps) {
@@ -2403,6 +2404,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
     const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
+    setLoading(false)
     setShowModalSucesso(true)
     setMontantSalTemp(0)
     setMontantFraisTemp(0)

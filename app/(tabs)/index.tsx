@@ -939,6 +939,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
   const confirmarTerminer = async (comDecouche: boolean) => {
     if (comDecouche) setDecouche(true)
+    setDemarrando(true)
     setShowTerminerModal(false)
     setShowKmFimInput(false)
 
@@ -989,6 +990,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     await carregarStatsSemaine()
+    setDemarrando(false)
 
     // Show rich summary instead of simple Alert
     setSummaryData({

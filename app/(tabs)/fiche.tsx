@@ -1370,8 +1370,10 @@ export default function MonSalaireScreen() {
               setPadrao(p)
               if (p._conflitHbase) setConflitHbase(p._conflitHbase)
               else setConflitHbase(null)
-            } catch {
+            } catch (e) {
+              if (raw) await AsyncStorage.setItem('monSalaire_padrao_backup', raw)
               await AsyncStorage.removeItem('monSalaire_padrao')
+              log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
             }
           }
         })
@@ -1432,7 +1434,12 @@ export default function MonSalaireScreen() {
         let base: Padrao
         if (pData) {
           try { base = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
-          catch { await AsyncStorage.removeItem('monSalaire_padrao'); base = { ...padrao } }
+          catch (e) {
+            if (pData) await AsyncStorage.setItem('monSalaire_padrao_backup', pData)
+            await AsyncStorage.removeItem('monSalaire_padrao')
+            log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
+            base = { ...padrao }
+          }
         } else { base = { ...padrao } }
         // Salvaguarda: se hlag/flag ainda está no default de fábrica mas o método directo
         // já provou o valor correcto numa sessão anterior, não regredir.
@@ -1490,7 +1497,12 @@ export default function MonSalaireScreen() {
     let atual: Padrao
     if (pData) {
       try { atual = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
-      catch { await AsyncStorage.removeItem('monSalaire_padrao'); atual = { ...padrao } }
+      catch (e) {
+        if (pData) await AsyncStorage.setItem('monSalaire_padrao_backup', pData)
+        await AsyncStorage.removeItem('monSalaire_padrao')
+        log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
+        atual = { ...padrao }
+      }
     } else { atual = { ...padrao } }
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     const reglesLimpas = sanitizeFraisRegles(fraisReglesRaw ? JSON.parse(fraisReglesRaw) : atual.regles)

@@ -1249,10 +1249,14 @@ export default function MonSalaireScreen() {
   useEffect(() => {
     setRespostaMesManual(false)
     if (!perguntaActual) return
-    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0 && montantSalTemp === 0)
+    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0 && montantSalTemp === 0) {
       setMontantSalTemp(perguntaActual.valorContexto.netPaye)
-    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0)
+      setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
+    }
+    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0) {
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
+      setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))
+    }
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
       : (padraoAprendido.hlag ?? padrao.hlag ?? 2)

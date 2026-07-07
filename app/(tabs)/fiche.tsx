@@ -1317,6 +1317,18 @@ export default function MonSalaireScreen() {
   }, [])
 
   const persistirPadrao = async (p: Padrao) => {
+    // Guard nível 1 — objecto inválido: abort total
+    if (!p || typeof p !== 'object') {
+      log.warn('fiche', 'persistirPadrao: padrao null/inválido — abortado')
+      return
+    }
+    // Guard nível 2 — campos obrigatórios: warn mas guarda na mesma
+    if (p.hbase <= 0 || p.hval <= 0) {
+      log.warn('fiche', 'persistirPadrao: hbase/hval = 0 — estimativa pode ser incorrecta', { hbase: p.hbase, hval: p.hval })
+    }
+    if (p.diaSalario <= 0 || p.diaFrais <= 0) {
+      log.warn('fiche', 'persistirPadrao: diaSalario/diaFrais inválidos', { diaSalario: p.diaSalario, diaFrais: p.diaFrais })
+    }
     setPadrao(p)
     await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
     log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
@@ -1423,6 +1435,24 @@ export default function MonSalaireScreen() {
   }
 
   const persistirPadraoAprendido = async (novoPadrao: PadraoAprendido) => {
+    // Guard nível 1 — objecto inválido: abort total (evita "null" no AsyncStorage)
+    if (!novoPadrao || typeof novoPadrao !== 'object') {
+      log.warn('fiche', 'persistirPadraoAprendido: padrao null/inválido — abortado')
+      return
+    }
+    // Guard nível 2 — versão ausente: sinal de objecto de versão antiga
+    if (typeof novoPadrao.versao !== 'number') {
+      log.warn('fiche', 'persistirPadraoAprendido: campo versao ausente', { keys: Object.keys(novoPadrao) })
+    }
+    // Guard nível 3 — arrays obrigatórios: auto-sanar antes de persistir
+    if (!Array.isArray(novoPadrao.primesConhecidas)) {
+      log.warn('fiche', 'persistirPadraoAprendido: primesConhecidas corrompido — sanado para []')
+      novoPadrao = { ...novoPadrao, primesConhecidas: [] }
+    }
+    if (!Array.isArray(novoPadrao.liquidRateHistorico)) {
+      log.warn('fiche', 'persistirPadraoAprendido: liquidRateHistorico corrompido — sanado para []')
+      novoPadrao = { ...novoPadrao, liquidRateHistorico: [] }
+    }
     await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
     setPadraoAprendido(novoPadrao)
     log.info('fiche', 'padraoAprendido persistido', { hlagConfirmado: novoPadrao.hlagConfirmado, flagConfirmado: novoPadrao.flagConfirmado })

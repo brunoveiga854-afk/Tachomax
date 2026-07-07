@@ -12,6 +12,7 @@ import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
+import { log, LogEntry } from '../../src/utils/logger'
 
 // Chaves a exportar/importar
 const BACKUP_KEYS = [
@@ -67,6 +68,8 @@ export default function ReglagesScreen() {
   const [diagLoading, setDiagLoading] = useState(false)
   const [showSanteModal, setShowSanteModal] = useState(false)
   const [santeData, setSanteData] = useState('')
+  const [showLogsModal, setShowLogsModal] = useState(false)
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const scrollViewRef = useRef<import('react-native').ScrollView>(null)
   const salaireSectionY = useRef(0)
   const scrolledToSalaire = useRef(false)
@@ -1071,12 +1074,18 @@ export default function ReglagesScreen() {
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#2980b9' }}>{diagLoading ? '⏳ Analyse...' : '🔬 Diagnostic calibration'}</Text>
                 </TouchableOpacity>
               </View>
-              <View style={{ marginTop: 4 }}>
+              <View style={{ marginTop: 4, flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
-                  style={{ backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.3)', marginBottom: 8 }}
+                  style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39,174,96,0.3)', marginBottom: 8 }}
                   onPress={runSante}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60' }}>🩺 Santé de l'app</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: 'rgba(52,152,219,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(52,152,219,0.3)', marginBottom: 8 }}
+                  onPress={() => { setLogEntries([...log.getHistory()].reverse()); setShowLogsModal(true) }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#3498db' }}>📋 Logs</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ marginTop: 4 }}>
@@ -1272,6 +1281,40 @@ export default function ReglagesScreen() {
               <Text style={{ color: '#e0e0e0', fontFamily: 'Courier New', fontSize: 12, lineHeight: 20 }}>{santeData}</Text>
             </ScrollView>
             <TouchableOpacity onPress={() => setShowSanteModal(false)} style={{ marginTop: 16, padding: 12, backgroundColor: '#27ae60', borderRadius: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showLogsModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#0f1117', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ color: '#3498db', fontWeight: '800', fontSize: 16 }}>📋 Logs</Text>
+              <TouchableOpacity
+                onPress={() => { log.clear(); setLogEntries([]) }}
+                style={{ padding: 6, backgroundColor: 'rgba(231,76,60,0.15)', borderRadius: 6, borderWidth: 1, borderColor: 'rgba(231,76,60,0.3)' }}
+              >
+                <Text style={{ color: '#e74c3c', fontSize: 12, fontWeight: '700' }}>Limpar</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {logEntries.length === 0
+                ? <Text style={{ color: '#555', fontSize: 12, textAlign: 'center', marginTop: 20 }}>Nenhum registo.</Text>
+                : logEntries.map((entry, i) => {
+                    const levelColor = entry.level === 'ERROR' ? '#e74c3c' : entry.level === 'WARN' ? '#e67e22' : entry.level === 'INFO' ? '#27ae60' : '#888'
+                    return (
+                      <View key={i} style={{ marginBottom: 6, borderLeftWidth: 2, borderLeftColor: levelColor, paddingLeft: 8 }}>
+                        <Text style={{ color: '#555', fontSize: 10 }}>{entry.timestamp.replace('T', ' ').slice(0, 19)}</Text>
+                        <Text style={{ color: levelColor, fontSize: 11, fontWeight: '700' }}>[{entry.level}] [{entry.module}]</Text>
+                        <Text style={{ color: '#d0d0d0', fontSize: 12 }}>{entry.message}{entry.data !== undefined ? ' — ' + JSON.stringify(entry.data) : ''}</Text>
+                      </View>
+                    )
+                  })
+              }
+            </ScrollView>
+            <TouchableOpacity onPress={() => setShowLogsModal(false)} style={{ marginTop: 16, padding: 12, backgroundColor: '#3498db', borderRadius: 8, alignItems: 'center' }}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
             </TouchableOpacity>
           </View>

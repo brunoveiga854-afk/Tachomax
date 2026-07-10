@@ -13,7 +13,7 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
-import { log } from '../../src/utils/logger'
+import { log, perfLog } from '../../src/utils/logger'
 import DocumentScanner from '../../src/components/DocumentScanner'
 import {
   PADRAO_INICIAL, PadraoAprendido, PerguntaPendente, BoletimExtraido,
@@ -1524,6 +1524,7 @@ export default function MonSalaireScreen() {
     setCalculando(true)
     setCalculandoMsg('⚡ Recalcul en cours...')
     log.info('fiche', 'calcularSalario iniciado', { histLen: appState.histCal?.length ?? 0 })
+    perfLog.time('fiche', 'calcularSalario')
     try {
       const hist = appState.histCal
       if (!hist || hist.length === 0) {
@@ -1706,9 +1707,11 @@ export default function MonSalaireScreen() {
       setShowAnalyse(false)
       animarContagem(Math.round(totalLiq), mesAberto)
       log.info('fiche', 'calcularSalario concluído', { totalLiq: Math.round(totalLiq) })
+      perfLog.timeEnd('fiche', 'calcularSalario')
       setCalculando(false)
       setCalculandoMsg('')
     } catch (e) {
+      perfLog.timeEnd('fiche', 'calcularSalario')
       log.error('fiche', 'calcularSalario falhou', { error: e, histLen: appState.histCal?.length ?? 0, padrao: { hbase: padrao.hbase, hval: padrao.hval, hlag: padrao.hlag } })
       setCalculando(false)
       setCalculandoMsg('')
@@ -2348,6 +2351,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const guardarTudo = async (resps: any[]) => {
     setLoading(true)
+    perfLog.time('fiche', 'guardarTudo')
     log.info('fiche', 'guardarTudo iniciado', { numRespostas: resps.length })
     const novoHist = [...historique]
     for (const resp of resps) {
@@ -2457,6 +2461,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await persistirPadrao(novoPadrao)
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
+    perfLog.timeEnd('fiche', 'guardarTudo')
     log.info('fiche', 'guardarTudo concluído', { numMeses: novoHist.length, hlag: novoPadrao.hlag, flag: novoPadrao.flag, confianca: novoPadrao.confianca })
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
     const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`

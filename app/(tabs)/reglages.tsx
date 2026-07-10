@@ -12,7 +12,7 @@ import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
-import { log, LogEntry } from '../../src/utils/logger'
+import { log, LogEntry, perfLog } from '../../src/utils/logger'
 
 // Chaves a exportar/importar
 const BACKUP_KEYS = [
@@ -543,6 +543,13 @@ export default function ReglagesScreen() {
     const elapsed = Date.now() - t0
     lines.push('\n⏱️ PERFORMANCE')
     lines.push('   Temps exécution: ' + elapsed + 'ms')
+    const perfEntries = perfLog.getPerformanceLogs()
+    if (perfEntries.length > 0) {
+      lines.push('   📊 Performance (últimas ' + perfEntries.length + '):')
+      for (const pe of perfEntries) {
+        lines.push('     ' + pe.module + '/' + pe.label + ': ' + pe.duration + 'ms' + (pe.duration > 500 ? ' ⚠️ SLOW' : ''))
+      }
+    }
 
     // ── 8. BILAN / WARNINGS ────────────────────────────────────
     lines.push('\n' + (warnings.length === 0 ? '✅' : '⚠️') + ' BILAN')

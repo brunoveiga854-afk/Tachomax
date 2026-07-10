@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -139,17 +139,28 @@ export default function OnboardingScreen() {
   const [obFlagTouched, setObFlagTouched] = useState(false)
   const [terminando, setTerminando] = useState(false)
 
+  const withRetry = async (fn: () => Promise<void>, maxAttempts = 3) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try { await fn(); return }
+      catch (e) {
+        if (attempt === maxAttempts) throw e
+        await new Promise(r => setTimeout(r, 1000))
+      }
+    }
+  }
+
   const terminerOnboarding = async () => {
     setTerminando(true)
-    await AsyncStorage.setItem('onboardingDone', 'true')
+    try {
+    await withRetry(() => AsyncStorage.setItem('onboardingDone', 'true'))
     if (ancienneteAns || ancienneteMois)
-      await AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`)
-    if (dataEntrada) await AsyncStorage.setItem('date_entree_entreprise', dataEntrada.toISOString())
-    if (coefficient) await AsyncStorage.setItem('coefficient', coefficient)
-    if (salBaseEstime) await AsyncStorage.setItem('sal_base_estime', salBaseEstime)
-    if (heuresMensuel) await AsyncStorage.setItem('heures_mensuel', heuresMensuel)
-    await AsyncStorage.setItem('vehicule_type', typeVehicule)
-    await AsyncStorage.setItem('cargo_type', typeCargo)
+      await withRetry(() => AsyncStorage.setItem('anciennete', `${ancienneteAns || '0'} ans ${ancienneteMois || '0'} mois`))
+    if (dataEntrada) await withRetry(() => AsyncStorage.setItem('date_entree_entreprise', dataEntrada!.toISOString()))
+    if (coefficient) await withRetry(() => AsyncStorage.setItem('coefficient', coefficient))
+    if (salBaseEstime) await withRetry(() => AsyncStorage.setItem('sal_base_estime', salBaseEstime))
+    if (heuresMensuel) await withRetry(() => AsyncStorage.setItem('heures_mensuel', heuresMensuel))
+    await withRetry(() => AsyncStorage.setItem('vehicule_type', typeVehicule))
+    await withRetry(() => AsyncStorage.setItem('cargo_type', typeCargo))
     // Sync cargo_type → transport_* flags so Réglages reflects the choice
     const cargoToTransport: Record<string, string> = {
       frigo: 'transport_frigo', adr: 'transport_adr',
@@ -157,19 +168,19 @@ export default function OnboardingScreen() {
       grue: 'transport_grue', grumier: 'transport_grumier',
     }
     // Clear all flags then enable the selected one
-    for (const key of Object.values(cargoToTransport)) await AsyncStorage.setItem(key, 'false')
-    if (cargoToTransport[typeCargo]) await AsyncStorage.setItem(cargoToTransport[typeCargo], 'true')
-    await AsyncStorage.setItem('equipement_chariot', String(equipChariot))
-    await AsyncStorage.setItem('equipement_hayon', String(equipHayon))
-    await AsyncStorage.setItem('equipement_grue_aux', String(equipGrueAux))
-    await AsyncStorage.setItem('profil', profil)
-    if (prenom) await AsyncStorage.setItem('conducteur_prenom', prenom)
-    if (nom) await AsyncStorage.setItem('conducteur_nom', nom)
+    for (const key of Object.values(cargoToTransport)) await withRetry(() => AsyncStorage.setItem(key, 'false'))
+    if (cargoToTransport[typeCargo]) await withRetry(() => AsyncStorage.setItem(cargoToTransport[typeCargo], 'true'))
+    await withRetry(() => AsyncStorage.setItem('equipement_chariot', String(equipChariot)))
+    await withRetry(() => AsyncStorage.setItem('equipement_hayon', String(equipHayon)))
+    await withRetry(() => AsyncStorage.setItem('equipement_grue_aux', String(equipGrueAux)))
+    await withRetry(() => AsyncStorage.setItem('profil', profil))
+    if (prenom) await withRetry(() => AsyncStorage.setItem('conducteur_prenom', prenom))
+    if (nom) await withRetry(() => AsyncStorage.setItem('conducteur_nom', nom))
     // backward compat — keep 'nom' with prenom for the main screen greeting
-    await AsyncStorage.setItem('nom', prenom || nom)
+    await withRetry(() => AsyncStorage.setItem('nom', prenom || nom))
     // Persister les valeurs de salaire pour restauration en mode edit
-    await AsyncStorage.setItem('contrat_saisir_brut', String(obSaisirBrut))
-    if (!obSaisirBrut && obSalNet) await AsyncStorage.setItem('contrat_net_mensuel', obSalNet)
+    await withRetry(() => AsyncStorage.setItem('contrat_saisir_brut', String(obSaisirBrut)))
+    if (!obSaisirBrut && obSalNet) await withRetry(() => AsyncStorage.setItem('contrat_net_mensuel', obSalNet))
     // Pre-populate monSalaire_padrao from onboarding salary data
     const existingPadraoRaw = await AsyncStorage.getItem('monSalaire_padrao')
     const hbase = obHbase
@@ -196,7 +207,7 @@ export default function OnboardingScreen() {
         vehiculo: typeVehicule, cargo: typeCargo,
         _hvalManual: salBrut > 0,
       }
-      await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit))
+      await withRetry(() => AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit)))
     } else {
       // Padrao existant — mettre à jour hbase/hval/h25/h50 en préservant les données apprises
       try {
@@ -211,7 +222,7 @@ export default function OnboardingScreen() {
           taxaHorariaNetaMedia: hval * (existing.liquidRate ?? liquidRate),
           _hvalManual: salBrut > 0,
         }
-        await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated))
+        await withRetry(() => AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated)))
       } catch {}
     }
     // Guardar timing no motor de aprendizagem
@@ -228,10 +239,14 @@ export default function OnboardingScreen() {
       diaSalarioConfirmado: true,
       diaFraisConfirmado: true,
     }
-    await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(padraoAprendizado))
+    await withRetry(() => AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
     await recarregarApp()
     setTerminando(false)
     router.replace('/(tabs)/fiche')
+    } catch (e) {
+      setTerminando(false)
+      Alert.alert('Erro', 'Não foi possível guardar os dados. Por favor tenta novamente.')
+    }
   }
 
   return (

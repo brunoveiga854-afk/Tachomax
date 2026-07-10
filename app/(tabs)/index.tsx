@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
 import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator } from 'react-native'
@@ -912,6 +913,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lista.unshift(novoDia)
       await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
   }
@@ -971,6 +973,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }).total
 
     await guardarDia(fim, snapKm)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     await cancelarTodosAlertas()
     await cancelarRappelSaisie()
     await AsyncStorage.removeItem(STORAGE_KEY)

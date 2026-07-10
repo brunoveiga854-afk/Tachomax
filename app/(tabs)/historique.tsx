@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import * as Haptics from 'expo-haptics'
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
@@ -467,6 +468,7 @@ const getJoursMois = () => {
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     log.info('historique', 'dia editado', { id: jourEdit.id })
     setShowEdit(false)
     setJourEdit(null)

@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import * as Haptics from 'expo-haptics'
 import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
@@ -2434,6 +2435,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
     setLoading(false)
     setShowModalSucesso(true)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setMontantSalTemp(0)
     setMontantFraisTemp(0)
   }

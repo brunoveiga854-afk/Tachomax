@@ -1447,6 +1447,18 @@ export default function MonSalaireScreen() {
       const data = appState.histSal  // já parsed pelo AppContext
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
       const cal = appState.histCal ?? []
+      if (!appState.padraoAprendido) {
+        // AppContext failed to load — could be corruption; back up and remove
+        const apRaw = await AsyncStorage.getItem('aprendizagem_padrao').catch(() => null)
+        if (apRaw) {
+          try { JSON.parse(apRaw) }
+          catch {
+            await AsyncStorage.setItem('aprendizagem_padrao_backup', apRaw)
+            await AsyncStorage.removeItem('aprendizagem_padrao')
+            log.warn('fiche', 'aprendizagem_padrao corrompido — removido (backup guardado)')
+          }
+        }
+      }
       setPadraoAprendido(migrarPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL))
       const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
       if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
@@ -1503,9 +1515,16 @@ export default function MonSalaireScreen() {
       log.warn('fiche', 'persistirPadraoAprendido: liquidRateHistorico corrompido — sanado para []')
       novoPadrao = { ...novoPadrao, liquidRateHistorico: [] }
     }
-    await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
-    setPadraoAprendido(novoPadrao)
-    log.info('fiche', 'padraoAprendido persistido', { hlagConfirmado: novoPadrao.hlagConfirmado, flagConfirmado: novoPadrao.flagConfirmado })
+    try {
+      await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
+      setPadraoAprendido(novoPadrao)
+      log.info('fiche', 'padraoAprendido persistido', { hlagConfirmado: novoPadrao.hlagConfirmado, flagConfirmado: novoPadrao.flagConfirmado })
+    } catch (e) {
+      const raw = await AsyncStorage.getItem('aprendizagem_padrao').catch(() => null)
+      if (raw) await AsyncStorage.setItem('aprendizagem_padrao_backup', raw)
+      await AsyncStorage.removeItem('aprendizagem_padrao')
+      log.warn('fiche', 'aprendizagem_padrao corrompido — removido (backup guardado)', e)
+    }
   }
 
   const onRefresh = async () => {

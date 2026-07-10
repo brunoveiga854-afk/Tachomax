@@ -473,3 +473,38 @@ export function precisaoEstimativa(
 
   return Math.max(0, base - penalizacao)
 }
+
+export function detectarAnomaliasSalariais(
+  histSal: any[],
+  padrao: any
+): string[] {
+  const avisos: string[] = []
+  if (!histSal || histSal.length < 2) return avisos
+
+  const ultimo = histSal[histSal.length - 1]
+  const anteriores = histSal.slice(0, -1)
+
+  // 1. Salary > 15% below historical average
+  const mediaSal = anteriores.reduce((s: number, m: any) => s + (m.netPaye || 0), 0) / anteriores.length
+  if (mediaSal > 0 && ultimo.netPaye > 0 && ultimo.netPaye < mediaSal * 0.85) {
+    const diff = Math.round(mediaSal - ultimo.netPaye)
+    avisos.push(`⚠️ Salaire ce mois ${diff}€ sous la moyenne habituelle (${Math.round(mediaSal)}€)`)
+  }
+
+  // 2. Frais > 20% below expected
+  const mediaFrais = anteriores.reduce((s: number, m: any) => s + (m.remboursementFrais || 0), 0) / anteriores.length
+  if (mediaFrais > 0 && ultimo.remboursementFrais > 0 && ultimo.remboursementFrais < mediaFrais * 0.80) {
+    const diff = Math.round(mediaFrais - ultimo.remboursementFrais)
+    avisos.push(`⚠️ Frais ce mois ${diff}€ sous la moyenne habituelle (${Math.round(mediaFrais)}€)`)
+  }
+
+  // 3. hval > 5% different from padrao.hval
+  if (padrao?.hval > 0 && ultimo.hval > 0) {
+    const diffPct = Math.abs(ultimo.hval - padrao.hval) / padrao.hval
+    if (diffPct > 0.05) {
+      avisos.push(`⚠️ Taux horaire ce mois (${ultimo.hval}€/h) différent du taux habituel (${padrao.hval}€/h)`)
+    }
+  }
+
+  return avisos
+}

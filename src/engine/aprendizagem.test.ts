@@ -275,3 +275,54 @@ describe('migrarPadrao', () => {
     expect(migrated.valorDiaConges).toBe(120)
   })
 })
+
+// ─── detectarAnomaliasSalariais ───────────────────────────────────────────────
+
+import { detectarAnomaliasSalariais } from './aprendizagem'
+
+describe('detectarAnomaliasSalariais', () => {
+  const padrao = { hval: 14.82 }
+
+  it('returns empty array when < 2 months of data', () => {
+    expect(detectarAnomaliasSalariais([], padrao)).toEqual([])
+    expect(detectarAnomaliasSalariais([{ netPaye: 2000, remboursementFrais: 1000, hval: 14.82 }], padrao)).toEqual([])
+  })
+
+  it('detects salary 15%+ below historical average', () => {
+    const hist = [
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2000, remboursementFrais: 1200, hval: 14.82 }, // 20% below average
+    ]
+    const avisos = detectarAnomaliasSalariais(hist, padrao)
+    expect(avisos.some(a => a.includes('Salaire'))).toBe(true)
+  })
+
+  it('detects frais 20%+ below historical average', () => {
+    const hist = [
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2500, remboursementFrais: 900, hval: 14.82 }, // 25% below
+    ]
+    const avisos = detectarAnomaliasSalariais(hist, padrao)
+    expect(avisos.some(a => a.includes('Frais'))).toBe(true)
+  })
+
+  it('detects hval 5%+ different from padrao', () => {
+    const hist = [
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2500, remboursementFrais: 1200, hval: 16.00 }, // >5% above 14.82
+    ]
+    const avisos = detectarAnomaliasSalariais(hist, padrao)
+    expect(avisos.some(a => a.includes('Taux horaire'))).toBe(true)
+  })
+
+  it('returns empty array when all values within normal range', () => {
+    const hist = [
+      { netPaye: 2500, remboursementFrais: 1200, hval: 14.82 },
+      { netPaye: 2480, remboursementFrais: 1190, hval: 14.90 }, // within range
+    ]
+    const avisos = detectarAnomaliasSalariais(hist, padrao)
+    expect(avisos).toEqual([])
+  })
+})

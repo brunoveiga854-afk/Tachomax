@@ -84,6 +84,7 @@ type CalcResult = {
   fraisDetail: { ptd: number; dej: number; din: number; nui: number }
   modoCalculo: 'preciso' | 'calibrado' | 'estimado'
   liquidRateUsado: number
+  impactoConges?: number
 }
 
 type DriftAlert = {
@@ -1651,6 +1652,7 @@ export default function MonSalaireScreen() {
       }
 
       const totalLiq = salLiq + totalFrais
+      const impactoConges = diasHoras.length > 0 ? Math.round((diasConges.length + diasFeries.length) * (totalLiq / diasHoras.length)) : 0
       const empresa = histSal.length > 0 ? histSal[0].entreprise : ''
 
       // Precisão real: compara estimativas passadas vs valores confirmados
@@ -1686,6 +1688,7 @@ export default function MonSalaireScreen() {
         fraisDetail: { ptd: fraisHorario.ptd, dej: fraisHorario.dej, din: fraisHorario.din, nui: fraisHorario.nui },
         modoCalculo: ficheReal?.netPaye ? 'preciso' : p.taxaHorariaNetaMedia > 0 ? 'calibrado' : 'estimado',
         liquidRateUsado: p.liquidRate,
+        impactoConges,
       })
       // Drift detection usando calcEstimativaMes para dados sem snapshot
       const tuplosParaDrift: DriftTuplo[] = histSal
@@ -2705,6 +2708,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>TOTAL ESTIMÉ</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#2ecc71' }}>{fmtInt(calcResult.totalLiq)} €</Text>
                   </View>
+                  {(calcResult.impactoConges || 0) > 0 && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>🏖️ Congés/fériés inclus</Text>
+                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>~{fmtInt(calcResult.impactoConges || 0)} €</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={{ gap: 8 }}>

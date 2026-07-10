@@ -630,7 +630,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         const db = new Date(parseInt(pb[2] || calAno), parseInt(pb[1])-1, parseInt(pb[0]))
         return db.getTime() - da.getTime()
       })
-      await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
+      const listaValida = lista.filter((entry: any) => {
+        const ok = entry.date && entry.type && entry.debut && entry.fin
+        if (!ok) log.error('index', 'entrada inválida ignorada', entry)
+        return ok
+      })
+      await AsyncStorage.setItem('historique', JSON.stringify(listaValida.slice(0, 365)))
       setDiasHistorique(lista)
       setEditandoDiaId(null)
       setShowAddDia(false)
@@ -911,7 +916,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
     try {
       lista.unshift(novoDia)
-      await AsyncStorage.setItem('historique', JSON.stringify(lista.slice(0, 365)))
+      const listaValidaT = lista.filter((entry: any) => {
+        const ok = entry.date && entry.type && entry.debut && entry.fin
+        if (!ok) log.error('index', 'entrada inválida ignorada', entry)
+        return ok
+      })
+      await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, 365)))
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })

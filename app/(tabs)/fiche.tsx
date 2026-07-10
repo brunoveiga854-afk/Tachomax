@@ -3334,6 +3334,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           onPress={() => {
                             setSavedSalBeforeVerif(inputMontantSalQ)
                             setSavedFraisBeforeVerif(inputMontantFraisQ)
+                            log.debug('fiche', 'Oui utiliser fiche', { verifSalFiche: verif.salario.fiche, verifFraisFiche: verif.frais.fiche })
                             if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
                             if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
                             setVerifApplied('fiche')
@@ -3344,9 +3345,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
-                            log.debug('fiche', 'Non les miens clicado', { savedSalBeforeVerif })
+                            log.debug('fiche', 'Non les miens - ANTES', { inputMontantSalQ, inputMontantFraisQ, savedSalBeforeVerif, savedFraisBeforeVerif })
                             setInputMontantSalQ(savedSalBeforeVerif)
                             setInputMontantFraisQ(savedFraisBeforeVerif)
+                            log.debug('fiche', 'Non les miens - DEPOIS', { savedSalBeforeVerif, savedFraisBeforeVerif })
                             setVerifApplied('app')
                           }}
                         >

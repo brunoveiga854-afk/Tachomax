@@ -1958,9 +1958,23 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (docs.length > 0) {
         const d = docs[0] as any
         if (d.ptDejValeur > 0 || d.dejValeur > 0) {
-          const fraisVals = {
+          const fraisValsRaw = {
             ptDej: d.ptDejValeur || 4.42, dej: d.dejValeur || 16.36,
             diner: d.dinerValeur || 23.94, nuit: d.nuitValeur || 23.94,
+          }
+          const fraisValsExisting = appState.fraisValores ?? { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
+          const sanitizeFraisValor = (campo: string, valor: any, fallback: number): number => {
+            if (typeof valor !== 'number' || isNaN(valor) || valor < 0) {
+              log.warn('fiche', 'frais_valores campo inválido', { campo, valor })
+              return fallback
+            }
+            return valor
+          }
+          const fraisVals = {
+            ptDej: sanitizeFraisValor('ptDej', fraisValsRaw.ptDej, fraisValsExisting.ptDej || 4.42),
+            dej: sanitizeFraisValor('dej', fraisValsRaw.dej, fraisValsExisting.dej || 16.36),
+            diner: sanitizeFraisValor('diner', fraisValsRaw.diner, fraisValsExisting.diner || 23.94),
+            nuit: sanitizeFraisValor('nuit', fraisValsRaw.nuit, fraisValsExisting.nuit || 23.94),
           }
           await AsyncStorage.setItem('frais_valores', JSON.stringify(fraisVals))
           setPadrao(prev => ({

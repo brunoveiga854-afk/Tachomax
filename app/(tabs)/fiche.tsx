@@ -1254,11 +1254,13 @@ export default function MonSalaireScreen() {
       setMontantSalTemp(perguntaActual.valorContexto.netPaye)
       setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
       log.debug('fiche', 'useEffect perguntaActual - sal', { montantSalTemp: perguntaActual.valorContexto.netPaye })
+      log.debug('fiche', 'SET savedSal [useEffect perguntaActual]', { valor: perguntaActual.valorContexto.netPaye })
     }
     log.debug('fiche', 'useEffect timing_frais check', { montantFraisTemp, fraisBoletim: perguntaActual.valorContexto?.fraisBoletim })
     if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0) {
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
       setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))
+      log.debug('fiche', 'SET savedFrais [useEffect perguntaActual]', { valor: perguntaActual.valorContexto.fraisBoletim })
     }
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
@@ -2059,8 +2061,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      if ((pfRaw?.netPaye || 0) > 0 && montantSalTemp === 0) { setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye)) }
-      if ((pfRaw?.remboursementFrais || 0) > 0 && montantFraisTemp === 0) { setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais)) }
+      if ((pfRaw?.netPaye || 0) > 0 && montantSalTemp === 0) {
+        setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye))
+        log.debug('fiche', 'SET savedSal [hlagConfirmado pfRaw]', { valor: pfRaw.netPaye })
+      }
+      if ((pfRaw?.remboursementFrais || 0) > 0 && montantFraisTemp === 0) {
+        setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais))
+        log.debug('fiche', 'SET savedFrais [hlagConfirmado pfRaw]', { valor: pfRaw.remboursementFrais })
+      }
       setConfirmTimingNet(pfRaw?.netPaye || 0)
       setConfirmTimingPeriode(fiches[0].periode || '')
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
@@ -2143,8 +2151,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
     setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
     setSavedSalBeforeVerif(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
+    log.debug('fiche', 'SET savedSal [iniciarPerguntas fiche1]', { montantSalTemp, netPayeZero })
     setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
     setSavedFraisBeforeVerif(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
+    log.debug('fiche', 'SET savedFrais [iniciarPerguntas fiche1]', { montantFraisTemp, fraisZero })
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
@@ -2241,8 +2251,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
       setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
       setSavedSalBeforeVerif(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
+      log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { montantSalTemp, netPayeProx, temRascunho })
       setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
       setSavedFraisBeforeVerif(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
+      log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { montantFraisTemp, fraisProx, temRascunho })
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
@@ -2263,11 +2275,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (sal > 0) setMontantSalTemp(sal)
       if (sal > 0) setSavedSalBeforeVerif(String(sal))
       if (sal > 0) log.debug('fiche', 'handleResponder timing_salario - saved', { sal })
+      if (sal > 0) log.debug('fiche', 'SET savedSal [handleResponder timing_salario]', { sal })
     }
     if (perguntaActual.tipo === 'timing_frais') {
       const fr = perguntaActual.valorContexto?.fraisBoletim || 0
       if (fr > 0) setMontantFraisTemp(fr)
       if (fr > 0) setSavedFraisBeforeVerif(String(fr))
+      if (fr > 0) log.debug('fiche', 'SET savedFrais [handleResponder timing_frais]', { fr })
     }
     const dataPag = respostaData ? (() => {
       const [dd, mm, yyyy] = respostaData.split('/')

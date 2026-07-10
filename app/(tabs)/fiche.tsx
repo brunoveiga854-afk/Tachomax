@@ -1252,6 +1252,7 @@ export default function MonSalaireScreen() {
     if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0 && montantSalTemp === 0) {
       setMontantSalTemp(perguntaActual.valorContexto.netPaye)
       setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
+      log.debug('fiche', 'useEffect perguntaActual - sal', { montantSalTemp: perguntaActual.valorContexto.netPaye })
     }
     if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0) {
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
@@ -1283,6 +1284,7 @@ export default function MonSalaireScreen() {
   }, [respostaData])
   useEffect(() => {
     if (montantSalTemp > 0) setInputMontantSalQ(String(montantSalTemp))
+    log.debug('fiche', 'useEffect montantSalTemp', { montantSalTemp })
   }, [montantSalTemp])
   useEffect(() => {
     if (montantFraisTemp > 0) setInputMontantFraisQ(String(montantFraisTemp))
@@ -2255,6 +2257,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const sal = perguntaActual.valorContexto?.netPaye || 0
       if (sal > 0) setMontantSalTemp(sal)
       if (sal > 0) setSavedSalBeforeVerif(String(sal))
+      if (sal > 0) log.debug('fiche', 'handleResponder timing_salario - saved', { sal })
     }
     if (perguntaActual.tipo === 'timing_frais') {
       const fr = perguntaActual.valorContexto?.fraisBoletim || 0
@@ -3337,6 +3340,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
+                            log.debug('fiche', 'Non les miens clicado', { savedSalBeforeVerif })
                             setInputMontantSalQ(savedSalBeforeVerif)
                             setInputMontantFraisQ(savedFraisBeforeVerif)
                             setVerifApplied('app')

@@ -437,6 +437,28 @@ export default function ReglagesScreen() {
       }
     }
 
+    // ── 3b. BACKUPS ──────────────────────
+    const salBackupRaw = await AsyncStorage.getItem('monSalaire_padrao_backup')
+    if (salBackupRaw !== null) {
+      lines.push('   ⚠️ Backup monSalaire_padrao encontrado')
+      warnings.push('Backup monSalaire_padrao presente')
+    }
+    const apBackupRaw = await AsyncStorage.getItem('aprendizagem_padrao_backup')
+    if (apBackupRaw !== null) {
+      lines.push('   ⚠️ Backup aprendizagem_padrao encontrado')
+      warnings.push('Backup aprendizagem_padrao presente')
+    }
+
+    // ── 3c. LOG COUNTS ──────────────────────
+    const logHistory = log.getHistory()
+    const logCounts: Record<string, number> = { INFO: 0, WARN: 0, ERROR: 0, DEBUG: 0 }
+    for (const entry of logHistory) { logCounts[entry.level] = (logCounts[entry.level] || 0) + 1 }
+    lines.push('')
+    lines.push('📝 LOGS (session actuelle)')
+    lines.push('   INFO: ' + logCounts.INFO + '  WARN: ' + logCounts.WARN + '  ERROR: ' + logCounts.ERROR + '  DEBUG: ' + logCounts.DEBUG)
+    if (logCounts.ERROR > 0) warnings.push(logCounts.ERROR + ' erreur(s) dans la session')
+    if (logCounts.WARN > 5) warnings.push(logCounts.WARN + ' avertissements dans la session')
+
     // ── 4. FICHES ──────────────────────────────────────────────
     lines.push('\n🧾 FICHES (monSalaire_v2)')
     const fichesRaw = rawMap['monSalaire_v2']

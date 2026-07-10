@@ -184,6 +184,20 @@ const detectarDrift = (tuplos: DriftTuplo[]): DriftAlert => {
   return { tipo, percentagem, mensagem, mesesAnalisados: erros.length }
 }
 
+const migrarPadraoAprendido = (raw: any): PadraoAprendido => {
+  if (!raw || typeof raw !== 'object') return { ...PADRAO_INICIAL }
+  const migrado = { ...PADRAO_INICIAL, ...raw }
+  if (!Array.isArray(migrado.primesConhecidas)) migrado.primesConhecidas = []
+  if (!Array.isArray(migrado.liquidRateHistorico)) migrado.liquidRateHistorico = []
+  if (typeof migrado.hlag !== 'number') migrado.hlag = PADRAO_INICIAL.hlag
+  if (typeof migrado.flag !== 'number') migrado.flag = PADRAO_INICIAL.flag
+  if (typeof migrado.diaSalario !== 'number') migrado.diaSalario = PADRAO_INICIAL.diaSalario
+  if (typeof migrado.diaFrais !== 'number') migrado.diaFrais = PADRAO_INICIAL.diaFrais
+  if (typeof migrado.hlagConfirmado !== 'boolean') migrado.hlagConfirmado = false
+  if (typeof migrado.flagConfirmado !== 'boolean') migrado.flagConfirmado = false
+  return migrado as PadraoAprendido
+}
+
 const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
 const TYPES_TRAVAIL = ['work', 'dec', 'TRAB', 'DEC']
 
@@ -1406,7 +1420,7 @@ export default function MonSalaireScreen() {
 
   useEffect(() => {
     if (appState.padraoAprendido) {
-      setPadraoAprendido(appState.padraoAprendido)
+      setPadraoAprendido(migrarPadraoAprendido(appState.padraoAprendido))
     }
   }, [appState.padraoAprendido])
 
@@ -1433,7 +1447,7 @@ export default function MonSalaireScreen() {
       const data = appState.histSal  // já parsed pelo AppContext
       const pData = await AsyncStorage.getItem('monSalaire_padrao')
       const cal = appState.histCal ?? []
-      setPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL)
+      setPadraoAprendido(migrarPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL))
       const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
       if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
       setHistCal(cal)

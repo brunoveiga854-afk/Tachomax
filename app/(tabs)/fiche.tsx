@@ -1250,13 +1250,13 @@ export default function MonSalaireScreen() {
     setRespostaMesManual(false)
     if (!perguntaActual) return
     log.debug('fiche', 'perguntaActual activa', { tipo: perguntaActual.tipo, valorContexto: perguntaActual.valorContexto })
-    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0 && montantSalTemp === 0) {
+    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0) {
       setMontantSalTemp(perguntaActual.valorContexto.netPaye)
       setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
       log.debug('fiche', 'useEffect perguntaActual - sal', { montantSalTemp: perguntaActual.valorContexto.netPaye })
     }
     log.debug('fiche', 'useEffect timing_frais check', { montantFraisTemp, fraisBoletim: perguntaActual.valorContexto?.fraisBoletim })
-    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0) {
+    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0) {
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
       setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))
     }

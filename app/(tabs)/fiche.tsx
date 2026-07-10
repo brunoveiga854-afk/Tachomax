@@ -1,3 +1,4 @@
+import ReAnimated, { FadeIn, FadeOut } from 'react-native-reanimated'
 import { TachoLogo } from '../../src/TachoLogo'
 import * as Haptics from 'expo-haptics'
 import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
@@ -3310,8 +3311,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       </Modal>
 
       {/* MODAL SUCESSO */}
-      <Modal visible={showModalSucesso} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 40 }}>
+      <Modal visible={showModalSucesso} transparent animationType="none">
+        <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 40 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: '#27ae60' }}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>✅</Text>
             <Text style={{ fontSize: 16, fontWeight: '800', color: '#27ae60', marginBottom: 8 }}>Enregistré!</Text>
@@ -3320,7 +3321,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>OK</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ReAnimated.View>
       </Modal>
 
       {/* MODAL CANCELAR */}
@@ -3342,7 +3343,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
       {/* MODAL PERGUNTAS */}
       <Modal visible={showPerguntas} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: showModalPerguntas ? 0.15 : 1 }}>
+        <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: showModalPerguntas ? 0.15 : 1 }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
@@ -3552,7 +3553,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           </View>
           </ScrollView>
           </KeyboardAvoidingView>
-        </View>
+        </ReAnimated.View>
       </Modal>
 
       {/* MODAL DETALHE */}

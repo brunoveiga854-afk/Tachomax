@@ -1255,6 +1255,7 @@ export default function MonSalaireScreen() {
       setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
       log.debug('fiche', 'useEffect perguntaActual - sal', { montantSalTemp: perguntaActual.valorContexto.netPaye })
     }
+    log.debug('fiche', 'useEffect timing_frais check', { montantFraisTemp, fraisBoletim: perguntaActual.valorContexto?.fraisBoletim })
     if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0 && montantFraisTemp === 0) {
       setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
       setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))

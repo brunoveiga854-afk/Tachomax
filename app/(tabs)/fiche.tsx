@@ -2249,6 +2249,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const pf = fichaProx?.dados || fichaProx as any
       const netPayeProx = (fichaProx?.dados?.netPaye || (fichaProx as any)?.netPaye || 0)
       const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
+      if ((netPayeProx || 0) > 0) setMontantSalTemp(netPayeProx)
+      if ((fraisProx || 0) > 0) setMontantFraisTemp(fraisProx)
       setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
       setSavedSalBeforeVerif(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
       log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { montantSalTemp, netPayeProx, temRascunho })

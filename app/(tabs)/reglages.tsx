@@ -1266,9 +1266,18 @@ export default function ReglagesScreen() {
             <ScrollView style={{ maxHeight: 480 }}>
               <Text style={{ fontSize: 11, fontFamily: 'Courier New', color: c.text, lineHeight: 17 }}>{diagData}</Text>
             </ScrollView>
-            <TouchableOpacity style={{ backgroundColor: '#2980b9', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 16 }} onPress={() => setShowDiagModal(false)}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Fermer</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.15)', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2980b9' }} onPress={async () => {
+                const path = FileSystem.cacheDirectory + 'diagnostic.txt'
+                await FileSystem.writeAsStringAsync(path, diagData, { encoding: FileSystem.EncodingType.UTF8 })
+                await Sharing.shareAsync(path)
+              }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#2980b9' }}>📤 Exportar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: '#2980b9', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => setShowDiagModal(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1280,9 +1289,18 @@ export default function ReglagesScreen() {
             <ScrollView>
               <Text style={{ color: '#e0e0e0', fontFamily: 'Courier New', fontSize: 12, lineHeight: 20 }}>{santeData}</Text>
             </ScrollView>
-            <TouchableOpacity onPress={() => setShowSanteModal(false)} style={{ marginTop: 16, padding: 12, backgroundColor: '#27ae60', borderRadius: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: 'rgba(39,174,96,0.15)', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#27ae60' }} onPress={async () => {
+                const path = FileSystem.cacheDirectory + 'sante.txt'
+                await FileSystem.writeAsStringAsync(path, santeData, { encoding: FileSystem.EncodingType.UTF8 })
+                await Sharing.shareAsync(path)
+              }}>
+                <Text style={{ color: '#27ae60', fontWeight: '700' }}>📤 Exportar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowSanteModal(false)} style={{ flex: 1, padding: 12, backgroundColor: '#27ae60', borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1314,9 +1332,19 @@ export default function ReglagesScreen() {
                   })
               }
             </ScrollView>
-            <TouchableOpacity onPress={() => setShowLogsModal(false)} style={{ marginTop: 16, padding: 12, backgroundColor: '#3498db', borderRadius: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: 'rgba(52,152,219,0.15)', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#3498db' }} onPress={async () => {
+                const conteudo = logEntries.map(e => `${e.timestamp.replace('T', ' ').slice(0, 19)} [${e.level}] [${e.module}] ${e.message}${e.data !== undefined ? ' — ' + JSON.stringify(e.data) : ''}`).join('\n')
+                const path = FileSystem.cacheDirectory + 'logs.txt'
+                await FileSystem.writeAsStringAsync(path, conteudo, { encoding: FileSystem.EncodingType.UTF8 })
+                await Sharing.shareAsync(path)
+              }}>
+                <Text style={{ color: '#3498db', fontWeight: '700' }}>📤 Exportar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowLogsModal(false)} style={{ flex: 1, padding: 12, backgroundColor: '#3498db', borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

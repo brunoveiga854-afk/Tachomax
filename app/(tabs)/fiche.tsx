@@ -9,11 +9,32 @@ import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Tex
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import { log, perfLog } from '../../src/utils/logger'
+
+// ── SecureStore helpers ───────────────────────────────────────────────────────
+const secureGet = async (key: string): Promise<string | null> => {
+  try { return await SecureStore.getItemAsync(key) }
+  catch { return null }
+}
+const secureSet = async (key: string, value: string): Promise<void> => {
+  try { await SecureStore.setItemAsync(key, value) }
+  catch (e) { log.error('secure', 'SecureStore write failed', e) }
+}
+const migrarParaSecureStore = async (key: string): Promise<void> => {
+  try {
+    const raw = await AsyncStorage.getItem(key)
+    if (raw !== null) {
+      await SecureStore.setItemAsync(key, raw)
+      await AsyncStorage.removeItem(key)
+      log.info('secure', 'Migrado para SecureStore: ' + key)
+    }
+  } catch (e) { log.warn('secure', 'Migração SecureStore falhou: ' + key, e) }
+}
 import DocumentScanner from '../../src/components/DocumentScanner'
 import {
   PADRAO_INICIAL, PadraoAprendido, PerguntaPendente, BoletimExtraido,
@@ -1189,13 +1210,16 @@ export default function MonSalaireScreen() {
   const [onbHbase, setOnbHbase] = useState(169)
   // pré-preencher tipo veículo, cargo e hbase do onboarding se já definidos
   React.useEffect(() => {
+    // Migrate sensitive padrao data from AsyncStorage to SecureStore on first run
+    migrarParaSecureStore('monSalaire_padrao')
+    migrarParaSecureStore('aprendizagem_padrao')
     AsyncStorage.getItem('vehicule_type').then(v => { if (v) setOnbVehiculo(v) })
     AsyncStorage.getItem('cargo_type').then(v => { if (v) setOnbCargo(v) })
     // hbase: AppContext se disponível, senão AsyncStorage
     if (appState.padrao?.hbase) {
       setOnbHbase(appState.padrao.hbase)
     } else {
-      AsyncStorage.getItem('monSalaire_padrao').then(raw => {
+      secureGet('monSalaire_padrao').then(raw => {
         if (raw) { try { const p = migrarPadrao(JSON.parse(raw)); if (p.hbase) setOnbHbase(p.hbase) } catch {} }
       })
     }
@@ -1326,7 +1350,7 @@ export default function MonSalaireScreen() {
       log.warn('fiche', 'persistirPadrao: diaSalario/diaFrais inválidos', { diaSalario: p.diaSalario, diaFrais: p.diaFrais })
     }
     setPadrao(p)
-    await AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(p))
+    await secureSet('monSalaire_padrao', JSON.stringify(p))
     log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
   }
 
@@ -1341,7 +1365,7 @@ export default function MonSalaireScreen() {
         if (appState.padrao._conflitHbase) setConflitHbase(appState.padrao._conflitHbase)
         else setConflitHbase(null)
       } else {
-        AsyncStorage.getItem('monSalaire_padrao').then(async raw => {
+        secureGet('monSalaire_padrao').then(async raw => {
           if (raw) {
             try {
               const p = migrarPadrao(JSON.parse(raw))
@@ -1398,11 +1422,11 @@ export default function MonSalaireScreen() {
   const charger = async () => {
     try {
       const data = appState.histSal  // já parsed pelo AppContext
-      const pData = await AsyncStorage.getItem('monSalaire_padrao')
+      const pData = await secureGet('monSalaire_padrao')
       const cal = appState.histCal ?? []
       if (!appState.padraoAprendido) {
         // AppContext failed to load — could be corruption; back up and remove
-        const apRaw = await AsyncStorage.getItem('aprendizagem_padrao').catch(() => null)
+        const apRaw = await secureGet('aprendizagem_padrao').catch(() => null)
         if (apRaw) {
           try { JSON.parse(apRaw) }
           catch {
@@ -1469,11 +1493,11 @@ export default function MonSalaireScreen() {
       novoPadrao = { ...novoPadrao, liquidRateHistorico: [] }
     }
     try {
-      await AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(novoPadrao))
+      await secureSet('aprendizagem_padrao', JSON.stringify(novoPadrao))
       setPadraoAprendido(novoPadrao)
       log.info('fiche', 'padraoAprendido persistido', { hlagConfirmado: novoPadrao.hlagConfirmado, flagConfirmado: novoPadrao.flagConfirmado })
     } catch (e) {
-      const raw = await AsyncStorage.getItem('aprendizagem_padrao').catch(() => null)
+      const raw = await secureGet('aprendizagem_padrao').catch(() => null)
       if (raw) await AsyncStorage.setItem('aprendizagem_padrao_backup', raw)
       await AsyncStorage.removeItem('aprendizagem_padrao')
       log.warn('fiche', 'aprendizagem_padrao corrompido — removido (backup guardado)', e)
@@ -1490,7 +1514,7 @@ export default function MonSalaireScreen() {
   }
 
   const carregarPadraoAtual = async (histSal: MoisData[], histDiario: any[]) => {
-    const pData = await AsyncStorage.getItem('monSalaire_padrao')
+    const pData = await secureGet('monSalaire_padrao')
     let atual: Padrao
     if (pData) {
       try { atual = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }

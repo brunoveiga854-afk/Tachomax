@@ -1876,27 +1876,44 @@ export default function MonSalaireScreen() {
   const PROXY_URL = 'https://super-salamander-252e93.netlify.app/.netlify/functions/anthropic-proxy'
 
   const chamarProxy = async (body: object): Promise<any> => {
-    const tentativa = async () => {
+    const tentativa = async (tentativaNum: number) => {
       const ctrl = new AbortController()
       const timer = setTimeout(() => ctrl.abort(), 30_000)
       try {
-        const res = await fetch(PROXY_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: ctrl.signal,
-        })
+        let res: Response
+        try {
+          res = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+          })
+        } catch (fetchErr: any) {
+          if (fetchErr?.name === 'AbortError') {
+            const msg = 'Timeout: o servidor não respondeu em 30s'
+            log.error('fiche', 'chamarProxy erro', { tipo: 'timeout', url: PROXY_URL, tentativa: tentativaNum, error: fetchErr })
+            throw new Error(msg)
+          }
+          const msg = 'Erro de rede: verifica a tua ligação'
+          log.error('fiche', 'chamarProxy erro', { tipo: 'rede', url: PROXY_URL, tentativa: tentativaNum, error: fetchErr })
+          throw new Error(msg)
+        }
+        if (!res.ok) {
+          const msg = 'Erro da API: ' + res.status
+          log.error('fiche', 'chamarProxy erro', { tipo: 'api', url: PROXY_URL, tentativa: tentativaNum, status: res.status })
+          throw new Error(msg)
+        }
         return await res.json()
       } finally {
         clearTimeout(timer)
       }
     }
     try {
-      return await tentativa()
+      return await tentativa(1)
     } catch (e1) {
       log.warn('fiche', 'Proxy tentativa 1 falhou, a retentar em 2s', e1)
       await new Promise(r => setTimeout(r, 2000))
-      return await tentativa()
+      return await tentativa(2)
     }
   }
 

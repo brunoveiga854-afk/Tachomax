@@ -19,6 +19,7 @@ import {
   gerarPerguntasObrigatorias, detectarAnomalias, aplicarRespostaConduteur,
   actualizarPadraoComBoletim, precisaoEstimativa as precisaoEstimativaMotor
 } from '../../src/engine/aprendizagem'
+import { migrarPadrao, migrarPadraoAprendido, PADRAO_VERSAO_ACTUAL, PadraoSalario } from '../../src/engine/migracoes'
 
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
@@ -58,48 +59,10 @@ type MoisData = {
   estimativaSnapshot?: number
 }
 
-const PADRAO_VERSAO_ACTUAL = 1
 
-type Padrao = {
-  descoberto: boolean; diaSalario: number; diaFrais: number
-  defasagemFrais: number; confianca: number
-  hbase: number; hval: number; h25: number; lim25: number; h50: number
-  hlag: number; flag: number; liquidRate: number; fraisSepare?: boolean
-  horasExtrasMedia: number
-  // Valores reais dos frais aprendidos dos boletins
-  ptd: number; dej: number; din: number; nui: number
-  // Valor por dia de férias/feriado aprendido das fiches
-  valorDiaConges: number; valorDiaFerie: number; valorDiaRC: number
-  // Regras/limiares aprendidos dos boletins (opcionais)
-  regles?: { ptDejAte: number; dejMinAmp: number; dinerDe: number }
-  // Taxa salarial efectiva aprendida: net récurrent / horas_trabalhadas_mês_trabalho
-  // Exclui intéressement e primes exceptionnelles extraídas da fiche.
-  taxaHorariaNetaMedia: number
-  // Factor de correcção de frais: fraisBoletim_real / fraisCalc_app
-  // Aprende quando há discrepância entre o calculado e o recebido
-  fraisFactorReal: number
-  _conflitHbase?: { extraido: number; onboarding: number } | null
-  _hbaseManual?: boolean
-  _hvalManual?: boolean
-  versao?: number
-  vehiculo?: string
-  cargo?: string
-}
+type Padrao = PadraoSalario
 
-const migrarPadrao = (raw: any): Padrao => {
-  const versao = raw?.versao ?? 0
-  const migrado = { ...raw }
-  if (versao < 1) {
-    log.warn('fiche', 'migrarPadrao: schema v0 detectado — a migrar para v1', { campos: Object.keys(raw) })
-    if (migrado.taxaHorariaNetaMedia === undefined) migrado.taxaHorariaNetaMedia = 0
-    if (migrado.fraisFactorReal === undefined) migrado.fraisFactorReal = 1
-    if (migrado.valorDiaConges === undefined) migrado.valorDiaConges = 0
-    if (migrado.valorDiaFerie === undefined) migrado.valorDiaFerie = 0
-    if (migrado.valorDiaRC === undefined) migrado.valorDiaRC = 0
-    migrado.versao = PADRAO_VERSAO_ACTUAL
-  }
-  return migrado as Padrao
-}
+// migrarPadrao imported from '../../src/engine/migracoes'
 
 type DocumentoAnalysado = {
   tipo: 'fiche' | 'frais'; periode: string; moisIndex: number; annee: number; dados: any
@@ -184,19 +147,7 @@ const detectarDrift = (tuplos: DriftTuplo[]): DriftAlert => {
   return { tipo, percentagem, mensagem, mesesAnalisados: erros.length }
 }
 
-const migrarPadraoAprendido = (raw: any): PadraoAprendido => {
-  if (!raw || typeof raw !== 'object') return { ...PADRAO_INICIAL }
-  const migrado = { ...PADRAO_INICIAL, ...raw }
-  if (!Array.isArray(migrado.primesConhecidas)) migrado.primesConhecidas = []
-  if (!Array.isArray(migrado.liquidRateHistorico)) migrado.liquidRateHistorico = []
-  if (typeof migrado.hlag !== 'number') migrado.hlag = PADRAO_INICIAL.hlag
-  if (typeof migrado.flag !== 'number') migrado.flag = PADRAO_INICIAL.flag
-  if (typeof migrado.diaSalario !== 'number') migrado.diaSalario = PADRAO_INICIAL.diaSalario
-  if (typeof migrado.diaFrais !== 'number') migrado.diaFrais = PADRAO_INICIAL.diaFrais
-  if (typeof migrado.hlagConfirmado !== 'boolean') migrado.hlagConfirmado = false
-  if (typeof migrado.flagConfirmado !== 'boolean') migrado.flagConfirmado = false
-  return migrado as PadraoAprendido
-}
+// migrarPadraoAprendido imported from '../../src/engine/migracoes'
 
 const DEFAULT_FRAIS_REGLES = { ptDejAte: 6.0, dejMinAmp: 6.017, dinerDe: 21.25 }
 const TYPES_TRAVAIL = ['work', 'dec', 'TRAB', 'DEC']

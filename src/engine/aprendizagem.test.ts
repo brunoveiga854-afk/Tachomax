@@ -7,6 +7,7 @@ import {
   detectarAnomalias,
   aplicarRespostaConduteur,
   actualizarPadraoComBoletim,
+  gerarPerguntasObrigatorias,
   PADRAO_INICIAL,
   PadraoAprendido,
   BoletimExtraido,
@@ -195,5 +196,82 @@ describe('actualizarPadraoComBoletim', () => {
     const boletimDiferente: BoletimExtraido = { ...boletimWilliamson, hval: 15.50 }
     const result = actualizarPadraoComBoletim(boletimDiferente, padraoWilliamson)
     expect(result.hval).toBe(14.82)
+  })
+})
+
+// ─── 5. gerarPerguntasObrigatorias ───────────────────────────────────────────
+
+describe('gerarPerguntasObrigatorias', () => {
+  it('should not generate timing_salario when hlagConfirmado=true', () => {
+    const padrao: PadraoAprendido = {
+      ...PADRAO_INICIAL,
+      hlagConfirmado: true,
+      flagConfirmado: false,
+    }
+    const boletim: BoletimExtraido = {
+      ...boletimWilliamson,
+      fraisBoletim: null,
+    }
+    const perguntas = gerarPerguntasObrigatorias(padrao, boletim)
+    expect(perguntas.filter(p => p.tipo === 'timing_salario')).toHaveLength(0)
+  })
+
+  it('should generate timing_frais when fraisBoletim > 0 and flagConfirmado=false', () => {
+    const padrao: PadraoAprendido = {
+      ...PADRAO_INICIAL,
+      hlagConfirmado: true,
+      flagConfirmado: false,
+    }
+    const boletim: BoletimExtraido = {
+      ...boletimWilliamson,
+      fraisBoletim: 1240,
+    }
+    const perguntas = gerarPerguntasObrigatorias(padrao, boletim)
+    const fraisQ = perguntas.filter(p => p.tipo === 'timing_frais')
+    expect(fraisQ).toHaveLength(1)
+    expect(fraisQ[0].valorContexto?.fraisBoletim).toBe(1240)
+  })
+})
+
+// ─── 6. migrarPadrao (v0 → v1) ───────────────────────────────────────────────
+
+import { migrarPadrao } from './migracoes'
+
+describe('migrarPadrao', () => {
+  it('should migrate padrao from v0 to v1 by adding missing fields', () => {
+    const raw = {
+      descoberto: true, diaSalario: 5, diaFrais: 10,
+      defasagemFrais: 1, confianca: 50,
+      hbase: 169, hval: 14.76, h25: 18.45, lim25: 17, h50: 22.31,
+      hlag: 2, flag: 1, liquidRate: 0.79,
+      horasExtrasMedia: 0,
+      ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
+      // versao absent — this is a v0 object
+    }
+    const migrated = migrarPadrao(raw)
+    expect(migrated.versao).toBe(1)
+    expect(migrated.taxaHorariaNetaMedia).toBe(0)
+    expect(migrated.fraisFactorReal).toBe(1)
+    expect(migrated.valorDiaConges).toBe(0)
+    expect(migrated.valorDiaFerie).toBe(0)
+    expect(migrated.valorDiaRC).toBe(0)
+  })
+
+  it('should not overwrite existing v1 fields', () => {
+    const raw = {
+      hbase: 169, hval: 14.82, h25: 18.53, lim25: 17, h50: 22.23,
+      hlag: 2, flag: 1, liquidRate: 0.89,
+      descoberto: true, diaSalario: 5, diaFrais: 10,
+      defasagemFrais: 1, confianca: 80, horasExtrasMedia: 2,
+      ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
+      taxaHorariaNetaMedia: 13.20, fraisFactorReal: 1.05,
+      valorDiaConges: 120, valorDiaFerie: 50, valorDiaRC: 30,
+      versao: 1,
+    }
+    const migrated = migrarPadrao(raw)
+    expect(migrated.versao).toBe(1)
+    expect(migrated.taxaHorariaNetaMedia).toBe(13.20)
+    expect(migrated.fraisFactorReal).toBe(1.05)
+    expect(migrated.valorDiaConges).toBe(120)
   })
 })

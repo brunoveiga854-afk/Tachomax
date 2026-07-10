@@ -2078,11 +2078,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      if ((pfRaw?.netPaye || 0) > 0 && montantSalTemp === 0) {
+      if ((pfRaw?.netPaye || 0) > 0) {
         setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye))
         log.debug('fiche', 'SET savedSal [hlagConfirmado pfRaw]', { valor: pfRaw.netPaye })
       }
-      if ((pfRaw?.remboursementFrais || 0) > 0 && montantFraisTemp === 0) {
+      if ((pfRaw?.remboursementFrais || 0) > 0) {
         setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais))
         log.debug('fiche', 'SET savedFrais [hlagConfirmado pfRaw]', { valor: pfRaw.remboursementFrais })
       }
@@ -2268,10 +2268,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
       if ((netPayeProx || 0) > 0) setMontantSalTemp(netPayeProx)
       if ((fraisProx || 0) > 0) setMontantFraisTemp(fraisProx)
-      setInputMontantSalQ(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : montantSalTemp > 0 ? String(montantSalTemp) : (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''))
+      setInputMontantSalQ(
+        temRascunho
+          ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '')
+          : netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''
+      )
       setSavedSalBeforeVerif(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
-      log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { montantSalTemp, netPayeProx, temRascunho })
-      setInputMontantFraisQ(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : montantFraisTemp > 0 ? String(montantFraisTemp) : (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''))
+      log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { netPayeProx, temRascunho })
+      setInputMontantFraisQ(
+        temRascunho
+          ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '')
+          : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''
+      )
       setSavedFraisBeforeVerif(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
       log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { montantFraisTemp, fraisProx, temRascunho })
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
@@ -3322,7 +3330,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 8 }}>Annuler?</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Les données déjà saisies seront perdues.</Text>
-            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', marginBottom: 10 }} onPress={() => { setShowModalCancelar(false); setShowPerguntas(false); setDocumentosAnalisados([]) }}>
+            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', marginBottom: 10 }} onPress={() => { setShowModalCancelar(false); setShowPerguntas(false); setDocumentosAnalisados([]); setMontantSalTemp(0); setMontantFraisTemp(0) }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Annuler quand même</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalCancelar(false)}>
@@ -4277,7 +4285,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <TouchableOpacity
                         style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }}
+                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()); setMontantSalTemp(0); setMontantFraisTemp(0) }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Plus tard</Text>
                       </TouchableOpacity>

@@ -1754,6 +1754,7 @@ export default function MonSalaireScreen() {
       setCalculando(false)
       setCalculandoMsg('')
     } catch (e) {
+      log.error('fiche', 'calcularSalario falhou', { error: e, histLen: appState.histCal?.length ?? 0, padrao: { hbase: padrao.hbase, hval: padrao.hval, hlag: padrao.hlag } })
       setCalculando(false)
       setCalculandoMsg('')
       mostrarErro('Erreur: ' + String(e))

@@ -1389,7 +1389,7 @@ export default function MonSalaireScreen() {
       if (appState.histCal) setHistCal(appState.histCal)
     }
     sincronizar()
-  }, [appState.padrao]))
+  }, []))
 
   useEffect(() => {
     if (appState.padrao) {

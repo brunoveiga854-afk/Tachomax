@@ -2299,14 +2299,22 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '')
           : netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''
       )
-      setSavedSalBeforeVerif(temRascunho ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '') : netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
+      setSavedSalBeforeVerif(
+        temRascunho && rascunhoActual.montantSalReel > 0
+          ? String(Math.round(rascunhoActual.montantSalReel * 100) / 100)
+          : savedSalBeforeVerif || (netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
+      )
       log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { netPayeProx, temRascunho })
       setInputMontantFraisQ(
         temRascunho
           ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '')
           : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''
       )
-      setSavedFraisBeforeVerif(temRascunho ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '') : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
+      setSavedFraisBeforeVerif(
+        temRascunho && rascunhoActual.montantFraisReel > 0
+          ? String(Math.round(rascunhoActual.montantFraisReel * 100) / 100)
+          : savedFraisBeforeVerif || (fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
+      )
       log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { montantFraisTemp, fraisProx, temRascunho })
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))

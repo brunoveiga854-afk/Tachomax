@@ -1232,11 +1232,9 @@ export default function MonSalaireScreen() {
     if (!perguntaActual) return
     log.debug('fiche', 'perguntaActual activa', { tipo: perguntaActual.tipo, valorContexto: perguntaActual.valorContexto })
     if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0) {
-      setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
       setInputMontantSalQ(String(perguntaActual.valorContexto.netPaye))
     }
     if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0) {
-      setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))
       setInputMontantFraisQ(String(perguntaActual.valorContexto.fraisBoletim))
     }
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
@@ -2087,14 +2085,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      if ((pfRaw?.netPaye || 0) > 0) {
-        setSavedSalBeforeVerif(String(pfRaw.netPaye))
-        log.debug('fiche', 'SET savedSal [hlagConfirmado pfRaw]', { valor: pfRaw.netPaye })
-      }
-      if ((pfRaw?.remboursementFrais || 0) > 0) {
-        setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais))
-        log.debug('fiche', 'SET savedFrais [hlagConfirmado pfRaw]', { valor: pfRaw.remboursementFrais })
-      }
       setConfirmTimingNet(pfRaw?.netPaye || 0)
       setConfirmTimingPeriode(fiches[0].periode || '')
       setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
@@ -2109,9 +2099,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const confirmarTimingEProsseguir = async () => {
     setShowConfirmTiming(false)
-    if (confirmTimingNet > 0) {
-      setSavedSalBeforeVerif(String(confirmTimingNet))
-    }
     await processarPerguntas(pendingDocsRef.current)
   }
 
@@ -2179,11 +2166,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
     setInputMontantSalQ(netPayeZero > 0 ? String(netPayeZero) : '')
-    setSavedSalBeforeVerif(netPayeZero > 0 ? String(netPayeZero) : '')
-    log.debug('fiche', 'SET savedSal [iniciarPerguntas fiche1]', { netPayeZero })
     setInputMontantFraisQ(fraisZero > 0 ? String(fraisZero) : '')
-    setSavedFraisBeforeVerif(fraisZero > 0 ? String(fraisZero) : '')
-    log.debug('fiche', 'SET savedFrais [iniciarPerguntas fiche1]', { fraisZero })
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
@@ -2283,15 +2266,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '')
           : netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : ''
       )
-      setSavedSalBeforeVerif(netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
-      log.debug('fiche', 'SET savedSal [handleResponder fiche+]', { netPayeProx, temRascunho })
+      log.debug('fiche', 'SET sal [handleResponder fiche+]', { netPayeProx, temRascunho })
       setInputMontantFraisQ(
         temRascunho
           ? (rascunhoActual.montantFraisReel > 0 ? String(Math.round((rascunhoActual.montantFraisReel || 0) * 100) / 100) : '')
           : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''
       )
-      setSavedFraisBeforeVerif(fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
-      log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { fraisProx, temRascunho })
+      log.debug('fiche', 'SET frais [handleResponder fiche+]', { fraisProx, temRascunho })
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
@@ -2307,16 +2288,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const handleResponderPergunta = async (resposta: string) => {
     if (!perguntaActual) return
     log.info('fiche', 'resposta pergunta', { tipo: perguntaActual.tipo, resposta })
-    if (perguntaActual.tipo === 'timing_salario') {
-      const sal = perguntaActual.valorContexto?.netPaye || 0
-      if (sal > 0) setSavedSalBeforeVerif(String(sal))
-      if (sal > 0) log.debug('fiche', 'SET savedSal [handleResponder timing_salario]', { sal })
-    }
-    if (perguntaActual.tipo === 'timing_frais') {
-      const fr = perguntaActual.valorContexto?.fraisBoletim || 0
-      if (fr > 0) setSavedFraisBeforeVerif(String(fr))
-      if (fr > 0) log.debug('fiche', 'SET savedFrais [handleResponder timing_frais]', { fr })
-    }
     const dataPag = respostaData ? (() => {
       const [dd, mm, yyyy] = respostaData.split('/')
       return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
@@ -3401,10 +3372,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
-                            log.debug('fiche', 'Non les miens - ANTES', { inputMontantSalQ, inputMontantFraisQ, savedSalBeforeVerif, savedFraisBeforeVerif })
-                            setInputMontantSalQ(savedSalBeforeVerif)
-                            setInputMontantFraisQ(savedFraisBeforeVerif)
-                            log.debug('fiche', 'Non les miens - DEPOIS', { savedSalBeforeVerif, savedFraisBeforeVerif })
+                            const netPaye = fiches[perguntaAtual]?.dados?.netPaye || 0
+                            const frais = fiches[perguntaAtual]?.dados?.remboursementFrais || 0
+                            setInputMontantSalQ(savedSalBeforeVerif || (netPaye > 0 ? String(netPaye) : ''))
+                            setInputMontantFraisQ(savedFraisBeforeVerif || (frais > 0 ? String(frais) : ''))
                             setVerifApplied('app')
                           }}
                         >

@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import { log, perfLog } from '../../src/utils/logger'
-import { secureGet, secureSet } from '../../src/utils/secureStorage'
+import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
 const migrarParaSecureStore = async (key: string): Promise<void> => {
   try {
@@ -1365,7 +1365,7 @@ export default function MonSalaireScreen() {
               else setConflitHbase(null)
             } catch (e) {
               if (raw) await AsyncStorage.setItem('monSalaire_padrao_backup', raw)
-              await AsyncStorage.removeItem('monSalaire_padrao')
+              await secureDelete('monSalaire_padrao')
               log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
             }
           }
@@ -1422,7 +1422,7 @@ export default function MonSalaireScreen() {
           try { JSON.parse(apRaw) }
           catch {
             await AsyncStorage.setItem('aprendizagem_padrao_backup', apRaw)
-            await AsyncStorage.removeItem('aprendizagem_padrao')
+            await secureDelete('aprendizagem_padrao')
             log.warn('fiche', 'aprendizagem_padrao corrompido — removido (backup guardado)')
           }
         }
@@ -1441,7 +1441,7 @@ export default function MonSalaireScreen() {
           try { base = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
           catch (e) {
             if (pData) await AsyncStorage.setItem('monSalaire_padrao_backup', pData)
-            await AsyncStorage.removeItem('monSalaire_padrao')
+            await secureDelete('monSalaire_padrao')
             log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
             base = { ...padrao }
           }
@@ -1490,7 +1490,7 @@ export default function MonSalaireScreen() {
     } catch (e) {
       const raw = await secureGet('aprendizagem_padrao').catch(() => null)
       if (raw) await AsyncStorage.setItem('aprendizagem_padrao_backup', raw)
-      await AsyncStorage.removeItem('aprendizagem_padrao')
+      await secureDelete('aprendizagem_padrao')
       log.warn('fiche', 'aprendizagem_padrao corrompido — removido (backup guardado)', e)
     }
   }
@@ -1511,7 +1511,7 @@ export default function MonSalaireScreen() {
       try { atual = { ...padrao, ...migrarPadrao(JSON.parse(pData)) } }
       catch (e) {
         if (pData) await AsyncStorage.setItem('monSalaire_padrao_backup', pData)
-        await AsyncStorage.removeItem('monSalaire_padrao')
+        await secureDelete('monSalaire_padrao')
         log.warn('fiche', 'monSalaire_padrao corrompido — removido (backup guardado)', e)
         atual = { ...padrao }
       }

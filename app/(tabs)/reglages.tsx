@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { secureGet } from '../../src/utils/secureStorage'
 import { router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -292,7 +293,7 @@ export default function ReglagesScreen() {
     setDiagLoading(true)
     try {
       const rawV2 = await AsyncStorage.getItem('monSalaire_v2')
-      const rawPadrao = await AsyncStorage.getItem('monSalaire_padrao')
+      const rawPadrao = await secureGet('monSalaire_padrao')
       const fiches: any[] = rawV2 ? JSON.parse(rawV2) : []
       const padrao: any = rawPadrao ? JSON.parse(rawPadrao) : {}
       const lines: string[] = []

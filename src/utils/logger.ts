@@ -60,6 +60,28 @@ const record = (level: LogLevel, module: string, message: string, data?: unknown
 
 // ── API pública ───────────────────────────────────────────────────────────────
 
+// ── Performance timing ────────────────────────────────────────────────────────
+
+const timings: Record<string, number> = {}
+const performanceLogs: Array<{ module: string; label: string; duration: number; ts: number }> = []
+
+export const perfLog = {
+  time: (module: string, label: string) => {
+    timings[`${module}:${label}`] = Date.now()
+  },
+  timeEnd: (module: string, label: string) => {
+    const start = timings[`${module}:${label}`]
+    if (!start) return
+    const duration = Date.now() - start
+    delete timings[`${module}:${label}`]
+    performanceLogs.unshift({ module, label, duration, ts: Date.now() })
+    if (performanceLogs.length > 5) performanceLogs.length = 5
+    // warn declared below — use record directly to avoid forward reference
+    if (duration > 500) record('WARN', module, `SLOW: ${label} took ${duration}ms`)
+  },
+  getPerformanceLogs: () => [...performanceLogs],
+}
+
 export const log = {
   debug: (module: string, message: string, data?: unknown) =>
     record('DEBUG', module, message, data),
@@ -82,30 +104,8 @@ export const log = {
   clear: () => {
     history.length = 0
   },
+
+  time: (module: string, label: string) => perfLog.time(module, label),
+  timeEnd: (module: string, label: string) => perfLog.timeEnd(module, label),
+  getPerformanceLogs: () => perfLog.getPerformanceLogs(),
 }
-
-// ── Performance timing ────────────────────────────────────────────────────────
-
-const timings: Record<string, number> = {}
-const performanceLogs: Array<{ module: string; label: string; duration: number; ts: number }> = []
-
-export const perfLog = {
-  time: (module: string, label: string) => {
-    timings[`${module}:${label}`] = Date.now()
-  },
-  timeEnd: (module: string, label: string) => {
-    const start = timings[`${module}:${label}`]
-    if (!start) return
-    const duration = Date.now() - start
-    delete timings[`${module}:${label}`]
-    performanceLogs.unshift({ module, label, duration, ts: Date.now() })
-    if (performanceLogs.length > 5) performanceLogs.length = 5
-    if (duration > 500) log.warn(module, `SLOW: ${label} took ${duration}ms`)
-  },
-  getPerformanceLogs: () => [...performanceLogs],
-}
-
-// Attach to log object for convenience
-;(log as any).time = perfLog.time
-;(log as any).timeEnd = perfLog.timeEnd
-;(log as any).getPerformanceLogs = perfLog.getPerformanceLogs

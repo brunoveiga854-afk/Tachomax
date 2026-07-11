@@ -16,3 +16,8 @@ export const secureSet = async (key: string, value: string): Promise<void> => {
     log.error('secureStorage', 'SecureStore write failed', { key, e })
   }
 }
+
+export const secureDelete = async (key: string): Promise<void> => {
+  try { await SecureStore.deleteItemAsync(key) }
+  catch (e) { log.error('secureStorage', 'SecureStore delete failed', { key, e }) }
+}

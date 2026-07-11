@@ -2122,6 +2122,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
   const confirmarTimingEProsseguir = async () => {
     setShowConfirmTiming(false)
+    if (confirmTimingNet > 0) {
+      setMontantSalTemp(confirmTimingNet)
+      setSavedSalBeforeVerif(String(confirmTimingNet))
+    }
     await processarPerguntas(pendingDocsRef.current)
   }
 
@@ -4372,7 +4376,7 @@ const st = StyleSheet.create({
   histCard: { marginHorizontal: 20, marginBottom: 8, borderRadius: 14, borderWidth: 1, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   histLeft: { gap: 4, flex: 1 },
   histRight: { alignItems: 'flex-end', gap: 2 },
-  histPeriode: { fontSize: 14, fontWeight: '700' },
+ histPeriode: { fontSize: 14, fontWeight: '700' },
   histSub: { fontSize: 11 },
   histMontant: { fontSize: 18, fontWeight: '800' },
 })

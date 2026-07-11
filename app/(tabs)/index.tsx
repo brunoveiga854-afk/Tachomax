@@ -2680,4 +2680,8 @@ const st = StyleSheet.create({
   semBarBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
   semBarFill: { height: '100%', borderRadius: 3 },
   semEmpty: { fontSize: 14, textAlign: 'center', paddingVertical: 4 },
-  
+  semStats: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+
+  semStat: { fontSize: 14, fontWeight: '600' },
+  semStatSep: { fontSize: 12 },
+})

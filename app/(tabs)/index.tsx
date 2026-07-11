@@ -631,7 +631,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         return db.getTime() - da.getTime()
       })
       const listaValida = lista.filter((entry: any) => {
-        const ok = entry.date && entry.type && entry.debut && entry.fin
+        const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
+        const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
@@ -917,7 +918,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     try {
       lista.unshift(novoDia)
       const listaValidaT = lista.filter((entry: any) => {
-        const ok = entry.date && entry.type && entry.debut && entry.fin
+        const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
+        const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
@@ -2678,8 +2680,4 @@ const st = StyleSheet.create({
   semBarBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
   semBarFill: { height: '100%', borderRadius: 3 },
   semEmpty: { fontSize: 14, textAlign: 'center', paddingVertical: 4 },
-  semStats: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-
-  semStat: { fontSize: 14, fontWeight: '600' },
-  semStatSep: { fontSize: 12 },
-})
+  

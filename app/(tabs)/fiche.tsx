@@ -2201,7 +2201,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
-    setInputMoisAtipico(false)
+    setInputMoisAtipico((pf?.interessement || 0) > 0 || (pf?.primeExceptionnelle || 0) > 0)
     setShowPerguntas(true)
     // Motor de aprendizagem (modo manual)
     {
@@ -3519,13 +3519,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       onPress={() => setInputMoisAtipico(false)}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: !inputMoisAtipico ? 'rgba(39,174,96,0.12)' : c.input, borderWidth: !inputMoisAtipico ? 1.5 : 1, borderColor: !inputMoisAtipico ? '#27ae60' : c.cardBorder }}
                     >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Oui, normal</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Non, mois normal</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setInputMoisAtipico(true)}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: inputMoisAtipico ? 'rgba(231,76,60,0.12)' : c.input, borderWidth: inputMoisAtipico ? 1.5 : 1, borderColor: inputMoisAtipico ? '#e74c3c' : c.cardBorder }}
                     >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Non, exceptionnel</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Oui, prime exceptionnelle</Text>
                     </TouchableOpacity>
                   </View>
                   {!inputMoisAtipico && (
@@ -3535,7 +3535,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )}
                   {inputMoisAtipico && (
                     <Text style={{ fontSize: 11, color: '#e74c3c', textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
-                      Ex : congés, maladie, prime annuelle, acompte… Ce mois ne calibrera pas les estimations.
+                      Ce mois avait une prime exceptionnelle (intéressement, 13ème mois…) — ne sera pas utilisé pour calibrer le salaire habituel.
                     </Text>
                   )}
 
@@ -3957,13 +3957,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 style={{ flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', backgroundColor: !editMoisAtipico ? 'rgba(39,174,96,0.2)' : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: !editMoisAtipico ? '#27ae60' : 'rgba(255,255,255,0.1)' }}
                 onPress={() => setEditMoisAtipico(false)}
               >
-                <Text style={{ color: !editMoisAtipico ? '#27ae60' : '#aaa', fontSize: 12, fontWeight: '700' }}>✅ Oui, normal</Text>
+                <Text style={{ color: !editMoisAtipico ? '#27ae60' : '#aaa', fontSize: 12, fontWeight: '700' }}>✅ Non, mois normal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', backgroundColor: editMoisAtipico ? 'rgba(243,156,18,0.2)' : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: editMoisAtipico ? '#f39c12' : 'rgba(255,255,255,0.1)' }}
                 onPress={() => setEditMoisAtipico(true)}
               >
-                <Text style={{ color: editMoisAtipico ? '#f39c12' : '#aaa', fontSize: 12, fontWeight: '700' }}>⚠️ Non, exceptionnel</Text>
+                <Text style={{ color: editMoisAtipico ? '#f39c12' : '#aaa', fontSize: 12, fontWeight: '700' }}>⚠️ Oui, prime exceptionnelle</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -4380,4 +4380,3 @@ const st = StyleSheet.create({
   histSub: { fontSize: 11 },
   histMontant: { fontSize: 18, fontWeight: '800' },
 })
-

@@ -9,27 +9,18 @@ import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Tex
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as SecureStore from 'expo-secure-store'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import { log, perfLog } from '../../src/utils/logger'
+import { secureGet, secureSet } from '../../src/utils/secureStorage'
 
-// ── SecureStore helpers ───────────────────────────────────────────────────────
-const secureGet = async (key: string): Promise<string | null> => {
-  try { return await SecureStore.getItemAsync(key) }
-  catch { return null }
-}
-const secureSet = async (key: string, value: string): Promise<void> => {
-  try { await SecureStore.setItemAsync(key, value) }
-  catch (e) { log.error('secure', 'SecureStore write failed', e) }
-}
 const migrarParaSecureStore = async (key: string): Promise<void> => {
   try {
     const raw = await AsyncStorage.getItem(key)
     if (raw !== null) {
-      await SecureStore.setItemAsync(key, raw)
+      await secureSet(key, raw)
       await AsyncStorage.removeItem(key)
       log.info('secure', 'Migrado para SecureStore: ' + key)
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { secureGet, secureSet } from '../src/utils/secureStorage'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useApp } from '../context/AppContext'
 import { TachoLogo } from '../src/TachoLogo'
@@ -27,7 +28,7 @@ export default function OnboardingScreen() {
         AsyncStorage.getItem('profil'),
         AsyncStorage.getItem('anciennete'),
         AsyncStorage.getItem('coefficient'),
-        AsyncStorage.getItem('monSalaire_padrao'),
+        secureGet('monSalaire_padrao'),
         AsyncStorage.getItem('vehicule_type'),
         AsyncStorage.getItem('cargo_type'),
         AsyncStorage.getItem('tracteur_type'),
@@ -83,7 +84,7 @@ export default function OnboardingScreen() {
           if (!isNaN(d.getTime())) setDataEntrada(d)
         }
         // Charger timing de aprendizagem_padrao
-        AsyncStorage.getItem('aprendizagem_padrao').then(apRaw => {
+        secureGet('aprendizagem_padrao').then(apRaw => {
           if (apRaw) try {
             const ap = JSON.parse(apRaw)
             if (ap.diaSalario) setObDiaSalario(ap.diaSalario)
@@ -182,7 +183,7 @@ export default function OnboardingScreen() {
     await withRetry(() => AsyncStorage.setItem('contrat_saisir_brut', String(obSaisirBrut)))
     if (!obSaisirBrut && obSalNet) await withRetry(() => AsyncStorage.setItem('contrat_net_mensuel', obSalNet))
     // Pre-populate monSalaire_padrao from onboarding salary data
-    const existingPadraoRaw = await AsyncStorage.getItem('monSalaire_padrao')
+    const existingPadraoRaw = await secureGet('monSalaire_padrao')
     const hbase = obHbase
     const salBrut = obSaisirBrut ? (parseFloat(obHvalBrut) || 0) : 0
     const salNet = obSaisirBrut
@@ -207,7 +208,7 @@ export default function OnboardingScreen() {
         vehiculo: typeVehicule, cargo: typeCargo,
         _hvalManual: salBrut > 0,
       }
-      await withRetry(() => AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(padraoInit)))
+      await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(padraoInit)))
     } else {
       // Padrao existant — mettre à jour hbase/hval/h25/h50 en préservant les données apprises
       try {
@@ -222,11 +223,11 @@ export default function OnboardingScreen() {
           taxaHorariaNetaMedia: hval * (existing.liquidRate ?? liquidRate),
           _hvalManual: salBrut > 0,
         }
-        await withRetry(() => AsyncStorage.setItem('monSalaire_padrao', JSON.stringify(updated)))
+        await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(updated)))
       } catch {}
     }
     // Guardar timing no motor de aprendizagem
-    const existingAprendRaw = await AsyncStorage.getItem('aprendizagem_padrao')
+    const existingAprendRaw = await secureGet('aprendizagem_padrao')
     const existingAprendizagem = existingAprendRaw ? JSON.parse(existingAprendRaw) : PADRAO_INICIAL
     const padraoAprendizado = {
       ...existingAprendizagem,  // preserva dados aprendidos (ptd, dej, din, nui, taxaHorariaNetaMedia, etc.)
@@ -239,7 +240,7 @@ export default function OnboardingScreen() {
       diaSalarioConfirmado: true,
       diaFraisConfirmado: true,
     }
-    await withRetry(() => AsyncStorage.setItem('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
+    await withRetry(() => secureSet('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
     await recarregarApp()
     setTerminando(false)
     router.replace('/(tabs)/fiche')

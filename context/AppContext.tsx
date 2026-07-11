@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as SecureStore from 'expo-secure-store'
+import { secureGet } from '../src/utils/secureStorage'
 import { log } from '../src/utils/logger'
 
 // ── Tipo do estado global ─────────────────────────────────────────────────────
@@ -83,14 +83,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem('tracteur_value'),
       AsyncStorage.getItem('remorque_type'),
       AsyncStorage.getItem('remorque_value'),
-      SecureStore.getItemAsync('monSalaire_padrao').catch(() => AsyncStorage.getItem('monSalaire_padrao')),
+      secureGet('monSalaire_padrao'),
     ])
 
     let padrao: any | null = null
     try { if (padraoRaw) padrao = JSON.parse(padraoRaw) } catch {}
 
     let padraoAprendido: any | null = null
-    try { const apRaw = await SecureStore.getItemAsync('aprendizagem_padrao').catch(() => AsyncStorage.getItem('aprendizagem_padrao')); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch {}
+    try { const apRaw = await secureGet('aprendizagem_padrao'); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch {}
 
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
     const fraisRegles = fraisReglesRaw ? JSON.parse(fraisReglesRaw) : null

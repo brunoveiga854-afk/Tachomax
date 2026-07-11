@@ -1226,24 +1226,18 @@ export default function MonSalaireScreen() {
   const [respostaData, setRespostaData] = useState('')
   const [respostaMes, setRespostaMes] = useState<number | null>(null)
   const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
-  const [montantSalTemp, setMontantSalTemp] = useState<number>(0)
-  const [montantFraisTemp, setMontantFraisTemp] = useState<number>(0)
   const [respostaMesManual, setRespostaMesManual] = useState(false)
   useEffect(() => {
     setRespostaMesManual(false)
     if (!perguntaActual) return
     log.debug('fiche', 'perguntaActual activa', { tipo: perguntaActual.tipo, valorContexto: perguntaActual.valorContexto })
     if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0) {
-      setMontantSalTemp(perguntaActual.valorContexto.netPaye)
       setSavedSalBeforeVerif(String(perguntaActual.valorContexto.netPaye))
-      log.debug('fiche', 'useEffect perguntaActual - sal', { montantSalTemp: perguntaActual.valorContexto.netPaye })
-      log.debug('fiche', 'SET savedSal [useEffect perguntaActual]', { valor: perguntaActual.valorContexto.netPaye })
+      setInputMontantSalQ(String(perguntaActual.valorContexto.netPaye))
     }
-    log.debug('fiche', 'useEffect timing_frais check', { montantFraisTemp, fraisBoletim: perguntaActual.valorContexto?.fraisBoletim })
     if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0) {
-      setMontantFraisTemp(perguntaActual.valorContexto.fraisBoletim)
       setSavedFraisBeforeVerif(String(perguntaActual.valorContexto.fraisBoletim))
-      log.debug('fiche', 'SET savedFrais [useEffect perguntaActual]', { valor: perguntaActual.valorContexto.fraisBoletim })
+      setInputMontantFraisQ(String(perguntaActual.valorContexto.fraisBoletim))
     }
     const offsetSugerido = perguntaActual.tipo === 'timing_frais'
       ? (padraoAprendido.flag ?? padrao.flag ?? 1)
@@ -1269,13 +1263,6 @@ export default function MonSalaireScreen() {
     setRespostaMes(dSug.getMonth())
     setRespostaMesAno(dSug.getFullYear())
   }, [respostaData])
-  useEffect(() => {
-    if (montantSalTemp > 0) setInputMontantSalQ(String(montantSalTemp))
-    log.debug('fiche', 'useEffect montantSalTemp', { montantSalTemp })
-  }, [montantSalTemp])
-  useEffect(() => {
-    if (montantFraisTemp > 0) setInputMontantFraisQ(String(montantFraisTemp))
-  }, [montantFraisTemp])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const [showConfirmTiming, setShowConfirmTiming] = useState(false)
@@ -2101,11 +2088,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const mesPagNom = MOIS_NOMS[mesP] ?? ''
       const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
       if ((pfRaw?.netPaye || 0) > 0) {
-        setMontantSalTemp(pfRaw.netPaye); setSavedSalBeforeVerif(String(pfRaw.netPaye))
+        setSavedSalBeforeVerif(String(pfRaw.netPaye))
         log.debug('fiche', 'SET savedSal [hlagConfirmado pfRaw]', { valor: pfRaw.netPaye })
       }
       if ((pfRaw?.remboursementFrais || 0) > 0) {
-        setMontantFraisTemp(pfRaw.remboursementFrais); setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais))
+        setSavedFraisBeforeVerif(String(pfRaw.remboursementFrais))
         log.debug('fiche', 'SET savedFrais [hlagConfirmado pfRaw]', { valor: pfRaw.remboursementFrais })
       }
       setConfirmTimingNet(pfRaw?.netPaye || 0)
@@ -2123,7 +2110,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const confirmarTimingEProsseguir = async () => {
     setShowConfirmTiming(false)
     if (confirmTimingNet > 0) {
-      setMontantSalTemp(confirmTimingNet)
       setSavedSalBeforeVerif(String(confirmTimingNet))
     }
     await processarPerguntas(pendingDocsRef.current)
@@ -2192,12 +2178,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const pf = fichaZero?.dados || fichaZero as any
     const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
-    setInputMontantSalQ(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
-    setSavedSalBeforeVerif(montantSalTemp > 0 ? String(montantSalTemp) : netPayeZero > 0 ? String(netPayeZero) : '')
-    log.debug('fiche', 'SET savedSal [iniciarPerguntas fiche1]', { montantSalTemp, netPayeZero })
-    setInputMontantFraisQ(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
-    setSavedFraisBeforeVerif(montantFraisTemp > 0 ? String(montantFraisTemp) : fraisZero > 0 ? String(fraisZero) : '')
-    log.debug('fiche', 'SET savedFrais [iniciarPerguntas fiche1]', { montantFraisTemp, fraisZero })
+    setInputMontantSalQ(netPayeZero > 0 ? String(netPayeZero) : '')
+    setSavedSalBeforeVerif(netPayeZero > 0 ? String(netPayeZero) : '')
+    log.debug('fiche', 'SET savedSal [iniciarPerguntas fiche1]', { netPayeZero })
+    setInputMontantFraisQ(fraisZero > 0 ? String(fraisZero) : '')
+    setSavedFraisBeforeVerif(fraisZero > 0 ? String(fraisZero) : '')
+    log.debug('fiche', 'SET savedFrais [iniciarPerguntas fiche1]', { fraisZero })
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setShowVerifDetalhes(false)
@@ -2292,8 +2278,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const pf = fichaProx?.dados || fichaProx as any
       const netPayeProx = (fichaProx?.dados?.netPaye || (fichaProx as any)?.netPaye || 0)
       const fraisProx = (fichaProx?.dados?.remboursementFrais || (fichaProx as any)?.remboursementFrais || 0)
-      setMontantSalTemp(netPayeProx > 0 ? netPayeProx : 0)
-      setMontantFraisTemp(fraisProx > 0 ? fraisProx : 0)
       setInputMontantSalQ(
         temRascunho
           ? (rascunhoActual.montantSalReel > 0 ? String(Math.round((rascunhoActual.montantSalReel || 0) * 100) / 100) : '')
@@ -2307,7 +2291,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           : fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : ''
       )
       setSavedFraisBeforeVerif(fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
-      log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { montantFraisTemp, fraisProx, temRascunho })
+      log.debug('fiche', 'SET savedFrais [handleResponder fiche+]', { fraisProx, temRascunho })
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
@@ -2325,14 +2309,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     log.info('fiche', 'resposta pergunta', { tipo: perguntaActual.tipo, resposta })
     if (perguntaActual.tipo === 'timing_salario') {
       const sal = perguntaActual.valorContexto?.netPaye || 0
-      if (sal > 0) setMontantSalTemp(sal)
       if (sal > 0) setSavedSalBeforeVerif(String(sal))
-      if (sal > 0) log.debug('fiche', 'handleResponder timing_salario - saved', { sal })
       if (sal > 0) log.debug('fiche', 'SET savedSal [handleResponder timing_salario]', { sal })
     }
     if (perguntaActual.tipo === 'timing_frais') {
       const fr = perguntaActual.valorContexto?.fraisBoletim || 0
-      if (fr > 0) setMontantFraisTemp(fr)
       if (fr > 0) setSavedFraisBeforeVerif(String(fr))
       if (fr > 0) log.debug('fiche', 'SET savedFrais [handleResponder timing_frais]', { fr })
     }
@@ -2488,8 +2469,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setLoading(false)
     setShowModalSucesso(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setMontantSalTemp(0)
-    setMontantFraisTemp(0)
   }
 
   const fiches = documentosAnalisados.filter(d => d.tipo === 'fiche')
@@ -3364,7 +3343,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 8 }}>Annuler?</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>Les données déjà saisies seront perdues.</Text>
-            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', marginBottom: 10 }} onPress={() => { setShowModalCancelar(false); setShowPerguntas(false); setDocumentosAnalisados([]); setMontantSalTemp(0); setMontantFraisTemp(0) }}>
+            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', marginBottom: 10 }} onPress={() => { setShowModalCancelar(false); setShowPerguntas(false); setDocumentosAnalisados([]) }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Annuler quand même</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 14, padding: 14, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowModalCancelar(false)}>
@@ -4319,7 +4298,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <TouchableOpacity
                         style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()); setMontantSalTemp(0); setMontantFraisTemp(0) }}
+                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Plus tard</Text>
                       </TouchableOpacity>
@@ -4380,3 +4359,4 @@ const st = StyleSheet.create({
   histSub: { fontSize: 11 },
   histMontant: { fontSize: 18, fontWeight: '800' },
 })
+

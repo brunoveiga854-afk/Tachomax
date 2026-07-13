@@ -1049,6 +1049,10 @@ export default function MonSalaireScreen() {
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
+  const [showParteUm, setShowParteUm] = useState(true)
+  const [inputParteUmSal, setInputParteUmSal] = useState('')
+  const [inputParteUmFrais, setInputParteUmFrais] = useState('')
+  const [fonteEscolhida, setFonteEscolhida] = useState<'banco' | 'fiche'>('banco')
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -1964,6 +1968,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setInputMoisAtipico((pf?.interessement || 0) > 0 || (pf?.primeExceptionnelle || 0) > 0)
+    setShowParteUm(true)
+    setInputParteUmSal(netPayeZero > 0 ? String(netPayeZero) : '')
+    setInputParteUmFrais(fraisZero > 0 ? String(fraisZero) : '')
+    setFonteEscolhida('banco')
     setShowPerguntas(true)
     // Motor de aprendizagem (actualiza padrão silenciosamente)
     {
@@ -2057,6 +2065,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
       if (temRascunho) setRascunhoActual(null)
+      setShowParteUm(true)
+      setInputParteUmSal(netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
+      setInputParteUmFrais(fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
+      setFonteEscolhida('banco')
       setPerguntaAtual(proxIndex)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -3089,61 +3101,168 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     Reçu en {mesLabel} {fichaActual.annee} — pour le travail de {mesTravail}
                   </Text>
 
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
+                  {showParteUm ? (
+                    /* ── PARTE 1: Ce que tu as reçu ── */
+                    <>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 16 }}>
+                        💳 Ce que tu as reçu sur ton compte
                       </Text>
-                      <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                        value={inputMontantSalQ}
-                        onChangeText={setInputMontantSalQ}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={c.textSub}
-                        autoFocus={true}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                        🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
-                      </Text>
-                      <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                        value={inputMontantFraisQ}
-                        onChangeText={setInputMontantFraisQ}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={c.textSub}
-                      />
-                    </View>
-                  </View>
-                  {/* Primes (pré-preenchidas pela IA, editáveis) */}
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>🤝 INTÉRESSEMENT</Text>
-                      <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
-                        value={inputInteressementQ}
-                        onChangeText={setInputInteressementQ}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={c.textSub}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>🛡 NON-ACCIDENT</Text>
-                      <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
-                        value={inputPrimeNonAccQ}
-                        onChangeText={setInputPrimeNonAccQ}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={c.textSub}
-                      />
-                    </View>
-                  </View>
 
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>💰 Salaire</Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                            value={inputParteUmSal}
+                            onChangeText={setInputParteUmSal}
+                            keyboardType="decimal-pad"
+                            placeholder={dadosFicha.netPaye > 0 ? String(dadosFicha.netPaye) : '0'}
+                            placeholderTextColor={c.textSub}
+                            autoFocus={true}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>🍽️ Frais</Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                            value={inputParteUmFrais}
+                            onChangeText={setInputParteUmFrais}
+                            keyboardType="decimal-pad"
+                            placeholder={dadosFicha.remboursementFrais > 0 ? String(dadosFicha.remboursementFrais) : '0'}
+                            placeholderTextColor={c.textSub}
+                          />
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={{ alignItems: 'center', marginBottom: 16, paddingVertical: 8 }}
+                        onPress={() => {
+                          if (dadosFicha.netPaye > 0) setInputParteUmSal(String(dadosFicha.netPaye))
+                          if (dadosFicha.remboursementFrais > 0) setInputParteUmFrais(String(dadosFicha.remboursementFrais))
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, color: '#f5a623', textDecorationLine: 'underline' }}>
+                          Utiliser valeur fiche
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 8 }}
+                        onPress={() => {
+                          const ficheSal = dadosFicha.netPaye || 0
+                          const ficheFrais = dadosFicha.remboursementFrais || 0
+                          const salFinal = parseFloat(inputParteUmSal.replace(',', '.')) || ficheSal
+                          const fraisFinal = parseFloat(inputParteUmFrais.replace(',', '.')) || ficheFrais
+                          setFonteEscolhida('banco')
+                          setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
+                          setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
+                          setShowParteUm(false)
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>Suivant →</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    /* ── PARTE 2: Confirmation ── */
+                    <>
+                      <View style={{ marginBottom: 14, padding: 14, backgroundColor: c.input, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
+                        <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 4 }}>
+                          📄 Fiche (IA): {dadosFicha.netPaye > 0 ? dadosFicha.netPaye : '—'}€ sal · {dadosFicha.remboursementFrais > 0 ? dadosFicha.remboursementFrais : '—'}€ frais
+                        </Text>
+                        <Text style={{ fontSize: 13, color: c.textSub }}>
+                          💳 Ton compte: {inputParteUmSal || '—'}€ sal · {inputParteUmFrais || '—'}€ frais
+                        </Text>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'banco' ? 'rgba(41,128,185,0.12)' : c.input, borderWidth: fonteEscolhida === 'banco' ? 1.5 : 1, borderColor: fonteEscolhida === 'banco' ? '#2980b9' : c.cardBorder }}
+                          onPress={() => {
+                            setFonteEscolhida('banco')
+                            const s = parseFloat(inputParteUmSal.replace(',', '.')) || 0
+                            const f = parseFloat(inputParteUmFrais.replace(',', '.')) || 0
+                            if (s > 0) setInputMontantSalQ(String(s))
+                            if (f > 0) setInputMontantFraisQ(String(f))
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: fonteEscolhida === 'banco' ? '#2980b9' : c.textSub }}>💳 Mes valeurs (compte)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'fiche' ? 'rgba(245,166,35,0.12)' : c.input, borderWidth: fonteEscolhida === 'fiche' ? 1.5 : 1, borderColor: fonteEscolhida === 'fiche' ? '#f5a623' : c.cardBorder }}
+                          onPress={() => {
+                            setFonteEscolhida('fiche')
+                            if (dadosFicha.netPaye > 0) setInputMontantSalQ(String(dadosFicha.netPaye))
+                            if (dadosFicha.remboursementFrais > 0) setInputMontantFraisQ(String(dadosFicha.remboursementFrais))
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: fonteEscolhida === 'fiche' ? '#f5a623' : c.textSub }}>📄 Utiliser la fiche</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                            💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
+                          </Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                            value={inputMontantSalQ}
+                            onChangeText={setInputMontantSalQ}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.textSub}
+                            autoFocus={true}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                            🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
+                          </Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                            value={inputMontantFraisQ}
+                            onChangeText={setInputMontantFraisQ}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.textSub}
+                          />
+                        </View>
+                      </View>
+                    </>
+                  )}
+
+                  {!showParteUm && (
+                    <>
+                      {/* Primes (pré-preenchidas pela IA, editáveis) */}
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>🤝 INTÉRESSEMENT</Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
+                            value={inputInteressementQ}
+                            onChangeText={setInputInteressementQ}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.textSub}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>🛡 NON-ACCIDENT</Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
+                            value={inputPrimeNonAccQ}
+                            onChangeText={setInputPrimeNonAccQ}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.textSub}
+                          />
+                        </View>
+                      </View>
+                    </>
+                  )}
+
+                  {!showParteUm && (
+                    <>
                   {/* ── Ce mois était-il normal ? ── */}
                   <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 8 }}>Ce mois était-il habituel ?</Text>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
@@ -3174,32 +3293,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={{ padding: 14, alignItems: 'center' }}
-                      onPress={() => {
-                        if (perguntaAtual > 0) {
-                          const popped = respostas[respostas.length - 1]
-                          if (popped) {
-                            setInputMontantSalQ((popped.montantSalReel || 0) > 0 ? String(Math.round((popped.montantSalReel || 0) * 100) / 100) : '')
-                            setInputMontantFraisQ((popped.montantFraisReel || 0) > 0 ? String(Math.round((popped.montantFraisReel || 0) * 100) / 100) : '')
-                          setInputMoisAtipico(popped.moisAtipico || false)
-                          setInputInteressementQ((popped.interessementQ || 0) > 0 ? String(Math.round((popped.interessementQ || 0) * 100) / 100) : '')
-                          setInputPrimeNonAccQ((popped.primeNonAccQ || 0) > 0 ? String(Math.round((popped.primeNonAccQ || 0) * 100) / 100) : '')
-                          }
-                          setRascunhoActual({
-                            index: perguntaAtual,
-                            montantSalReel: parseFloat(inputMontantSalQ) || 0,
-                            montantFraisReel: parseFloat(inputMontantFraisQ) || 0,
-                            interessementQ: parseFloat(inputInteressementQ) || 0,
-                            primeNonAccQ: parseFloat(inputPrimeNonAccQ) || 0,
-                            moisAtipico: inputMoisAtipico,
-                          })
-                          setPerguntaAtual(perguntaAtual - 1)
-                          setRespostas(respostas.slice(0, -1))
-                        } else {
-                          setShowModalCancelar(true)
-                        }
-                      }}
+                      onPress={() => setShowParteUm(true)}
                     >
-                      <Text style={{ fontSize: 14, color: c.textSub }}>{perguntaAtual > 0 ? '←' : 'Annuler'}</Text>
+                      <Text style={{ fontSize: 14, color: c.textSub }}>←</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
@@ -3210,6 +3306,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                     </TouchableOpacity>
                   </View>
+                    </>
+                  )}
                 </>
               )
             })()}

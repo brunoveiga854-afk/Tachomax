@@ -405,11 +405,13 @@ export default function ReglagesScreen() {
       ? '✅ hval erroné bloqué: ' + ap._hvalErroConfirmado + '€/h (ne sera plus demandé)'
       : 'ℹ️ Aucun hval erroné mémorisé')
 
-    // ── 3. ASYNCSTORAGE ──────────────────────────────────────────
-    lines.push('\n💾 ASYNCSTORAGE')
-    const AS_KEYS = [
+    // ── 3. ASYNCSTORAGE / SECURESTORE ───────────────────────────
+    lines.push('\n💾 ASYNCSTORAGE / SECURESTORE')
+    const SECURE_KEYS = [
       'monSalaire_padrao',
       'aprendizagem_padrao',
+    ]
+    const AS_KEYS = [
       'monSalaire_v2',
       'historique',
       'frais_regles',
@@ -417,10 +419,13 @@ export default function ReglagesScreen() {
       'aprendizagem_meses_confirmados',
     ]
     const rawMap: Record<string, string | null> = {}
+    for (const key of SECURE_KEYS) {
+      rawMap[key] = await secureGet(key)
+    }
     for (const key of AS_KEYS) {
       rawMap[key] = await AsyncStorage.getItem(key)
     }
-    for (const key of AS_KEYS) {
+    for (const key of [...SECURE_KEYS, ...AS_KEYS]) {
       const raw = rawMap[key]
       if (raw === null) {
         lines.push('   ❌ ' + key + ': absent')

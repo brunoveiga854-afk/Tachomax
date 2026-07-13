@@ -28,8 +28,7 @@ const migrarParaSecureStore = async (key: string): Promise<void> => {
 }
 import DocumentScanner from '../../src/components/DocumentScanner'
 import {
-  PADRAO_INICIAL, PadraoAprendido, PerguntaPendente, BoletimExtraido,
-  gerarPerguntasObrigatorias, detectarAnomalias, aplicarRespostaConduteur,
+  PADRAO_INICIAL, PadraoAprendido, BoletimExtraido,
   actualizarPadraoComBoletim, precisaoEstimativa as precisaoEstimativaMotor
 } from '../../src/engine/aprendizagem'
 import { migrarPadrao, migrarPadraoAprendido, PADRAO_VERSAO_ACTUAL, PadraoSalario } from '../../src/engine/migracoes'
@@ -1220,54 +1219,8 @@ export default function MonSalaireScreen() {
   const [editMoisAtipico, setEditMoisAtipico] = useState(false)
   const [camposOk, setCamposOk] = useState('')
   const [padraoAprendido, setPadraoAprendido] = useState<PadraoAprendido>(PADRAO_INICIAL)
-  const [perguntasPendentes, setPerguntasPendentes] = useState<PerguntaPendente[]>([])
-  const [perguntaActual, setPerguntaActual] = useState<PerguntaPendente | null>(null)
-  const [showModalPerguntas, setShowModalPerguntas] = useState(false)
-  const [respostaData, setRespostaData] = useState('')
-  const [respostaMes, setRespostaMes] = useState<number | null>(null)
-  const [respostaMesAno, setRespostaMesAno] = useState<number>(new Date().getFullYear())
-  const [respostaMesManual, setRespostaMesManual] = useState(false)
-  useEffect(() => {
-    setRespostaMesManual(false)
-    if (!perguntaActual) return
-    log.debug('fiche', 'perguntaActual activa', { tipo: perguntaActual.tipo, valorContexto: perguntaActual.valorContexto })
-    if (perguntaActual.tipo === 'timing_salario' && (perguntaActual.valorContexto?.netPaye || 0) > 0) {
-      setInputMontantSalQ(String(perguntaActual.valorContexto.netPaye))
-    }
-    if (perguntaActual.tipo === 'timing_frais' && (perguntaActual.valorContexto?.fraisBoletim || 0) > 0) {
-      setInputMontantFraisQ(String(perguntaActual.valorContexto.fraisBoletim))
-    }
-    const offsetSugerido = perguntaActual.tipo === 'timing_frais'
-      ? (padraoAprendido.flag ?? padrao.flag ?? 1)
-      : (padraoAprendido.hlag ?? padrao.hlag ?? 2)
-    const baseSug = respostaData ? (() => {
-      const [dd, mm, yyyy] = respostaData.split('/')
-      return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
-    })() : new Date()
-    const dSug = new Date(baseSug)
-    dSug.setMonth(dSug.getMonth() - offsetSugerido)
-    setRespostaMes(dSug.getMonth())
-    setRespostaMesAno(dSug.getFullYear())
-  }, [perguntaActual])
-  useEffect(() => {
-    if (!respostaData || respostaMesManual || !perguntaActual) return
-    const offsetSugerido = perguntaActual.tipo === 'timing_frais'
-      ? (padraoAprendido.flag ?? padrao.flag ?? 1)
-      : (padraoAprendido.hlag ?? padrao.hlag ?? 2)
-    const [dd, mm, yyyy] = respostaData.split('/')
-    const base = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
-    const dSug = new Date(base)
-    dSug.setMonth(dSug.getMonth() - offsetSugerido)
-    setRespostaMes(dSug.getMonth())
-    setRespostaMesAno(dSug.getFullYear())
-  }, [respostaData])
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
-  const [showConfirmTiming, setShowConfirmTiming] = useState(false)
-  const [confirmTimingNet, setConfirmTimingNet] = useState(0)
-  const [confirmTimingPeriode, setConfirmTimingPeriode] = useState('')
-  const [confirmTimingMesPag, setConfirmTimingMesPag] = useState('')
-  const pendingDocsRef = useRef<DocumentoAnalysado[]>([])
   const router = useRouter()
 
   const breathAnim = useRef(new Animated.Value(1)).current
@@ -2078,28 +2031,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const iniciarPerguntas = async (docs: DocumentoAnalysado[]) => {
     const fiches = docs.filter(d => d.tipo === 'fiche')
     if (fiches.length === 0) return
-    log.info('fiche', 'iniciarPerguntas', { numFiches: fiches.length, jaConfirmado: padraoAprendido.hlagConfirmado && padraoAprendido.flagConfirmado })
-    if (padraoAprendido.hlagConfirmado && padraoAprendido.flagConfirmado) {
-      const moisIdx = fiches[0].moisIndex ?? new Date().getMonth()
-      const ano = fiches[0].annee ?? new Date().getFullYear()
-      const [anoP, mesP] = shiftMois(ano, moisIdx, padraoAprendido.hlag ?? 1)
-      const mesPagNom = MOIS_NOMS[mesP] ?? ''
-      const pfRaw = (fiches[0].dados as any) || (fiches[0] as any)
-      setConfirmTimingNet(pfRaw?.netPaye || 0)
-      setConfirmTimingPeriode(fiches[0].periode || '')
-      setConfirmTimingMesPag(`${mesPagNom} ${anoP}`)
-      pendingDocsRef.current = docs
-      setShowPerguntas(false)
-      setShowModalPerguntas(false)
-      setShowConfirmTiming(true)
-      return
-    }
+    log.info('fiche', 'iniciarPerguntas', { numFiches: fiches.length })
     await processarPerguntas(docs)
-  }
-
-  const confirmarTimingEProsseguir = async () => {
-    setShowConfirmTiming(false)
-    await processarPerguntas(pendingDocsRef.current)
   }
 
   const processarPerguntas = async (docs: DocumentoAnalysado[], padraoOverride?: PadraoAprendido) => {
@@ -2172,10 +2105,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setShowVerifDetalhes(false)
     setInputMoisAtipico((pf?.interessement || 0) > 0 || (pf?.primeExceptionnelle || 0) > 0)
     setShowPerguntas(true)
-    // Motor de aprendizagem (modo manual)
+    // Motor de aprendizagem (actualiza padrão silenciosamente)
     {
       let padAtual = padraoOverride ?? padraoAprendido
-      const todasPerguntasMotor: PerguntaPendente[] = []
       for (const ficheDoc of fiches) {
         const pf = ficheDoc.dados || ficheDoc as any
         const boletim: BoletimExtraido = {
@@ -2197,20 +2129,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           mesTrabalho: null,
         }
         padAtual = actualizarPadraoComBoletim(boletim, padAtual)
-        const pergsObrig = gerarPerguntasObrigatorias(padAtual, boletim)
-        const pergsAnom = detectarAnomalias(boletim, padAtual)
-        todasPerguntasMotor.push(...pergsObrig, ...pergsAnom)
-        for (const p of [...pergsObrig, ...pergsAnom]) {
-          log.debug('fiche', 'pergunta gerada', { tipo: p.tipo, valorContexto: p.valorContexto })
-        }
       }
-      if (todasPerguntasMotor.length > 0) {
-        setPerguntasPendentes(todasPerguntasMotor)
-        setPerguntaActual(todasPerguntasMotor[0])
-        setShowModalPerguntas(true)
-      } else {
-        await persistirPadraoAprendido(padAtual)
-      }
+      await persistirPadraoAprendido(padAtual)
       if (!padAtual.hlagConfirmado || !padAtual.flagConfirmado) setShowCadeado(true)
     }
   }
@@ -2285,40 +2205,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
   }
 
-  const handleResponderPergunta = async (resposta: string) => {
-    if (!perguntaActual) return
-    log.info('fiche', 'resposta pergunta', { tipo: perguntaActual.tipo, resposta })
-    const dataPag = respostaData ? (() => {
-      const [dd, mm, yyyy] = respostaData.split('/')
-      return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
-    })() : null
-    const boletimTiming: BoletimExtraido = {
-      periodo: '', moisIndex: 0, annee: 0, netPaye: 0, salairebrut: 0,
-      hval: null, heuresSuppl25: null, heuresSuppl50: null, heuresNuit: null,
-      joursCongesN: null, joursCongesN1: null, joursRC: null, fraisBoletim: null,
-      rubriquesDesconhecidas: [],
-      dataPagamento: dataPag,
-      mesTrabalho: respostaMes !== null ? respostaMes : null,
-    }
-    const novoPadrao = aplicarRespostaConduteur(perguntaActual, resposta, padraoAprendido, boletimTiming)
-    await persistirPadraoAprendido(novoPadrao)
-    if (perguntaActual.tipo === 'taxa_mudou' && resposta.startsWith('Oui') && novoPadrao.hval !== null) {
-      const padraoActualizado = { ...padrao, hval: novoPadrao.hval, h25: Math.round(novoPadrao.hval * 1.25 * 100) / 100, h50: Math.round(novoPadrao.hval * 1.5 * 100) / 100 }
-      await persistirPadrao(padraoActualizado)
-    }
-    const restantes = perguntasPendentes.filter(p => p.id !== perguntaActual.id)
-    setPerguntasPendentes(restantes)
-    if (restantes.length > 0) {
-      setPerguntaActual(restantes[0])
-    } else {
-      setPerguntaActual(null)
-      setShowModalPerguntas(false)
-      const novosConfirmados = mesesConfirmados + 1
-      setMesesConfirmados(novosConfirmados)
-      await AsyncStorage.setItem('aprendizagem_meses_confirmados', String(novosConfirmados))
-      if (novoPadrao.hlagConfirmado && novoPadrao.flagConfirmado) setShowCadeado(false)
-    }
-  }
 
   const guardarTudo = async (resps: any[]) => {
     setLoading(true)
@@ -2921,14 +2807,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 {'2 questions en attente pour activer la pr\u00E9vision'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {perguntaActual && (
-                <TouchableOpacity
-                  style={{ backgroundColor: '#f39c12', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 }}
-                  onPress={() => setShowModalPerguntas(true)}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>{'R\u00E9pondre maintenant'}</Text>
-                </TouchableOpacity>
-                )}
                 <TouchableOpacity
                   style={{ borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(243,156,18,0.4)' }}
                   onPress={() => setShowCadeado(false)}
@@ -3326,7 +3204,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
       {/* MODAL PERGUNTAS */}
       <Modal visible={showPerguntas} transparent animationType="slide">
-        <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: showModalPerguntas ? 0.15 : 1 }}>
+        <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: 1 }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
@@ -4149,158 +4027,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           </View>
         </View>
       </Modal>
-      {/* MODAL CONFIRMAÇÃO RÁPIDA DO TIMING */}
-      <Modal visible={showConfirmTiming} transparent animationType="fade" onRequestClose={() => setShowConfirmTiming(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 24, width: '100%', borderWidth: 1, borderColor: c.cardBorder }}>
-            <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6, textAlign: 'center', letterSpacing: 1, fontWeight: '700' }}>CONFIRMATION DU PAIEMENT</Text>
-            <Text style={{ fontSize: 28, fontWeight: '900', color: c.text, textAlign: 'center', marginBottom: 4 }}>
-              {'💰 '}{confirmTimingNet > 0 ? confirmTimingNet.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}{'\u20AC'}
-            </Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>{confirmTimingPeriode}</Text>
-            <View style={{ backgroundColor: 'rgba(245,166,35,0.08)', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)' }}>
-              <Text style={{ fontSize: 15, color: c.text, textAlign: 'center', lineHeight: 24 }}>
-                {'Reçu en '}<Text style={{ fontWeight: '800', color: '#f5a623' }}>{confirmTimingMesPag}</Text>{'\n'}
-                {'le jour '}<Text style={{ fontWeight: '800', color: '#f5a623' }}>{padraoAprendido.diaSalario}</Text>
-              </Text>
-              <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginTop: 6 }}>{'C\'est correct\u00A0?'}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#2ecc71', alignItems: 'center' }}
-                onPress={confirmarTimingEProsseguir}
-              >
-                <Text style={{ fontWeight: '800', color: '#fff', fontSize: 15 }}>{'✅ Oui'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#f5a623', alignItems: 'center' }}
-                onPress={() => { setShowConfirmTiming(false); processarPerguntas(pendingDocsRef.current, { ...padraoAprendido, hlagConfirmado: false, flagConfirmado: false }) }}
-              >
-                <Text style={{ fontWeight: '800', color: '#f5a623', fontSize: 15 }}>{'✏️ Corriger'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      {/* MODAL MOTOR DE APRENDIZAGEM */}
-      <Modal visible={showModalPerguntas} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
-              <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
-              <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 16 }}>
-                {'\u{1F4CA} Une question rapide'}
-              </Text>
-              {perguntaActual && (
-                <>
-                  <Text style={{ fontSize: 14, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-                    {perguntaActual.pergunta}
-                  </Text>
-                  {(perguntaActual.tipo === 'timing_salario' || perguntaActual.tipo === 'timing_frais') && (
-                    <View style={{ gap: 12, marginBottom: 16 }}>
-                      <View>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DATE DE PAIEMENT</Text>
-                        <TouchableOpacity
-                          style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: respostaData ? '#f5a623' : c.cardBorder, alignItems: 'center' }}
-                          onPress={() => {
-                            const parts = respostaData ? respostaData.split('/') : []
-                            const initDate = parts.length === 3 ? new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])) : new Date()
-                            DateTimePickerAndroid.open({
-                              value: isNaN(initDate.getTime()) ? new Date() : initDate,
-                              mode: 'date',
-                              onChange: (_, date) => {
-                                if (date) {
-                                  const dd = String(date.getDate()).padStart(2, '0')
-                                  const mm = String(date.getMonth() + 1).padStart(2, '0')
-                                  const yyyy = date.getFullYear()
-                                  setRespostaData(`${dd}/${mm}/${yyyy}`)
-                                }
-                              }
-                            })
-                          }}
-                        >
-                          <Text style={{ fontSize: 16, color: respostaData ? c.text : c.textSub, fontWeight: '600' }}>
-                            {respostaData || '📅 Choisir la date'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                      <View>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>CE PAIEMENT CORRESPOND AU TRAVAIL DE QUEL MOIS ?</Text>
-                        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                          {[0,1,2,3].map((offset: number) => {
-                            const base = respostaData ? (() => {
-                              const [dd, mm, yyyy] = respostaData.split('/')
-                              return new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
-                            })() : new Date()
-                            const d = new Date(base)
-                            d.setMonth(d.getMonth() - offset)
-                            const idx = d.getMonth()
-                            const yr = d.getFullYear()
-                            const label = MOIS_NOMS[idx] + ' ' + yr
-                            return (
-                              <TouchableOpacity
-                                key={offset}
-                                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: respostaMes === idx ? 2 : 1, borderColor: respostaMes === idx ? '#f5a623' : c.cardBorder, backgroundColor: respostaMes === idx ? 'rgba(245,166,35,0.1)' : c.input }}
-                                onPress={() => { setRespostaMes(idx); setRespostaMesAno(yr); setRespostaMesManual(true) }}
-                              >
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: respostaMes === idx ? '#f5a623' : c.textSub }}>{label}</Text>
-                              </TouchableOpacity>
-                            )
-                          })}
-                        </View>
-                      </View>
-                    </View>
-                  )}
-                  {perguntaActual.opcoes && perguntaActual.tipo !== 'timing_salario' && perguntaActual.tipo !== 'timing_frais' && (
-                    <View style={{ gap: 8, marginBottom: 16 }}>
-                      {perguntaActual.opcoes.map((op: string, i: number) => (
-                        <TouchableOpacity
-                          key={i}
-                          style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.cardBorder }}
-                          onPress={() => handleResponderPergunta(op)}
-                        >
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: c.text, textAlign: 'center' }}>{op}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                  {(!perguntaActual.opcoes || perguntaActual.tipo === 'timing_salario' || perguntaActual.tipo === 'timing_frais') && (
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TouchableOpacity
-                        style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                        onPress={() => { setShowModalPerguntas(false); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear()) }}
-                      >
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Plus tard</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }}
-                        onPress={() => {
-                          const rep = respostaData || (respostaMes !== null ? String(respostaMes) : '')
-                          if (!rep) { Alert.alert('', 'Choisis une date et un mois avant de confirmer'); return }
-                          handleResponderPergunta(rep); setRespostaData(''); setRespostaMes(null); setRespostaMesAno(new Date().getFullYear())
-                        }}
-                      >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Confirmer</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </>
-              )}
-              {!perguntaActual && (
-                <TouchableOpacity
-                  style={{ padding: 14, alignItems: 'center' }}
-                  onPress={() => setShowModalPerguntas(false)}
-                >
-                  <Text style={{ color: '#aaa', fontSize: 14 }}>Fermer</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
-
     </SafeAreaView>
   )
 }

@@ -213,143 +213,8 @@ function defasagemProtegida(valor: number, count: number, baseValue: number): nu
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
-
-// ── VÉRIFICATION CROISÉE FICHE vs APP ─────────────────────────────────────────
-type VerifNivel = 'ok' | 'warn' | 'alert'
-
-type VerifCruzada = {
-  mesTrabalhoLabel: string
-  mesFraisLabel: string
-  salario: { fiche: number; app: number; diff: number; nivel: VerifNivel; aviso?: string; fonteApp: string }
-  frais: { fiche: number; app: number; diff: number; pct: number; nivel: VerifNivel }
-  horas: { fiche: number; app: number; diff: number; nivel: VerifNivel; aviso?: string }
-}
-
-function temDiferencasVerif(verif: VerifCruzada): boolean {
-  return verif.salario.nivel !== 'ok' || verif.frais.nivel !== 'ok' || verif.horas.nivel !== 'ok'
-}
-
 const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
-function horasCalendarioMesTrabalho(histCal: any[], anoPay: number, mesPay: number, hlag: number): number {
-  const [aH, mH] = shiftMois(anoPay, mesPay, -hlag)
-  const dias = histCal.filter((j: any) => {
-    const parts = j.date?.split('/')
-    if (!parts || parts.length < 2) return false
-    const mes = parseInt(parts[1]) - 1
-    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
-    return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
-  })
-  return dias.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
-}
-
-function netCalendarioMesPaye(histCal: any[], anoPay: number, mesPay: number, p: Padrao): number {
-  const [aH, mH] = shiftMois(anoPay, mesPay, -p.hlag)
-  const todosDoMes = histCal.filter((j: any) => {
-    const parts = j.date?.split('/')
-    if (!parts || parts.length < 2) return false
-    const mes = parseInt(parts[1]) - 1
-    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
-    return mes === mH && ano === aH
-  })
-  const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
-  if (diasTrab.length === 0) return 0
-
-  const totalH = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
-  const nConges = todosDoMes.filter((j: any) => ['FERIE', 'vac'].includes(j.type || '')).length
-  const nFeries = todosDoMes.filter((j: any) => ['FER', 'FERIADO', 'hol'].includes(j.type || '')).length
-  const nRC = todosDoMes.filter((j: any) => j.type === 'RC').length
-  const valCongeNet = (p.valorDiaConges > 0 ? p.valorDiaConges : (p.hbase / 22) * p.hval) * p.liquidRate
-  const valFerieNet = (p.valorDiaFerie > 0 ? p.valorDiaFerie : (p.hbase / 22) * p.hval) * p.liquidRate
-  const valRCNet = (p.valorDiaRC > 0 ? p.valorDiaRC : (p.hbase / 22) * p.hval) * p.liquidRate
-
-  if (p.taxaHorariaNetaMedia > 0) {
-    return Math.round(
-      totalH * p.taxaHorariaNetaMedia + nConges * valCongeNet + nFeries * valFerieNet + nRC * valRCNet
-    )
-  }
-  const extra = Math.max(0, totalH - p.hbase)
-  const brut = totalH <= p.hbase
-    ? totalH * p.hval
-    : p.hbase * p.hval + Math.min(extra, p.lim25) * p.h25 + Math.max(0, extra - p.lim25) * p.h50
-  return Math.round(
-    brut * p.liquidRate + nConges * valCongeNet + nFeries * valFerieNet + nRC * valRCNet
-  )
-}
-
-function buildVerificacaoCruzada(
-  ficha: DocumentoAnalysado,
-  dados: any,
-  padrao: Padrao,
-  histCal: any[],
-  historique: MoisData[],
-): VerifCruzada {
-  const ano = ficha.annee
-  const mes = ficha.moisIndex
-  const [aT, mT] = shiftMois(ano, mes, -padrao.hlag)
-  const [aF, mF] = shiftMois(ano, mes, -padrao.flag)
-  const mesTrabalhoLabel = `${MOIS_NOMS[mT]} ${aT}`
-  const mesFraisLabel = `${MOIS_NOMS[mF]} ${aF}`
-
-  const salFiche = dados.netPaye || 0
-  const histMes = historique.find(h => h.moisIndex === mes && h.annee === ano && h.netPaye > 0)
-  const salApp = histMes?.netPaye || netCalendarioMesPaye(histCal, ano, mes, padrao)
-  const fonteApp = histMes ? 'Confirmé précédemment' : 'Estimé calendrier'
-  const diffSal = Math.abs(salFiche - salApp)
-  let nivelSal: VerifNivel = 'ok'
-  let avisoSal: string | undefined
-  if (salFiche > 0 && salApp > 0) {
-    if (diffSal <= 2) nivelSal = 'ok'
-    else if (diffSal <= 20) {
-      nivelSal = 'warn'
-      avisoSal = 'Écart modeste — vérifie le montant avant de confirmer.'
-    } else {
-      nivelSal = 'alert'
-      avisoSal = 'Écart important — possible heures supplémentaires d\'un autre mois incluses.'
-    }
-  } else if (salFiche > 0 && salApp === 0) {
-    nivelSal = 'warn'
-    avisoSal = 'Aucune heure enregistrée au calendrier pour le mois de travail (hlag).'
-  }
-
-  const fraisFiche = dados.remboursementFrais || 0
-  const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, padrao).total
-  const fraisApp = padrao.fraisFactorReal > 0 && padrao.fraisFactorReal !== 1
-    ? Math.round(fraisCalc * padrao.fraisFactorReal * 100) / 100
-    : fraisCalc
-  const diffFrais = Math.abs(fraisFiche - fraisApp)
-  const pctFrais = fraisApp > 0 ? (diffFrais / fraisApp) * 100 : (fraisFiche > 0 ? 100 : 0)
-  let nivelFrais: VerifNivel = 'ok'
-  if (fraisFiche > 0 || fraisApp > 0) {
-    if (pctFrais <= 5) nivelFrais = 'ok'
-    else if (pctFrais <= 15) nivelFrais = 'warn'
-    else nivelFrais = 'alert'
-  }
-
-  const hFiche = dados.totalHeures || 0
-  const hApp = horasCalendarioMesTrabalho(histCal, ano, mes, padrao.hlag)
-  const diffH = Math.abs(hFiche - hApp)
-  let nivelH: VerifNivel = 'ok'
-  let avisoH: string | undefined
-  if (hFiche > 0 && hApp > 0) {
-    if (diffH <= 5) nivelH = 'ok'
-    else {
-      nivelH = 'alert'
-      avisoH = 'Écart > 5h — possible heures d\'un autre mois incluses sur la fiche.'
-    }
-  } else if (hFiche > 0 && hApp === 0) {
-    nivelH = 'warn'
-    avisoH = 'Aucune heure au calendrier pour ce mois de travail.'
-  }
-
-  return {
-    mesTrabalhoLabel,
-    mesFraisLabel,
-    salario: { fiche: salFiche, app: salApp, diff: diffSal, nivel: nivelSal, aviso: avisoSal, fonteApp },
-    frais: { fiche: fraisFiche, app: fraisApp, diff: diffFrais, pct: pctFrais, nivel: nivelFrais },
-    horas: { fiche: hFiche, app: hApp, diff: diffH, nivel: nivelH, aviso: avisoH },
-  }
-}
 
 // ── VALIDAR HLAG COM TOTAIS CONFIRMADOS ──────────────────────────────────────
 // Usa montantTotalRecu (confirmado pelo utilizador) para encontrar o hlag correcto.
@@ -1182,11 +1047,8 @@ export default function MonSalaireScreen() {
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
-  const [savedSalBeforeVerif, setSavedSalBeforeVerif] = useState('')
-  const [savedFraisBeforeVerif, setSavedFraisBeforeVerif] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
-  const [showVerifDetalhes, setShowVerifDetalhes] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -1214,7 +1076,6 @@ export default function MonSalaireScreen() {
       })
     }
   }, [])
-  const [verifApplied, setVerifApplied] = useState<false | 'fiche' | 'app'>(false)
   const [inputMoisAtipico, setInputMoisAtipico] = useState(false)
   const [editMoisAtipico, setEditMoisAtipico] = useState(false)
   const [camposOk, setCamposOk] = useState('')
@@ -2102,7 +1963,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputMontantFraisQ(fraisZero > 0 ? String(fraisZero) : '')
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
-    setShowVerifDetalhes(false)
     setInputMoisAtipico((pf?.interessement || 0) > 0 || (pf?.primeExceptionnelle || 0) > 0)
     setShowPerguntas(true)
     // Motor de aprendizagem (actualiza padrão silenciosamente)
@@ -2197,8 +2057,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
       if (temRascunho) setRascunhoActual(null)
-      setShowVerifDetalhes(false)
-      setVerifApplied(false)
       setPerguntaAtual(proxIndex)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -3210,8 +3068,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
             {fichaActual && (() => {
               const dadosFicha = (fichaActual.dados || fichaActual) as any
-              const verif = buildVerificacaoCruzada(fichaActual, dadosFicha, padrao, histCal, historique)
-              const temDiff = temDiferencasVerif(verif)
               const mesLabel = MESES_PT[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
               const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
               const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
@@ -3228,58 +3084,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     </Text>
                   )}
 
-                  {temDiff && (
-                    <View style={{ marginBottom: 16, padding: 14, backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: '#f5a623' }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: c.text, lineHeight: 22, marginBottom: 12 }}>
-                        ⚠️ J'ai trouvé des différences entre la fiche et mes calculs. Utiliser les valeurs de la fiche ?
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: verifApplied === 'fiche' ? 'rgba(39,174,96,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'fiche' ? 1.5 : 1, borderColor: verifApplied === 'fiche' ? '#27ae60' : c.cardBorder }}
-                          onPress={() => {
-                            setSavedSalBeforeVerif(inputMontantSalQ)
-                            setSavedFraisBeforeVerif(inputMontantFraisQ)
-                            log.debug('fiche', 'Oui utiliser fiche', { verifSalFiche: verif.salario.fiche, verifFraisFiche: verif.frais.fiche })
-                            if (verif.salario.fiche > 0) setInputMontantSalQ(String(verif.salario.fiche))
-                            if (verif.frais.fiche > 0) setInputMontantFraisQ(String(verif.frais.fiche))
-                            setVerifApplied('fiche')
-                          }}
-                        >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'fiche' ? '#27ae60' : c.textSub }}>Oui, utiliser la fiche</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: verifApplied === 'app' ? 'rgba(41,128,185,0.12)' : c.input, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: verifApplied === 'app' ? 1.5 : 1, borderColor: verifApplied === 'app' ? '#2980b9' : c.cardBorder }}
-                          onPress={() => {
-                            const netPaye = fiches[perguntaAtual]?.dados?.netPaye || 0
-                            const frais = fiches[perguntaAtual]?.dados?.remboursementFrais || 0
-                            setInputMontantSalQ(savedSalBeforeVerif || (netPaye > 0 ? String(netPaye) : ''))
-                            setInputMontantFraisQ(savedFraisBeforeVerif || (frais > 0 ? String(frais) : ''))
-                            setVerifApplied('app')
-                          }}
-                        >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: verifApplied === 'app' ? '#2980b9' : c.textSub }}>Non, les miens</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <TouchableOpacity onPress={() => setShowVerifDetalhes(v => !v)} style={{ alignItems: 'center', paddingVertical: 4 }}>
-                        <Text style={{ fontSize: 12, color: c.textSub, textDecorationLine: 'underline' }}>
-                          {showVerifDetalhes ? 'Masquer détails' : 'Voir détails'}
-                        </Text>
-                      </TouchableOpacity>
-                      {showVerifDetalhes && (
-                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(245,166,35,0.25)' }}>
-                          <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
-                            💰 Salaire — fiche {Math.round(verif.salario.fiche)}€ · app {Math.round(verif.salario.app)}€
-                          </Text>
-                          <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 4 }}>
-                            🍽️ Frais — fiche {verif.frais.fiche.toFixed(2)}€ · app {verif.frais.app.toFixed(2)}€
-                          </Text>
-                          <Text style={{ fontSize: 12, color: c.textSub }}>
-                            ⏱ Heures — fiche {verif.horas.fiche.toFixed(1)}h · calendrier {verif.horas.app.toFixed(1)}h
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
 
                   <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20, lineHeight: 28 }}>
                     Reçu en {mesLabel} {fichaActual.annee} — pour le travail de {mesTravail}
@@ -3291,13 +3095,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
                       </Text>
                       <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: verifApplied ? 2 : 1, borderColor: verifApplied === 'fiche' ? '#f5a623' : verifApplied === 'app' ? '#3498db' : c.cardBorder, textAlign: 'center' }}
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
                         value={inputMontantSalQ}
-                        onChangeText={(v) => { setInputMontantSalQ(v); setVerifApplied(false) }}
+                        onChangeText={setInputMontantSalQ}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={c.textSub}
-                        autoFocus={!temDiff}
+                        autoFocus={true}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -3305,9 +3109,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
                       </Text>
                       <TextInput
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: verifApplied ? 2 : 1, borderColor: verifApplied === 'fiche' ? '#f5a623' : verifApplied === 'app' ? '#3498db' : c.cardBorder, textAlign: 'center' }}
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
                         value={inputMontantFraisQ}
-                        onChangeText={(v) => { setInputMontantFraisQ(v); setVerifApplied(false) }}
+                        onChangeText={setInputMontantFraisQ}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={c.textSub}
@@ -3390,8 +3194,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           })
                           setPerguntaAtual(perguntaAtual - 1)
                           setRespostas(respostas.slice(0, -1))
-                          setShowVerifDetalhes(false)
-                          setVerifApplied(false)
                         } else {
                           setShowModalCancelar(true)
                         }

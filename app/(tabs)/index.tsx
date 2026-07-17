@@ -78,6 +78,7 @@ export default function AujourdhuiScreen() {
   const [showPausasModal, setShowPausasModal] = useState(false)
   const [showPausaDuracaoModal, setShowPausaDuracaoModal] = useState(false)
   const [pausaDuracaoInput, setPausaDuracaoInput] = useState('')
+  const [pausaFimTimestamp, setPausaFimTimestamp] = useState<number | null>(null)
   const [showStats, setShowStats] = useState(false)
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
@@ -298,6 +299,14 @@ export default function AujourdhuiScreen() {
 
       await guardarEstado(estadoAtualizado)
       aplicarEstadoPersistido(estadoAtualizado, 0)
+      if (estadoAtualizado.emPausa) {
+        const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
+        if (fimRaw) {
+          const fim = parseInt(fimRaw)
+          if (fim > Date.now()) setPausaFimTimestamp(fim)
+          else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
+        }
+      }
       return true
     } catch (e) {
       return false
@@ -329,6 +338,14 @@ export default function AujourdhuiScreen() {
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
+      if (estado.emPausa) {
+        const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
+        if (fimRaw) {
+          const fim = parseInt(fimRaw)
+          if (fim > Date.now()) setPausaFimTimestamp(fim)
+          else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
+        }
+      }
       log.info('index', 'estado restaurado', { enService: estado.enService, emPausa: estado.emPausa })
     } catch (e) { log.error('index', 'restaurarEstado falhou', e) }
   }
@@ -680,6 +697,19 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return () => clearInterval(timer)
   }, [emPausa])
 
+  // Auto-retoma da pausa quando pausaFimTimestamp expirou
+  useEffect(() => {
+    if (!emPausa || !pausaFimTimestamp) return
+    const interval = setInterval(async () => {
+      if (Date.now() >= pausaFimTimestamp) {
+        clearInterval(interval)
+        await handlePause()
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [emPausa, pausaFimTimestamp])
+
   useEffect(() => {
     segPausaRef.current = segPausa
   }, [segPausa])
@@ -835,6 +865,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setSegPausa(0)
       setEmPausa(false)
       emPausaRef.current = false
+      setPausaFimTimestamp(null)
+      await AsyncStorage.removeItem('pausaFimTimestamp')
       await guardarEstado({
         enService, emPausa: false, decouche, modeNuit,
         segServico, segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmInicioTacho,
@@ -868,14 +900,22 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     })
     log.info('index', 'pausa iniciada')
     await cancelarTodosAlertas()
-    // Si une durée a été saisie, programmer une alerte de fin de pause
+    // Si une durée a été saisie, programmer une alerte et auto-retoma
     const parts = pausaDuracaoInput.match(/^(\d{1,2})[h:H]?(\d{2})$/)
+    let duracaoS = 0
     if (parts) {
-      const duracaoS = parseInt(parts[1]) * 3600 + parseInt(parts[2]) * 60
-      if (duracaoS > 0) await agendarAlertaPausa(duracaoS)
+      duracaoS = parseInt(parts[1]) * 3600 + parseInt(parts[2]) * 60
     } else if (/^\d+$/.test(pausaDuracaoInput)) {
-      const mins = parseInt(pausaDuracaoInput)
-      if (mins > 0) await agendarAlertaPausa(mins * 60)
+      duracaoS = parseInt(pausaDuracaoInput) * 60
+    }
+    if (duracaoS > 0) {
+      const fim = Date.now() + duracaoS * 1000
+      setPausaFimTimestamp(fim)
+      await AsyncStorage.setItem('pausaFimTimestamp', String(fim))
+      await agendarAlertaPausa(duracaoS)
+    } else {
+      setPausaFimTimestamp(null)
+      await AsyncStorage.removeItem('pausaFimTimestamp')
     }
   }
 
@@ -1515,6 +1555,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   <View style={{ alignItems: 'center', marginBottom: 12 }}>
                     <Text style={{ fontSize: 52, fontWeight: '900', color: '#f39c12', letterSpacing: 2 }}>{fmt(segPausa)}</Text>
                     <Text style={{ fontSize: 11, color: '#f39c12', fontWeight: '600', opacity: 0.8, marginTop: 2, letterSpacing: 0.5 }}>{t.pauseEnCours.toUpperCase()}</Text>
+                    {pausaFimTimestamp && (() => {
+                      const restS = Math.max(0, Math.floor((pausaFimTimestamp - Date.now()) / 1000))
+                      const mm = String(Math.floor(restS / 60)).padStart(2, '0')
+                      const ss = String(restS % 60).padStart(2, '0')
+                      return <Text style={{ fontSize: 13, color: '#f39c12', fontWeight: '700', marginTop: 4 }}>{restS > 0 ? `${mm}:${ss}` : '00:00'} restant</Text>
+                    })()}
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                     <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>

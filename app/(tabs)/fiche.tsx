@@ -1053,6 +1053,9 @@ export default function MonSalaireScreen() {
   const [inputParteUmSal, setInputParteUmSal] = useState('')
   const [inputParteUmFrais, setInputParteUmFrais] = useState('')
   const [fonteEscolhida, setFonteEscolhida] = useState<'banco' | 'fiche'>('banco')
+  const [inputDataParteUm, setInputDataParteUm] = useState('')
+  const [mesToTrabalhoParteUm, setMesToTrabalhoParteUm] = useState(0)
+  const [showDatePickerParteUm, setShowDatePickerParteUm] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -1972,6 +1975,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputParteUmSal(netPayeZero > 0 ? String(netPayeZero) : '')
     setInputParteUmFrais(fraisZero > 0 ? String(fraisZero) : '')
     setFonteEscolhida('banco')
+    setInputDataParteUm('')
+    setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
     setShowPerguntas(true)
     // Motor de aprendizagem (actualiza padrão silenciosamente)
     {
@@ -2069,6 +2074,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputParteUmSal(netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
       setInputParteUmFrais(fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
       setFonteEscolhida('banco')
+      setInputDataParteUm('')
+      setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
       setPerguntaAtual(proxIndex)
     } else {
       await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
@@ -3108,6 +3115,58 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         💳 Ce que tu as reçu sur ton compte
                       </Text>
 
+                      {/* ── Data de recebimento ── */}
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
+                        📅 Quand as-tu reçu ce salaire ?
+                      </Text>
+                      <TouchableOpacity
+                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                        onPress={() => {
+                          DateTimePickerAndroid.open({
+                            value: new Date(),
+                            mode: 'date',
+                            onChange: (_, date) => {
+                              if (!date) return
+                              const d = String(date.getDate()).padStart(2, '0')
+                              const m = String(date.getMonth() + 1).padStart(2, '0')
+                              const y = date.getFullYear()
+                              setInputDataParteUm(`${d}/${m}/${y}`)
+                              setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
+                            },
+                          })
+                        }}
+                      >
+                        <Text style={{ color: inputDataParteUm ? c.text : c.textSub, fontSize: 16 }}>
+                          {inputDataParteUm || '📅 Choisir la date'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* ── Mês de trabalho ── */}
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
+                        Ce salaire correspond au travail de quel mois ?
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                        {[0, 1, 2].map(offset => {
+                          const [a, m] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -offset)
+                          return (
+                            <TouchableOpacity key={offset}
+                              style={{ flex: 1, padding: 10, borderRadius: 12, alignItems: 'center',
+                                backgroundColor: mesToTrabalhoParteUm === offset ? 'rgba(245,166,35,0.15)' : c.input,
+                                borderWidth: mesToTrabalhoParteUm === offset ? 1.5 : 1,
+                                borderColor: mesToTrabalhoParteUm === offset ? '#f5a623' : c.cardBorder }}
+                              onPress={() => setMesToTrabalhoParteUm(offset)}
+                            >
+                              <Text style={{ fontSize: 12, color: mesToTrabalhoParteUm === offset ? '#f5a623' : c.textSub }}>
+                                {MOIS_NOMS[m]} {a}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: c.textSub }}>
+                                {offset === 0 ? 'même mois' : `${offset} mois avant`}
+                              </Text>
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </View>
+
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>💰 Salaire</Text>
@@ -3148,7 +3207,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
                       <TouchableOpacity
                         style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 8 }}
-                        onPress={() => {
+                        onPress={async () => {
                           const ficheSal = dadosFicha.netPaye || 0
                           const ficheFrais = dadosFicha.remboursementFrais || 0
                           const salFinal = parseFloat(inputParteUmSal.replace(',', '.')) || ficheSal
@@ -3156,6 +3215,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           setFonteEscolhida('banco')
                           setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
                           setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
+                          if (inputDataParteUm) {
+                            const novoPadrao = { ...padraoAprendido, hlag: mesToTrabalhoParteUm, hlagConfirmado: true }
+                            await persistirPadraoAprendido(novoPadrao)
+                            setPadraoAprendido(novoPadrao)
+                          }
                           setShowParteUm(false)
                         }}
                       >

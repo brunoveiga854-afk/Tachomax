@@ -79,14 +79,14 @@ export default function ReglagesScreen() {
   // Verifica os 4 campos obrigatórios e persiste o estado
   const atualizarCamposOk = async () => {
     const pSalvo = await AsyncStorage.getItem('profil')
-    const kmRaw = await AsyncStorage.getItem('km_ultimo_fim')
+    const kmVal = appState.kmUltimoFim
     let hbase = appState.padrao?.hbase || 0
     let hval = appState.padrao?.hval || 0
     const novosCampos = {
       profil: !!pSalvo,
       hbase: hbase > 0,
       hval: hval > 0,
-      km: parseFloat(kmRaw || '') > 0,
+      km: kmVal > 0,
     }
     setCamposOk(novosCampos)
     const allOk = novosCampos.profil && novosCampos.hbase && novosCampos.hval  // km não é obrigatório para estimativa
@@ -112,7 +112,6 @@ export default function ReglagesScreen() {
     })
     AsyncStorage.getItem('tracteur_type').then(v => { if (v === 'immat' || v === 'parc') setTracteurType(v) })
     AsyncStorage.getItem('tracteur_value').then(v => { if (v) setTracteurValue(v) })
-    AsyncStorage.getItem('km_ultimo_fim').then(v => { if (v && parseFloat(v) > 0) setKmTracteurActuel(v) })
     AsyncStorage.getItem('remorque_type').then(v => { if (v === 'immat' || v === 'parc') setRemorqueType(v) })
     AsyncStorage.getItem('remorque_value').then(v => { if (v) setRemorqueValue(v) })
     AsyncStorage.getItem('transport_frigo').then(v => setTransportFrigo(v === 'true'))
@@ -127,6 +126,15 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('equipement_grue_aux').then(v => setEquipGrueAux(v === 'true'))
     atualizarCamposOk()
   }, [])
+
+  // KM: AppContext primeiro, último dia do histórico com kmFim como fallback
+  // (histCal já vem ordenado mais-recente-primeiro via unshift)
+  useEffect(() => {
+    const kmContexto = appState.kmUltimoFim
+    const kmHistorico = appState.histCal?.find((d: any) => (d.kmFim || 0) > 0)?.kmFim ?? null
+    const kmFinal = kmContexto > 0 ? kmContexto : kmHistorico
+    if (kmFinal) setKmTracteurActuel(String(kmFinal))
+  }, [appState.kmUltimoFim, appState.histCal])
 
   // Scroll auto jusqu'à Paramètres Salaire si param scrollTo=salaire
   useEffect(() => {

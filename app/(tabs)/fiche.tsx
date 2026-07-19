@@ -2116,7 +2116,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
     setHistorique(novoHist)
+    perfLog.time('fiche', 'guardarTudo:asyncStorage')
     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
+    perfLog.timeEnd('fiche', 'guardarTudo:asyncStorage')
 
     // Analisar padrão com horários do calendário
     const histCal = appState.histCal ?? []
@@ -2134,8 +2136,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
     const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
     if (hlagValidado !== padraoBase.hlag) padraoBase = { ...padraoBase, hlag: hlagValidado }
+    perfLog.time('fiche', 'guardarTudo:analisarPadraoV2')
     const novoPadrao = analisarPadraoV2(novoHist, histCal, padraoBase)
+    perfLog.timeEnd('fiche', 'guardarTudo:analisarPadraoV2')
+    perfLog.time('fiche', 'guardarTudo:persistirPadrao')
     await persistirPadrao(novoPadrao)
+    perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo')

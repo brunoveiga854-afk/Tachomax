@@ -26,7 +26,6 @@ const migrarParaSecureStore = async (key: string): Promise<void> => {
     }
   } catch (e) { log.warn('secure', 'Migração SecureStore falhou: ' + key, e) }
 }
-import DocumentScanner from '../../src/components/DocumentScanner'
 import {
   PADRAO_INICIAL, PadraoAprendido, BoletimExtraido,
   actualizarPadraoComBoletim, precisaoEstimativa as precisaoEstimativaMotor
@@ -1027,7 +1026,6 @@ export default function MonSalaireScreen() {
   const [inputDiaSal, setInputDiaSal] = useState('')
   const [inputDiaFrais, setInputDiaFrais] = useState('')
   const [showEscolhaModal, setShowEscolhaModal] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
   const [showModalErro, setShowModalErro] = useState(false)
   const [modalErroMsg, setModalErroMsg] = useState('')
   const [showModalDocs, setShowModalDocs] = useState(false)
@@ -1827,59 +1825,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setLoading(false)
   }
 
-  const importarEscaneado = async (uri: string) => {
-    setShowScanner(false)
-    setLoading(true)
-    try {
-      const r2 = await fetch(uri)
-      const blob = await r2.blob()
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.readAsDataURL(blob)
-      })
-      const content: any[] = [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-        { type: 'text', text: 'Document 1 de 1.' },
-      ]
-      content.push({ type: 'text', text: `Tu es un expert en bulletins de salaire français transport routier.
-
-RÈGLE ABSOLUE: lis TOUTES les lignes de chaque fiche de paye, sans exception. Ne te limite jamais aux totaux. Inspecte chaque ligne individuelle: salaire de base, heures normales, heures supplémentaires, primes, avantages en nature, intéressement, participation, remboursements, retenues, cotisations et net à payer.
-
-Réponds UNIQUEMENT avec un JSON array sans markdown, exactement sous cette forme:
-[{"tipo":"fiche","periode":"Avril 2026","moisIndex":3,"annee":2026,"netPaye":0,"salairebrut":0,"totalCotisations":0,"interessement":0,"primeExceptionnelle":0,"participationSalariale":0,"autresPrimes":0,"remboursementFrais":0,"entreprise":"","conducteur":"","joursConges":0,"montantConges":0,"joursFeries":0,"montantFeries":0,"joursRC":0,"montantRC":0,"totalHeures":0,"hbase":0,"hval":0,"h25":0,"lim25":0,"h50":0}]
-
-Définition stricte des champs salaire:
-- netPaye: montant “Net payé” APRÈS prélèvement à la source (PAS) — c’est la somme réellement virée sur le compte bancaire du salarié. NE PAS utiliser “Net à payer avant impôt sur le revenu”. NE PAS soustraire le PAS. Si la fiche affiche les deux valeurs, prendre uniquement la valeur finale après PAS.
-- salairebrut: salaire brut de base/récurrent du bulletin, hors intéressement et primes exceptionnelles si elles sont affichées séparément.
-- totalCotisations: total cotisations salariales.
-- interessement: ligne intéressement versé, prime intéressement, ou versement équivalent (ex: 464.80). 0 si absent.
-- primeExceptionnelle: prime exceptionnelle / prime non récurrente explicite. 0 si absent.
-- participationSalariale: participation salariale / participation aux bénéfices. 0 si absent.
-- autresPrimes: total de tout autre montant exceptionnel non récurrent qui ne doit PAS entrer dans netPaye (prime bilan, prime ponctuelle, avantage exceptionnel, régularisation exceptionnelle, etc.). 0 si absent.
-- remboursementFrais: remboursement frais professionnels / frais de déplacement / indemnités non soumises si présent.
-
-Définition des heures et coefficients:
-- totalHeures: heures totales indiquées sur le bulletin.
-- hbase: heures de base contractuelles (ex: 169h).
-- hval: taux horaire de base en € (ex: 14.76).
-- h25: taux horaire majoré 25% en € (ex: 18.45).
-- lim25: nombre d'heures à 25% (ex: 17).
-- h50: taux horaire majoré 50% en € (ex: 22.31).
-
-Congés/absences:
-- joursConges, montantConges, joursFeries, montantFeries, joursRC, montantRC: extrais les quantités et montants si les lignes existent.
-
-Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
-Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
-      const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
-      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
-      if (!data.content?.[0]) { mostrarErro("Impossible d'analyser le document scanné."); setLoading(false); return }
-      const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
-      processarDocumentos(docs)
-    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise une image plus nette.") }
-    setLoading(false)
-  }
 
   const processarDocumentos = (docs: DocumentoAnalysado[]) => {
     const todosDoc = [...documentosAnalisados, ...docs].filter((doc, index, self) =>
@@ -3470,13 +3415,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 14, color: c.textSub, marginTop: 2 }}>PDF · IMG · jusqu'à 5 fichiers</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={{ backgroundColor: 'rgba(39,174,96,0.1)', borderWidth: 1.5, borderColor: '#27ae60', borderRadius: 16, padding: 18, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }} onPress={() => { setShowEscolhaModal(false); setTimeout(() => setShowScanner(true), 300) }}>
-              <Text style={{ fontSize: 28 }}>📷</Text>
-              <View>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: '#27ae60' }}>Scanner un document</Text>
-                <Text style={{ fontSize: 14, color: c.textSub, marginTop: 2 }}>Prend une photo avec la caméra</Text>
-              </View>
-            </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowEscolhaModal(false)}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
@@ -3484,13 +3422,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         </TouchableOpacity>
       </Modal>
 
-      {/* MODAL SCANNER */}
-      <Modal visible={showScanner} animationType="fade" statusBarTranslucent>
-        <DocumentScanner
-          onCapture={(uri) => importarEscaneado(uri)}
-          onClose={() => setShowScanner(false)}
-        />
-      </Modal>
 
       {/* MODAL FRAIS RÉELS */}
       <Modal visible={showModalFraisReel} transparent animationType="slide">

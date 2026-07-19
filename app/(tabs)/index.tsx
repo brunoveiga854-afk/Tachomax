@@ -396,6 +396,11 @@ export default function AujourdhuiScreen() {
     }, [])
   )
 
+  // Sincroniza calendário quando o AppContext actualiza (ex: dia adicionado noutro tab)
+  useEffect(() => {
+    if (appState.histCal) setDiasHistorique(appState.histCal)
+  }, [appState.histCal])
+
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }).start()
   }, [])

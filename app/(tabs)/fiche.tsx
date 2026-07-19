@@ -3033,9 +3033,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               const mesLabel = MOIS_NOMS[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
               const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
               const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
-              const [, mesTravIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.hlag)
+              const [, mesTravIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -mesToTrabalhoParteUm)
               const mesTravail = MOIS_NOMS[mesTravIdx] || ''
-              const [, mesFraisIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.flag)
+              const [, mesFraisIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -(padraoAprendido.flag ?? padrao.flag))
               const mesFraisTravail = MOIS_NOMS[mesFraisIdx] || ''
 
               return (

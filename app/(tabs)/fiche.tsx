@@ -30,7 +30,7 @@ import {
   PADRAO_INICIAL, PadraoAprendido, BoletimExtraido,
   actualizarPadraoComBoletim, precisaoEstimativa as precisaoEstimativaMotor
 } from '../../src/engine/aprendizagem'
-import { migrarPadrao, migrarPadraoAprendido, PADRAO_VERSAO_ACTUAL, PadraoSalario } from '../../src/engine/migracoes'
+import { migrarPadrao, migrarPadraoAprendido, PadraoSalario } from '../../src/engine/migracoes'
 
 // Valeurs par défaut convention transport français
 const DEF_SAL = {
@@ -212,7 +212,6 @@ function defasagemProtegida(valor: number, count: number, baseValue: number): nu
 
 // ── HELPERS FRAIS POR HORÁRIOS ────────────────────────────────────────────────
 
-const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 
 // ── VALIDAR HLAG COM TOTAIS CONFIRMADOS ──────────────────────────────────────
@@ -1053,7 +1052,6 @@ export default function MonSalaireScreen() {
   const [fonteEscolhida, setFonteEscolhida] = useState<'banco' | 'fiche'>('banco')
   const [inputDataParteUm, setInputDataParteUm] = useState('')
   const [mesToTrabalhoParteUm, setMesToTrabalhoParteUm] = useState(0)
-  const [showDatePickerParteUm, setShowDatePickerParteUm] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -1667,16 +1665,16 @@ export default function MonSalaireScreen() {
           })
         } catch (fetchErr: any) {
           if (fetchErr?.name === 'AbortError') {
-            const msg = 'Timeout: o servidor não respondeu em 30s'
+            const msg = "Timeout: le serveur n'a pas répondu en 30s"
             log.error('fiche', 'chamarProxy erro', { tipo: 'timeout', url: PROXY_URL, tentativa: tentativaNum, error: fetchErr })
             throw new Error(msg)
           }
-          const msg = 'Erro de rede: verifica a tua ligação'
+          const msg = 'Erreur réseau: vérifie ta connexion'
           log.error('fiche', 'chamarProxy erro', { tipo: 'rede', url: PROXY_URL, tentativa: tentativaNum, error: fetchErr })
           throw new Error(msg)
         }
         if (!res.ok) {
-          const msg = 'Erro da API: ' + res.status
+          const msg = "Erreur de l'API: " + res.status
           log.error('fiche', 'chamarProxy erro', { tipo: 'api', url: PROXY_URL, tentativa: tentativaNum, status: res.status })
           throw new Error(msg)
         }
@@ -3032,13 +3030,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
             {fichaActual && (() => {
               const dadosFicha = (fichaActual.dados || fichaActual) as any
-              const mesLabel = MESES_PT[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
+              const mesLabel = MOIS_NOMS[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
               const diaSal = perguntaAtual === 0 ? (inputDiaSal || String(padrao.diaSalario)) : String(padrao.diaSalario)
               const diaFrais = perguntaAtual === 0 ? (inputDiaFrais || String(padrao.diaFrais)) : String(padrao.diaFrais)
               const [, mesTravIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.hlag)
-              const mesTravail = MESES_PT[mesTravIdx] || ''
+              const mesTravail = MOIS_NOMS[mesTravIdx] || ''
               const [, mesFraisIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -padrao.flag)
-              const mesFraisTravail = MESES_PT[mesFraisIdx] || ''
+              const mesFraisTravail = MOIS_NOMS[mesFraisIdx] || ''
 
               return (
                 <>

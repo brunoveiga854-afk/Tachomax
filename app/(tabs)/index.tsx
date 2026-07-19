@@ -401,6 +401,11 @@ export default function AujourdhuiScreen() {
     if (appState.histCal) setDiasHistorique(appState.histCal)
   }, [appState.histCal])
 
+  // Stats da semana reactivas ao AppContext
+  useEffect(() => {
+    carregarStatsSemaine()
+  }, [appState.histCal])
+
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }).start()
   }, [])
@@ -482,7 +487,8 @@ export default function AujourdhuiScreen() {
       if (!historique) return
       const maintenant = new Date()
       const lundi = new Date(maintenant)
-      lundi.setDate(maintenant.getDate() - maintenant.getDay() + 1)
+      const diaSemana = maintenant.getDay() === 0 ? 7 : maintenant.getDay()
+      lundi.setDate(maintenant.getDate() - diaSemana + 1)
       lundi.setHours(0, 0, 0, 0)
       const domingo = new Date(lundi)
       domingo.setDate(lundi.getDate() + 6)

@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Al
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet } from '../../src/utils/secureStorage'
+import { log } from '../../src/utils/logger'
 import { router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -89,6 +90,7 @@ export default function ReglagesScreen() {
       km: kmVal > 0,
     }
     setCamposOk(novosCampos)
+    log.debug('reglages', 'camposOk recalculado', novosCampos)
     const allOk = novosCampos.profil && novosCampos.hbase && novosCampos.hval  // km não é obrigatório para estimativa
     await AsyncStorage.setItem('campos_obrigatorios_ok', allOk ? 'true' : 'false')
     actualizarCampo('camposObrigatoriosOk', allOk)
@@ -145,6 +147,7 @@ export default function ReglagesScreen() {
   }, [scrollToParam])
 
   const apagaHistorique = async () => {
+    log.warn('reglages', 'historique apagado pelo utilizador')
     await AsyncStorage.removeItem('historique')
     setShowModalHistorique(false)
     setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
@@ -163,12 +166,14 @@ export default function ReglagesScreen() {
       const filename = `tachooffice_backup_avant_reset_${date}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
       await FileSystem.writeAsStringAsync(path, JSON.stringify(backup, null, 2), { encoding: FileSystem.EncodingType.UTF8 })
+      log.info('reglages', 'backup silencioso criado', { path: filename })
       return path
-    } catch { return null }
+    } catch (e) { log.error('reglages', 'criarBackupSilencioso falhou', e); return null }
   }
 
   const apagaTudo = async () => {
     const backupPath = await criarBackupSilencioso()
+    log.warn('reglages', 'RESET TOTAL — AsyncStorage.clear()', { backupCriado: !!backupPath })
     await AsyncStorage.clear()
     setShowModalReset(false)
     const backupMsg = backupPath
@@ -197,6 +202,7 @@ export default function ReglagesScreen() {
       const filename = `tachooffice_backup_${date}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 })
+      log.info('reglages', 'export criado', { filename, nKeys: Object.keys(backup.data).length })
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(path, {
           mimeType: 'application/json',
@@ -208,6 +214,7 @@ export default function ReglagesScreen() {
         setShowModalSucesso(true)
       }
     } catch (e) {
+      log.error('reglages', 'exportarDados falhou', e)
       setModalSucessoMsg("❌ Erreur lors de l'export.\n" + String(e))
       setShowModalSucesso(true)
     }
@@ -226,6 +233,7 @@ export default function ReglagesScreen() {
       const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 })
       const backup = JSON.parse(content)
       if (!backup.data || !backup.version) {
+        log.warn('reglages', 'import: ficheiro inválido (sem data/version)')
         setModalSucessoMsg('❌ Fichier invalide.\nCe fichier ne semble pas être un backup TachoOffice.')
         setShowModalSucesso(true)
         setLoadingImport(false)
@@ -233,9 +241,11 @@ export default function ReglagesScreen() {
       }
       const nJours = backup.data.historique?.length || 0
       const nFiches = backup.data.monSalaire_v2?.length || 0
+      log.info('reglages', 'import lido', { nJours, nFiches })
       setImportData({ backup, nJours, nFiches })
       setShowModalImport(true)
     } catch (e) {
+      log.error('reglages', 'importarDados falhou', e)
       setModalSucessoMsg("❌ Erreur lors de l'import.\n" + String(e))
       setShowModalSucesso(true)
     }
@@ -252,10 +262,12 @@ export default function ReglagesScreen() {
           await AsyncStorage.setItem(key, JSON.stringify(backup.data[key]))
         }
       }
+      log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()
       setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nRedémarre l'app pour voir tes données.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {
+      log.error('reglages', 'confirmarImport falhou', e)
       setModalSucessoMsg("❌ Erreur lors de l'import.\n" + String(e))
       setShowModalSucesso(true)
     }
@@ -728,6 +740,7 @@ export default function ReglagesScreen() {
                 if (!km || parseFloat(km) <= 0) return
                 await AsyncStorage.setItem('km_ultimo_fim', km)
                 actualizarCampo('kmUltimoFim', parseInt(km))
+                log.info('reglages', 'km actualizado manualmente', { km })
                 await atualizarCamposOk()
                 setModalSucessoMsg('✅ KM enregistré\nKM début du prochain jour: ' + km + ' km')
                 setShowModalSucesso(true)
@@ -748,6 +761,7 @@ export default function ReglagesScreen() {
                     setKmTracteurActuel('')
                     await AsyncStorage.setItem('km_ultimo_fim', '0')
                     actualizarCampo('kmUltimoFim', 0)
+                    log.info('reglages', 'camion mudado — tracteur e km reset')
                     await atualizarCamposOk()
                   }},
                   { text: 'Annuler', style: 'cancel' },

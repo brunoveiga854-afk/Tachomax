@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, Keyboa
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet } from '../src/utils/secureStorage'
+import { log } from '../src/utils/logger'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useApp } from '../context/AppContext'
 import { TachoLogo } from '../src/TachoLogo'
@@ -145,6 +146,7 @@ export default function OnboardingScreen() {
       try { await fn(); return }
       catch (e) {
         if (attempt === maxAttempts) throw e
+        log.warn('onboarding', 'retry de escrita', { attempt, error: String(e) })
         await new Promise(r => setTimeout(r, 1000))
       }
     }
@@ -152,6 +154,7 @@ export default function OnboardingScreen() {
 
   const terminerOnboarding = async () => {
     setTerminando(true)
+    log.info('onboarding', 'terminerOnboarding iniciado')
     try {
     await withRetry(() => AsyncStorage.setItem('onboardingDone', 'true'))
     if (ancienneteAns || ancienneteMois)
@@ -209,6 +212,7 @@ export default function OnboardingScreen() {
         _hvalManual: salBrut > 0,
       }
       await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(padraoInit)))
+      log.debug('onboarding', 'padrao pré-populado (novo)', { hbase, hval })
     } else {
       // Padrao existant — mettre à jour hbase/hval/h25/h50 en préservant les données apprises
       try {
@@ -224,7 +228,8 @@ export default function OnboardingScreen() {
           _hvalManual: salBrut > 0,
         }
         await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(updated)))
-      } catch {}
+        log.debug('onboarding', 'padrao actualizado (existente preservado)', { hbase, hval })
+      } catch (e) { log.warn('onboarding', 'merge de padrao existente falhou', e) }
     }
     // Guardar timing no motor de aprendizagem
     const existingAprendRaw = await secureGet('aprendizagem_padrao')
@@ -242,9 +247,11 @@ export default function OnboardingScreen() {
     }
     await withRetry(() => secureSet('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
     await recarregarApp()
+    log.info('onboarding', 'terminerOnboarding concluído')
     setTerminando(false)
     router.replace('/(tabs)/fiche')
     } catch (e) {
+      log.error('onboarding', 'terminerOnboarding falhou', e)
       setTerminando(false)
       Alert.alert('Erro', 'Não foi possível guardar os dados. Por favor tenta novamente.')
     }

@@ -241,6 +241,7 @@ export default function AujourdhuiScreen() {
   }
 
   const aplicarEstadoPersistido = (estado: any, tempoBackground = 0) => {
+    log.debug('index', 'estado aplicado', { emPausa: !!estado.emPausa, segServico: estado.segServico || 0, tempoBackground })
     setEnService(true)
     setEmPausa(!!estado.emPausa)
     emPausaRef.current = !!estado.emPausa
@@ -298,6 +299,7 @@ export default function AujourdhuiScreen() {
       }
 
       await guardarEstado(estadoAtualizado)
+      log.debug('index', 'sincronizado do background', { tempoBackground, emPausa: !!estado.emPausa })
       aplicarEstadoPersistido(estadoAtualizado, 0)
       if (estadoAtualizado.emPausa) {
         const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
@@ -309,6 +311,7 @@ export default function AujourdhuiScreen() {
       }
       return true
     } catch (e) {
+      log.warn('index', 'sincronizarEstadoPersistido falhou', e)
       return false
     }
   }
@@ -361,6 +364,7 @@ export default function AujourdhuiScreen() {
       })
       appReadyRef.current = true
       setAppReady(true)
+      log.debug('index', 'init concluído')
     }
     init()
   }, [])
@@ -524,7 +528,7 @@ export default function AujourdhuiScreen() {
   const carregarDiasMes = async () => {
     try {
       if (appState.histCal) setDiasHistorique(appState.histCal)
-    } catch (e) {}
+    } catch (e) { log.warn('index', 'carregarDiasMes falhou', e) }
   }
 
   const horaParaDate = (horaStr: string) => {
@@ -547,7 +551,7 @@ export default function AujourdhuiScreen() {
   const carregarFraisRegles = async () => {
     const reglesData = await AsyncStorage.getItem('frais_regles')
     let regles = DEFAULT_FRAIS_REGLES
-    try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { regles = DEFAULT_FRAIS_REGLES }
+    try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { log.warn('index', 'frais_regles corrompido — default aplicado'); regles = DEFAULT_FRAIS_REGLES }
     if (reglesData) await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
     return regles
   }
@@ -558,6 +562,7 @@ export default function AujourdhuiScreen() {
       const regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {})
       await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
     } catch {
+      log.warn('index', 'frais_regles corrompido — removido ao arrancar')
       await AsyncStorage.removeItem('frais_regles')
     }
     // frais_valores — validação delegada ao AppContext
@@ -593,6 +598,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       regles,
       valeurs: fv,
     })
+    log.debug('index', 'frais auto calculado', { debut, fin, type, total: result.total })
     setAddFrais(result.total.toFixed(2))
   }
 
@@ -668,10 +674,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(lista)
       setEditandoDiaId(null)
       setShowAddDia(false)
+      log.info('index', 'dia manual guardado', { date: addData, type: addTipo, editando: !!editandoDiaId })
     } catch (e) { log.error('index', 'guardarDia (addEdit) falhou', e) }
   }
 
   const guardarProfil = async (p: Profil) => {
+    log.info('index', 'profil alterado', { p })
     setProfil(p)
     await AsyncStorage.setItem('profil', p)
     setShowProfil(false)
@@ -714,6 +722,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const interval = setInterval(async () => {
       if (Date.now() >= pausaFimTimestamp) {
         clearInterval(interval)
+        log.info('index', 'pausa auto-retomada', { pausaFimTimestamp })
         await handlePause()
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       }
@@ -909,7 +918,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lastBgTick: Date.now(),
       horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
     })
-    log.info('index', 'pausa iniciada')
     await cancelarTodosAlertas()
     // Si une durée a été saisie, programmer une alerte et auto-retoma
     const parts = pausaDuracaoInput.match(/^(\d{1,2})[h:H]?(\d{2})$/)
@@ -924,9 +932,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setPausaFimTimestamp(fim)
       await AsyncStorage.setItem('pausaFimTimestamp', String(fim))
       await agendarAlertaPausa(duracaoS)
+      log.info('index', 'pausa iniciada', { duracaoS, pausaFimTimestamp: fim })
     } else {
       setPausaFimTimestamp(null)
       await AsyncStorage.removeItem('pausaFimTimestamp')
+      log.info('index', 'pausa iniciada', { duracaoS: 0 })
     }
   }
 
@@ -982,12 +992,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   }
 
   const handleTerminer = () => {
+    log.debug('index', 'terminer modal aberto', { segServico, segAmplitude })
     setKmFimInput('')
     setShowTerminerModal(true)
   }
 
   const confirmarRecuperarHora = () => {
     if (!dateInicio) return
+    log.info('index', 'hora recuperada')
     setShowRecuperarHoraModal(false)
     // Calculate corrected times based on manually entered end time
     const fimCorrigido = recuperarHoraFim
@@ -1036,6 +1048,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }).total
 
     await guardarDia(fim, snapKm)
+    log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, frais: snapFrais, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     await cancelarTodosAlertas()
     await cancelarRappelSaisie()

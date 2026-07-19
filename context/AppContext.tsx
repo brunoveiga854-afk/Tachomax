@@ -87,20 +87,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ])
 
     let padrao: any | null = null
-    try { if (padraoRaw) padrao = JSON.parse(padraoRaw) } catch {}
+    try { if (padraoRaw) padrao = JSON.parse(padraoRaw) } catch { log.warn('AppContext', 'monSalaire_padrao corrompido — ignorado') }
 
     let padraoAprendido: any | null = null
-    try { const apRaw = await secureGet('aprendizagem_padrao'); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch {}
+    try { const apRaw = await secureGet('aprendizagem_padrao'); if (apRaw) padraoAprendido = JSON.parse(apRaw) } catch { log.warn('AppContext', 'aprendizagem_padrao corrompido — ignorado') }
 
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
-    const fraisRegles = fraisReglesRaw ? JSON.parse(fraisReglesRaw) : null
+    let fraisRegles: any | null = null
+    try { if (fraisReglesRaw) fraisRegles = JSON.parse(fraisReglesRaw) } catch { log.warn('AppContext', 'frais_regles corrompido — ignorado') }
     const fraisValoresRaw = await AsyncStorage.getItem('frais_valores')
-    const fraisValores = fraisValoresRaw ? JSON.parse(fraisValoresRaw) : null
+    let fraisValores: any | null = null
+    try { if (fraisValoresRaw) fraisValores = JSON.parse(fraisValoresRaw) } catch { log.warn('AppContext', 'frais_valores corrompido — ignorado') }
 
     const histSalRaw = await AsyncStorage.getItem('monSalaire_v2')
-    const histSal = histSalRaw ? JSON.parse(histSalRaw) : null
+    let histSal: any[] | null = null
+    try { if (histSalRaw) histSal = JSON.parse(histSalRaw) } catch { log.warn('AppContext', 'monSalaire_v2 corrompido — ignorado') }
     const histCalRaw = await AsyncStorage.getItem('historique')
-    const histCal = histCalRaw ? JSON.parse(histCalRaw) : null
+    let histCal: any[] | null = null
+    try { if (histCalRaw) histCal = JSON.parse(histCalRaw) } catch { log.warn('AppContext', 'historique corrompido — ignorado') }
 
     const profil = (profilRaw === 'CD' || profilRaw === 'MIXTE' || profilRaw === 'LD')
       ? profilRaw

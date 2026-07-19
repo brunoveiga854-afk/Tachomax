@@ -1114,6 +1114,7 @@ export default function MonSalaireScreen() {
       }
       return reglesLimpas
     } catch (e) {
+      log.warn('fiche', 'frais_regles corrompido — reset para default', e)
       const reglesLimpas = sanitizeFraisRegles({})
       await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
       return reglesLimpas
@@ -1298,6 +1299,7 @@ export default function MonSalaireScreen() {
   }
 
   const onRefresh = async () => {
+    log.debug('fiche', 'refresh manual')
     setRefreshing(true)
     try {
       await charger()
@@ -1699,6 +1701,7 @@ export default function MonSalaireScreen() {
       multiple: true,
     })
     if (result.canceled || !result.assets?.length) return
+    log.info('fiche', 'import fiches iniciado', { nFicheiros: result.assets.length })
     setLoading(true)
     try {
       const content: any[] = []
@@ -1761,6 +1764,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true, multiple: true })
       if (result.canceled) return
+      log.info('fiche', 'import frais iniciado', { nFicheiros: result.assets?.length || 0 })
       setLoading(true)
       const content: any[] = []
       for (let i = 0; i < result.assets.length; i++) {
@@ -1828,6 +1832,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const todosDoc = [...documentosAnalisados, ...docs].filter((doc, index, self) =>
       index === self.findIndex(d => d.moisIndex === doc.moisIndex && d.annee === doc.annee && d.tipo === doc.tipo)
     )
+    log.debug('fiche', 'docs processados', { recebidos: docs.length, total: todosDoc.length })
     setDocumentosAnalisados(todosDoc)
     const fichesMeses = todosDoc.filter(d => d.tipo === 'fiche').map(d => d.periode)
     const fraisMeses = todosDoc.filter(d => d.tipo === 'frais').map(d => d.periode)
@@ -1988,6 +1993,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
     }
     const novasRespostas = [...respostas, novaResposta]
+    log.info('fiche', 'resposta registada', { periode: fichaActual.periode, sal, frais: fraisReel, moisAtipico: inputMoisAtipico })
     setRespostas(novasRespostas)
     if (perguntaAtual < fiches.length - 1) {
       // Pré-preenche sal + frais para a próxima fiche (rascunho tem prioridade)
@@ -3165,6 +3171,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
                           setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
                           if (inputDataParteUm) {
+                            log.info('fiche', 'timing confirmado Parte1', { hlag: mesToTrabalhoParteUm, data: inputDataParteUm })
                             const novoPadrao = { ...padraoAprendido, hlag: mesToTrabalhoParteUm, hlagConfirmado: true }
                             await persistirPadraoAprendido(novoPadrao)
                             setPadraoAprendido(novoPadrao)
@@ -3191,6 +3198,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'banco' ? 'rgba(41,128,185,0.12)' : c.input, borderWidth: fonteEscolhida === 'banco' ? 1.5 : 1, borderColor: fonteEscolhida === 'banco' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
+                            log.debug('fiche', 'fonte escolhida', { fonte: 'banco' })
                             setFonteEscolhida('banco')
                             const s = parseFloat(inputParteUmSal.replace(',', '.')) || 0
                             const f = parseFloat(inputParteUmFrais.replace(',', '.')) || 0
@@ -3203,6 +3211,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <TouchableOpacity
                           style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'fiche' ? 'rgba(245,166,35,0.12)' : c.input, borderWidth: fonteEscolhida === 'fiche' ? 1.5 : 1, borderColor: fonteEscolhida === 'fiche' ? '#f5a623' : c.cardBorder }}
                           onPress={() => {
+                            log.debug('fiche', 'fonte escolhida', { fonte: 'fiche' })
                             setFonteEscolhida('fiche')
                             if (dadosFicha.netPaye > 0) setInputMontantSalQ(String(dadosFicha.netPaye))
                             if (dadosFicha.remboursementFrais > 0) setInputMontantFraisQ(String(dadosFicha.remboursementFrais))

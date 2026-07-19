@@ -5,6 +5,7 @@
 
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
+import { log } from './utils/logger'
 
 export const NOTIF_IDS = {
   PAUSA_ALERTA: 'tachooffice-pausa-alerta',
@@ -45,8 +46,9 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSA_ALERTA).catch(() => {})
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSA_OBRIGATORIA).catch(() => {})
 
-  if (segundosAteAlerta <= 60) return
+  if (segundosAteAlerta <= 60) { log.debug('notif', 'alerta pausa não agendado — <60s', { segundosAteAlerta }); return }
 
+  log.debug('notif', 'alerta pausa agendado', { segundosAteAlerta })
   const alertaAviso = segundosAteAlerta - 30 * 60
   if (alertaAviso > 60) {
     await Notifications.scheduleNotificationAsync({
@@ -86,7 +88,8 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
 export async function agendarAlertaAmplitude(segundosAteAlerta: number): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.AMPLITUDE_ALERTA).catch(() => {})
 
-  if (segundosAteAlerta <= 60) return
+  if (segundosAteAlerta <= 60) { log.debug('notif', 'alerta amplitude não agendado — <60s', { segundosAteAlerta }); return }
+  log.debug('notif', 'alerta amplitude agendado', { segundosAteAlerta })
 
   await Notifications.scheduleNotificationAsync({
     identifier: NOTIF_IDS.AMPLITUDE_ALERTA,
@@ -109,7 +112,7 @@ export async function cancelarTodosAlertas(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync()
     await Notifications.dismissAllNotificationsAsync()
-  } catch {}
+  } catch (e) { log.warn('notif', 'cancelarTodosAlertas falhou', e) }
 }
 
 export async function agendarRappelSaisie(hora = 20, minuto = 0): Promise<void> {

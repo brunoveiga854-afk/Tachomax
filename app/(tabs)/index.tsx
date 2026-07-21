@@ -347,6 +347,12 @@ export default function AujourdhuiScreen() {
           const fim = parseInt(fimRaw)
           if (fim > Date.now()) setPausaFimTimestamp(fim)
           else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
+          // Pausa expirou enquanto em background
+          if (fim <= Date.now()) {
+            log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp: fim })
+            handlePause()
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          }
         }
       }
       log.info('index', 'estado restaurado', { enService: estado.enService, emPausa: estado.emPausa })
@@ -392,6 +398,12 @@ export default function AujourdhuiScreen() {
       setCalMes(hoje.getMonth())
       setCalAno(hoje.getFullYear())
       recarregarApp()
+      // Verificar se a pausa expirou enquanto o ecrã estava bloqueado
+      if (emPausa && pausaFimTimestamp && Date.now() >= pausaFimTimestamp) {
+        log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp })
+        handlePause()
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      }
       carregarStatsSemaine()
       carregarDiasMes()
       AsyncStorage.getItem('modoTacho').then(v => {

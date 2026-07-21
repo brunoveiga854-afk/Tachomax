@@ -12,7 +12,6 @@ export const NOTIF_IDS = {
   PAUSA_OBRIGATORIA: 'tachooffice-pausa-obrigatoria',
   AMPLITUDE_ALERTA: 'tachooffice-amplitude-alerta',
   RAPPEL_SAISIE: 'tachooffice-rappel-saisie',
-  CONDUITE_DIARIA: 'tachooffice-conduite-diaria',
   PAUSE_CONV_COL_15: 'tachooffice-pause-convcol-15',
   PAUSE_CONV_COL_45: 'tachooffice-pause-convcol-45',
 }
@@ -144,40 +143,6 @@ export async function cancelarRappelSaisie(): Promise<void> {
  * Chamado quando segConducaoHoje atinge 8h45 (15min antes do limite).
  * segundosAteAlerta = 0 → dispara imediatamente.
  */
-export async function agendarAlertaConduicaoDiaria(segundosAteAlerta: number): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.CONDUITE_DIARIA).catch(() => {})
-
-  if (segundosAteAlerta <= 0) {
-    await Notifications.scheduleNotificationAsync({
-      identifier: NOTIF_IDS.CONDUITE_DIARIA,
-      content: {
-        title: '🚛 TachoOffice — Limite journalière !',
-        body: "Tu as atteint 9h de conduite aujourd'hui. Arrêt obligatoire.",
-        sound: 'default',
-        data: { type: 'conduite_diaria_max' },
-        ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
-      },
-      trigger: null,
-    })
-    return
-  }
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: NOTIF_IDS.CONDUITE_DIARIA,
-    content: {
-      title: '⚠️ TachoOffice — 9h journalières dans 15 min',
-      body: "Tu approches de la limite de 9h de conduite pour aujourd'hui.",
-      sound: 'default',
-      data: { type: 'conduite_diaria_aviso' },
-      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: segundosAteAlerta,
-      repeats: false,
-    },
-  })
-}
 
 /**
  * Notificação imediata — convention collective: pause 15 min requise avant 6h de service

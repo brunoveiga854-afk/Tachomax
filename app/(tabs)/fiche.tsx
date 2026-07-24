@@ -2606,6 +2606,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </TouchableOpacity>
           </View>
         ) : (
+          <>
           <TouchableOpacity style={st.calcularBtn} onPress={calcularSalario} disabled={loading}>
             <Text style={st.calcularIcon}>💰</Text>
             <Text style={st.calcularLabel}>{calculando ? calculandoMsg : 'CALCULER'}</Text>
@@ -2635,6 +2636,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           >
             <Text style={{ fontSize: 12, color: '#9ba3b8' }}>⚙️ Mon contrat</Text>
           </TouchableOpacity>
+          </>
         )}
 
         {showCadeado && (

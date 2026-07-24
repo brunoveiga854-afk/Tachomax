@@ -670,8 +670,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         // EDITAR — substituir o dia existente
         lista = lista.map((j: any) => j.id === editandoDiaId ? { ...j, ...diaDados } : j)
       } else {
-        // ADICIONAR — inserir novo
-        lista.unshift({ id: Date.now().toString(), ...diaDados })
+        // ADICIONAR — inserir novo (sem duplicados por data)
+        const novoDiaManual = { id: Date.now().toString(), ...diaDados }
+        lista = lista.filter((j: any) => j.date !== novoDiaManual.date)
+        lista.unshift(novoDiaManual)
       }
       lista.sort((a: any, b: any) => {
         const pa = a.date.split('/'); const pb = b.date.split('/')
@@ -686,7 +688,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         return ok
       })
       await AsyncStorage.setItem('historique', JSON.stringify(listaValida.slice(0, 365)))
-      setDiasHistorique(lista)
+      setDiasHistorique(listaValida)
       setEditandoDiaId(null)
       setShowAddDia(false)
       log.info('index', 'dia manual guardado', { date: addData, type: addTipo, editando: !!editandoDiaId })
@@ -994,14 +996,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
     }
     try {
-      lista.unshift(novoDia)
-      const listaValidaT = lista.filter((entry: any) => {
+      const semDuplicadoT = lista.filter((j: any) => j.date !== novoDia.date)
+      semDuplicadoT.unshift(novoDia)
+      const listaValidaT = semDuplicadoT.filter((entry: any) => {
         const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
         const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
       await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, 365)))
+      setDiasHistorique(listaValidaT)
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })

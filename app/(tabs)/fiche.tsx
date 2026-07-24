@@ -2129,8 +2129,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           moisAtipico: novoDado.moisAtipico !== undefined ? novoDado.moisAtipico : ex.moisAtipico,
         }
         novoHist[existenteIdx] = merged
+        log.debug('fiche', 'guardarTudo merge', { periode: novoDado.periode })
       } else {
         novoHist.push(novoDado)
+        log.debug('fiche', 'guardarTudo push', { periode: novoDado.periode })
       }
     }
     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
@@ -2149,12 +2151,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       padraoBase = { ...padraoBase, ptd: fraisValsRaw.ptDej || padraoBase.ptd, dej: fraisValsRaw.dej || padraoBase.dej, din: fraisValsRaw.diner || padraoBase.din, nui: fraisValsRaw.nuit || padraoBase.nui }
     }
     if (fraisReglesRaw) {
-      const reglesLimpas = sanitizeFraisRegles(JSON.parse(fraisReglesRaw))
-      await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
-      padraoBase = { ...padraoBase, regles: reglesLimpas }
+      try {
+        const reglesLimpas = sanitizeFraisRegles(JSON.parse(fraisReglesRaw))
+        await AsyncStorage.setItem('frais_regles', JSON.stringify(reglesLimpas))
+        padraoBase = { ...padraoBase, regles: reglesLimpas }
+      } catch (e) { log.warn('fiche', 'fraisRegles corrompido', e) }
     }
     const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
-    if (hlagValidado !== padraoBase.hlag) padraoBase = { ...padraoBase, hlag: hlagValidado }
+    if (hlagValidado !== padraoBase.hlag) { log.info('fiche', 'hlag validado alterado', { anterior: padraoBase.hlag, novo: hlagValidado }); padraoBase = { ...padraoBase, hlag: hlagValidado } }
     perfLog.time('fiche', 'guardarTudo:analisarPadraoV2')
     const novoPadrao = analisarPadraoV2(novoHist, histCal, padraoBase)
     perfLog.timeEnd('fiche', 'guardarTudo:analisarPadraoV2')
@@ -2611,7 +2615,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       router.push('/onboarding?mode=edit')
                     }
                   } catch (e) {
-                    console.error('Nav error:', e)
+                    log.error('fiche', 'nav error', e)
                   }
                 }}
             >
@@ -3191,6 +3195,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           setFonteEscolhida('banco')
                           setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
                           setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
+                          log.info('fiche', 'Parte1 Suivant', { salFinal, fraisFinal, fonte: 'banco' })
                           if (inputDataParteUm) {
                             log.info('fiche', 'timing confirmado Parte1', { hlag: mesToTrabalhoParteUm, data: inputDataParteUm })
                             const novoPadrao = { ...padraoAprendido, hlag: mesToTrabalhoParteUm, hlagConfirmado: true }
@@ -3523,6 +3528,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    log.info('fiche', 'frais reels guardados', { periode: calcResult.mesFraisLabel })
                   }
                   setShowModalFraisReel(false)
                 }}
@@ -3642,6 +3648,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
                   }
                   setShowModalSalNet(false)
                   setInputInteressement('')
@@ -3762,17 +3769,20 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? editMoisIndex,
                   pagamentoFraisAno: modalDetail.pagamentoFraisAno ?? editAnnee,
                 }
-                // Remove old entry (old periode), insert updated, re-sort
-                const nova = historique.filter(h => h.periode !== modalDetail.periode)
-                nova.push(updated)
-                nova.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
-                setHistorique(nova)
-                await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
-                const histCal = appState.histCal ?? []
-                const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
-                await persistirPadrao(novoPadrao)
-                setModalDetail(updated)
-                setShowModalEdit(false)
+                try {
+                  // Remove old entry (old periode), insert updated, re-sort
+                  const nova = historique.filter(h => h.periode !== modalDetail.periode)
+                  nova.push(updated)
+                  nova.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
+                  setHistorique(nova)
+                  await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
+                  const histCal = appState.histCal ?? []
+                  const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+                  await persistirPadrao(novoPadrao)
+                  setModalDetail(updated)
+                  log.info('fiche', 'fiche editada', { periode: updated.periode, netPaye: updated.netPaye, salairebrut: updated.salairebrut, moisAtipico: updated.moisAtipico })
+                  setShowModalEdit(false)
+                } catch (e) { log.error('fiche', 'erro ao guardar edição', e) }
               }}>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
               </TouchableOpacity>

@@ -2602,7 +2602,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   }
                 }}
             >
-              <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>{'→ Aller aux Réglages'}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>{'⚙️ Modifier mon contrat'}</Text>
             </TouchableOpacity>
           </View>
         ) : (

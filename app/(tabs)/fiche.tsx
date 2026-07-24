@@ -2091,6 +2091,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         hbase: fiche.hbase || 0, hval: fiche.hval || 0,
         h25: fiche.h25 || 0, lim25: fiche.lim25 || 0, h50: fiche.h50 || 0,
       }
+      // Auto-detectar rate impossível (net > brut) — sugerir como atípico
+      const netFinal = novoDado.netPaye || 0
+      const brutFinal = novoDado.salairebrut || 0
+      if (brutFinal > 0 && netFinal > brutFinal && !resp.moisAtipico) {
+        novoDado.moisAtipico = true
+        log.warn('fiche', 'mês marcado automaticamente como atípico — net > brut', {
+          periode: novoDado.periode,
+          netPaye: netFinal,
+          salairebrut: brutFinal,
+          rate: Math.round(netFinal / brutFinal * 100)
+        })
+      }
       if (existenteIdx >= 0) {
         const ex = novoHist[existenteIdx]
         const merged: MoisData = {

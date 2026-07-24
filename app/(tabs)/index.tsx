@@ -520,6 +520,12 @@ export default function AujourdhuiScreen() {
         const dataJour = new Date(ano, m - 1, d)
         return dataJour >= lundi && dataJour <= domingo
       })
+      log.debug('index', 'statsSemaine', {
+        count: semaineRaw.length,
+        dias: semaineRaw.map((j: any) => ({ date: j.date, type: j.type, jour: j.jour })),
+        lundi: lundi.toISOString(),
+        domingo: domingo.toISOString()
+      })
       // Deduplicar por data — se houver 2 entradas para o mesmo dia, fica só a mais recente
       const vistoPorData = new Map<string, any>()
       for (const j of semaineRaw) {

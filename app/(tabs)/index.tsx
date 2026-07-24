@@ -1748,6 +1748,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
             {/* Accordéon réglementation — visible en pause */}
             {accordeonReglementation}
+            <TouchableOpacity
+              style={{ alignItems: 'center', marginTop: 8, paddingVertical: 6 }}
+              onPress={() => setShowCalendario(true)}
+            >
+              <Text style={{ fontSize: 12, color: '#9ba3b8' }}>📅 Voir le calendrier</Text>
+            </TouchableOpacity>
           </>
         )}
 

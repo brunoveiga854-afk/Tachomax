@@ -152,6 +152,7 @@ export default function AujourdhuiScreen() {
   const tsBackground = useRef<number | null>(null)
   const ultimaVerificacao = useRef(0)
   const amplitudeAlertado = useRef(false)
+  const pausaAutoRetomadaRef = useRef(false)
   const segPausaRef = useRef(0)
   const autoGuardarTimer = useRef<any>(null)
   const emPausaRef = useRef(false)
@@ -348,8 +349,9 @@ export default function AujourdhuiScreen() {
           if (fim > Date.now()) setPausaFimTimestamp(fim)
           else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
           // Pausa expirou enquanto em background
-          if (fim <= Date.now()) {
+          if (fim <= Date.now() && !pausaAutoRetomadaRef.current) {
             log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp: fim })
+            pausaAutoRetomadaRef.current = true
             handlePause()
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
           }
@@ -401,6 +403,7 @@ export default function AujourdhuiScreen() {
       // Verificar se a pausa expirou enquanto o ecrã estava bloqueado
       if (emPausa && pausaFimTimestamp && Date.now() >= pausaFimTimestamp) {
         log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp })
+        pausaAutoRetomadaRef.current = true
         handlePause()
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       }

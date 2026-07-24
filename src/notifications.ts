@@ -12,8 +12,6 @@ export const NOTIF_IDS = {
   PAUSA_OBRIGATORIA: 'tachooffice-pausa-obrigatoria',
   AMPLITUDE_ALERTA: 'tachooffice-amplitude-alerta',
   RAPPEL_SAISIE: 'tachooffice-rappel-saisie',
-  PAUSE_CONV_COL_15: 'tachooffice-pause-convcol-15',
-  PAUSE_CONV_COL_45: 'tachooffice-pause-convcol-45',
 }
 
 Notifications.setNotificationHandler({
@@ -71,7 +69,7 @@ export async function agendarAlertaPausa(segundosAteAlerta: number): Promise<voi
     identifier: NOTIF_IDS.PAUSA_OBRIGATORIA,
     content: {
       title: '🛑 TachoOffice — PAUSE OBLIGATOIRE',
-      body: "5h45 de service continu atteintes ! Tu dois faire une pause de 45 minutes minimum.",
+      body: "4h30 de service continu atteintes ! Tu dois faire une pause de 45 minutes minimum.",
       sound: 'default',
       data: { type: 'pausa_obrigatoria' },
       ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
@@ -138,44 +136,3 @@ export async function cancelarRappelSaisie(): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
 }
 
-/**
- * Agenda alerta para o limite diário de 9h de condução.
- * Chamado quando segConducaoHoje atinge 8h45 (15min antes do limite).
- * segundosAteAlerta = 0 → dispara imediatamente.
- */
-
-/**
- * Notificação imediata — convention collective: pause 15 min requise avant 6h de service
- */
-export async function agendarAlertaPauseCC15(): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSE_CONV_COL_15).catch(() => {})
-  await Notifications.scheduleNotificationAsync({
-    identifier: NOTIF_IDS.PAUSE_CONV_COL_15,
-    content: {
-      title: '⚠️ TachoOffice — Pause requise',
-      body: 'Tu approches de 6h de service. Une pause de 15 min est requise avant 6h (Convention collective).',
-      sound: 'default',
-      data: { type: 'pause_cc_15' },
-      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
-    },
-    trigger: null,
-  })
-}
-
-/**
- * Notificação imediata — convention collective: 45 min de pause requises avant 9h de service
- */
-export async function agendarAlertaPauseCC45(): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.PAUSE_CONV_COL_45).catch(() => {})
-  await Notifications.scheduleNotificationAsync({
-    identifier: NOTIF_IDS.PAUSE_CONV_COL_45,
-    content: {
-      title: '🟠 TachoOffice — 45 min de pause requises',
-      body: 'Tu approches de 9h de service. 45 min de pause sont requises avant 9h (Convention collective).',
-      sound: 'default',
-      data: { type: 'pause_cc_45' },
-      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
-    },
-    trigger: null,
-  })
-}

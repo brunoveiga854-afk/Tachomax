@@ -911,6 +911,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       })
       log.info('index', 'pausa terminada')
       await agendarAlertaPausa(PAUSA_MAX)
+      const tempoRestanteAmplitude = Math.max(0, (modeNuit ? 13*3600 : 15*3600) - segAmplitude)
+      if (tempoRestanteAmplitude > 0) agendarAlertaAmplitude(tempoRestanteAmplitude)
     } else {
       // Ouvrir le modal de durée de pause (remplace l'Alert)
       setPausaDuracaoInput('')

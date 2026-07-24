@@ -996,6 +996,7 @@ export default function MonSalaireScreen() {
   })
   const [showModalEdit, setShowModalEdit] = useState(false)
   const [editNetPaye, setEditNetPaye] = useState('')
+  const [editSalairebrut, setEditSalairebrut] = useState('')
   const [editFraisBoletim, setEditFraisBoletim] = useState('')
   const [editMontantTotal, setEditMontantTotal] = useState('')
   const [editMoisIndex, setEditMoisIndex] = useState(0)
@@ -3415,6 +3416,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 setEditAnnee(modalDetail.annee)
                 setEditInteressement(String(modalDetail.interessement || 0))
                 setEditMoisAtipico(modalDetail?.moisAtipico || false)
+                setEditSalairebrut(modalDetail?.salairebrut?.toString() || '')
                 setShowModalEdit(true)
               }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>✏️ Modifier</Text>
@@ -3670,6 +3672,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editNetPaye} onChangeText={setEditNetPaye} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
               <View>
+                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>SALAIRE BRUT DE LA FICHE (€)</Text>
+                <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editSalairebrut} onChangeText={setEditSalairebrut} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} />
+              </View>
+              <View>
                 <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6, fontWeight: '700' }}>FRAIS REÇUS (€) — indemnités repas + découché</Text>
                 <TextInput style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, fontSize: 18, fontWeight: '700', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }} value={editFraisBoletim} onChangeText={setEditFraisBoletim} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={c.textSub} />
               </View>
@@ -3742,6 +3748,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   mesFicheIndex: editMoisIndex,
                   anoFiche: editAnnee,
                   netPaye: netEdit,
+                  salairebrut: parseFloat(editSalairebrut.replace(',','.')) || modalDetail?.salairebrut || 0,
                   fraisBoletim: fraisEdit,
                   remboursementFrais: fraisEdit > 0 ? fraisEdit : modalDetail.remboursementFrais,
                   fraisRecuConfirme: fraisEdit > 0 ? fraisEdit : modalDetail.fraisRecuConfirme,

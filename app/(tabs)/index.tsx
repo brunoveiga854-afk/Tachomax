@@ -2425,7 +2425,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 4, marginBottom: 6 }}>
                               {last7Days.map((day, i) => {
                                 const dStr = `${String(day.getDate()).padStart(2,'0')}/${String(day.getMonth()+1).padStart(2,'0')}`
-                                const entry = diasHistorique.find(j => (j.date||'').startsWith(dStr))
+                                const dStrComAno = `${dStr}/${day.getFullYear()}`
+                                const entry = diasHistorique.find(j => {
+                                  const jDate = j.date || ''
+                                  if (jDate.includes('/') && jDate.split('/').length === 3) {
+                                    return jDate === dStrComAno
+                                  }
+                                  return jDate.startsWith(dStr)
+                                })
                                 const seg = entry ? (entry.segServico||0) : 0
                                 const h = seg / 3600
                                 const barH = Math.min((h / 12) * 64, 64)

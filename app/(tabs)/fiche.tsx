@@ -2629,6 +2629,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               </Text>
             )}
           </TouchableOpacity>
+          <TouchableOpacity
+            style={{ alignItems: 'center', marginTop: 12, paddingVertical: 6 }}
+            onPress={() => router.push('/onboarding?mode=edit')}
+          >
+            <Text style={{ fontSize: 12, color: '#9ba3b8' }}>⚙️ Mon contrat</Text>
+          </TouchableOpacity>
         )}
 
         {showCadeado && (

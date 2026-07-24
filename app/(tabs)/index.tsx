@@ -2304,7 +2304,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const totalFraisLastMois = lastMoisDays.reduce((a,j) => a + (j.frais||0),0)
                   const avgFraisDay = moisDays.length > 0 ? totalFraisMois / moisDays.length : 0
                   const daysInMonth = new Date(thisYear, thisMonth+1, 0).getDate()
-                  const projFrais = avgFraisDay * daysInMonth
+                  const workingDaysInMonth = moisDays.length > 0
+                    ? Math.round(moisDays.length / (new Date().getDate()) * daysInMonth)
+                    : 0
+                  const projFrais = avgFraisDay * workingDaysInMonth
                   const decouchesMois = moisDays.filter(j => j.decouche || j.type === 'DEC').length
 
                   // ── SECTION 8 — AMPLITUDE ─────────────────────────────────

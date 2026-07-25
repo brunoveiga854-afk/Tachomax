@@ -780,6 +780,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const interval = setInterval(async () => {
       if (Date.now() >= pausaFimTimestamp) {
         clearInterval(interval)
+        if (pausaAutoRetomadaRef.current) return  // já tratado por restaurarEstado ou sincronizar
+        pausaAutoRetomadaRef.current = true
         log.info('index', 'pausa auto-retomada', { pausaFimTimestamp })
         await handlePause()
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -975,6 +977,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
   const confirmarIniciarPausa = async () => {
     setShowPausaDuracaoModal(false)
+    pausaAutoRetomadaRef.current = false  // repor guard para a próxima auto-retoma
     pausaInicioRef.current = Date.now()
     tsInicioUltimaPausa.current = Date.now()
     segPausaRef.current = 0

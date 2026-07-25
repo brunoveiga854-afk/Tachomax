@@ -87,6 +87,8 @@ export default function AujourdhuiScreen() {
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
   const tsInicioUltimaPausa = useRef<number | null>(null)
   const tsRetomouServico = useRef<number | null>(null)
+  const tsInicioServico = useRef<number | null>(null)    // âncora timestamp para segServico
+  const segServicoBaseRef = useRef<number>(0)            // segServico acumulado antes da pausa actual
   const [servicoContinuo, setServicoContinuo] = useState(0)
   const [bannerPause, setBannerPause] = useState<null | '15min' | '30min'>(null)
 
@@ -237,6 +239,8 @@ export default function AujourdhuiScreen() {
       pausas: snap.pausas || [],
       horaInicio: snap.horaInicio || '',
       dateInicio: snap.dateInicio?.toISOString(),
+      tsInicioServico: tsInicioServico.current,
+      segServicoBase: segServicoBaseRef.current,
       ...overrides,
     }
   }
@@ -261,12 +265,23 @@ export default function AujourdhuiScreen() {
     if (estado.pausas) setPausas(estado.pausas)
     if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
 
+    // Restaurar refs de timestamp para computeSegServico()
+    tsInicioServico.current = estado.tsInicioServico ?? null
+    segServicoBaseRef.current = estado.segServicoBase ?? (estado.segServico || 0)
+
     if (estado.emPausa) {
-      setSegServico(estado.segServico || 0)
+      // Em pausa: tsInicioServico é null, segServicoBase reflecte o acumulado
+      tsInicioServico.current = null
+      setSegServico(computeSegServico())
       setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
       setSegPausa((estado.segPausa || 0) + tempoBackground)
     } else {
-      setSegServico((estado.segServico || 0) + tempoBackground)
+      // A correr: ancorar no momento actual + tempoBackground como offset
+      if (tsInicioServico.current == null) {
+        // Snapshot antigo sem tsInicioServico — usar agora
+        tsInicioServico.current = Date.now()
+      }
+      setSegServico(computeSegServico())
       setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
       setSegPausa(estado.segPausa || 0)
     }
@@ -726,15 +741,24 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return () => clearInterval(timer)
   }, [enService])
 
+  // Calcula segServico a partir da âncora de timestamp — imune a throttling de JS
+  const computeSegServico = () => {
+    if (tsInicioServico.current == null) return segServicoBaseRef.current
+    return segServicoBaseRef.current + Math.floor((Date.now() - tsInicioServico.current) / 1000)
+  }
+
   // Service only counts when not in pause — PONTO 6
+  // Usa computeSegServico() em vez de ticks para evitar drift por throttling JS
   useEffect(() => {
     if (!enService || emPausa) return
-    const timer = setInterval(() => {
-      setSegServico(s => s + 1)
+    const tick = () => {
+      setSegServico(computeSegServico())
       if (tsRetomouServico.current) {
         setServicoContinuo(Math.floor((Date.now() - tsRetomouServico.current) / 1000))
       }
-    }, 1000)
+    }
+    tick()  // correcção imediata ao montar (sem esperar 1s)
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
   }, [enService, emPausa])
 
@@ -853,6 +877,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setPausas([]); setPausaReglementaireOk(false)
     setPausaBloco1Feita(false); setPausaBloco2Feita(false); tsInicioUltimaPausa.current = null
     setServicoContinuo(0); tsRetomouServico.current = Date.now()
+    segServicoBaseRef.current = 0
+    tsInicioServico.current = Date.now()
 
     // 4. Persistir estado
     await guardarEstado({
@@ -919,11 +945,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setSegPausa(0)
       setEmPausa(false)
       emPausaRef.current = false
-      // Backfill do serviço perdido desde o fim programado da pausa (bug 5b — closure obsoleto)
+      // Ancorar tsInicioServico no fim programado da pausa (ou agora) e calcular segServico
       const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
       const fim = fimRaw ? parseInt(fimRaw) : null
-      const gapSegundos = fim ? Math.max(0, Math.floor((Date.now() - fim) / 1000)) : 0
-      const segServicoAjustado = segServico + gapSegundos
+      tsInicioServico.current = (fim && fim <= Date.now()) ? fim : Date.now()
+      const segServicoAjustado = computeSegServico()
       setSegServico(segServicoAjustado)
       setPausaFimTimestamp(null)
       await AsyncStorage.removeItem('pausaFimTimestamp')
@@ -940,6 +966,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       if (tempoRestanteAmplitude > 0) agendarAlertaAmplitude(tempoRestanteAmplitude)
     } else {
       // Ouvrir le modal de durée de pause (remplace l'Alert)
+      segServicoBaseRef.current = computeSegServico()
+      tsInicioServico.current = null
       setPausaDuracaoInput('')
       setShowPausaDuracaoModal(true)
     }
@@ -1065,7 +1093,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setShowKmFimInput(false)
 
     // Capture values before reset for summary modal
-    const snapService = segServico
+    const snapService = computeSegServico()
     const snapKm = calcularKmManual()
 
     // Compute frais inline for summary
@@ -1100,7 +1128,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const terminadoTs = Date.now()
     // Só actualizar o timestamp de repouso se o serviço durou pelo menos 30 min
     // (evita que serviços teste/erro reiniciem o contador de repos)
-    if (segServico >= 1800) {
+    if (snapService >= 1800) {
       await AsyncStorage.setItem('ultimo_terminer', terminadoTs.toString())
       setUltimoTerminerTs(terminadoTs)
     }
@@ -1110,6 +1138,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setPausas([]); setPausaReglementaireOk(false)
     setPausaBloco1Feita(false); setPausaBloco2Feita(false); tsInicioUltimaPausa.current = null
     setServicoContinuo(0); tsRetomouServico.current = null
+    segServicoBaseRef.current = 0; tsInicioServico.current = null
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     await carregarStatsSemaine()

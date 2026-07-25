@@ -875,7 +875,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   }
 
   const handlePause = async () => {
-    if (emPausa) {
+    if (emPausaRef.current) {
       // Reprendre — finaliser la pause courante (durée figée avant reset)
       const duracaoPausa = segPausaRef.current
       const pausaAtual = { dur: duracaoPausa, inicio: pausaInicioRef.current }

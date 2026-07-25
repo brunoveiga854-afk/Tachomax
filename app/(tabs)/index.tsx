@@ -306,8 +306,19 @@ export default function AujourdhuiScreen() {
         const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
         if (fimRaw) {
           const fim = parseInt(fimRaw)
-          if (fim > Date.now()) setPausaFimTimestamp(fim)
-          else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
+          if (fim > Date.now()) {
+            setPausaFimTimestamp(fim)
+          } else {
+            setPausaFimTimestamp(null)
+            await AsyncStorage.removeItem('pausaFimTimestamp')
+            // Pausa expirou enquanto em background (hot resume) — retomar de imediato
+            if (!pausaAutoRetomadaRef.current) {
+              log.info('index', 'pausa expirou em background — a retomar (hot resume)', { fim })
+              pausaAutoRetomadaRef.current = true
+              handlePause()
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+            }
+          }
         }
       }
       return true

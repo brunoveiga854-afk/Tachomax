@@ -1013,7 +1013,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
   }
 
-  const guardarDia = async (fim: Date, kmManual = kmDiarios) => {
+  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico) => {
     if (!dateInicio) return
     const diasSemana = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
     const jour = diasSemana[dateInicio.getDay()]
@@ -1033,7 +1033,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio,
       fin: fimStr,
-      segServico,
+      segServico: snapService,
       segPausa: segPausaTotal,
       decouche,
       prevDecouche: prevDec,
@@ -1046,7 +1046,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio, fin: fimStr,
-      segServico, segPausa: segPausaTotal, decouche, frais, modeNuit,
+      segServico: snapService, segPausa: segPausaTotal, decouche, frais, modeNuit,
       kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
     }
     try {
@@ -1122,7 +1122,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       valeurs: fv,
     }).total
 
-    await guardarDia(fim, snapKm)
+    await guardarDia(fim, snapKm, snapService)
     log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, frais: snapFrais, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     await cancelarTodosAlertas()

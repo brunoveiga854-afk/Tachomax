@@ -11,10 +11,14 @@ export const secureGet = async (key: string): Promise<string | null> => {
 }
 
 export const secureSet = async (key: string, value: string): Promise<void> => {
-  try { await SecureStore.setItemAsync(key, value) }
-  catch (e) {
-    log.error('secureStorage', 'SecureStore write failed', { key, e })
-  }
+  const results = await Promise.allSettled([
+    SecureStore.setItemAsync(key, value),
+    AsyncStorage.setItem(key, value),
+  ])
+  if (results[0].status === 'rejected')
+    log.warn('secureStorage', 'SecureStore write failed', { key, reason: results[0].reason })
+  if (results[1].status === 'rejected')
+    log.warn('secureStorage', 'AsyncStorage write failed', { key, reason: results[1].reason })
 }
 
 export const secureDelete = async (key: string): Promise<void> => {

@@ -32,11 +32,11 @@ export function migrarPadrao(raw: any): PadraoSalario {
   const versao = raw?.versao ?? 0
   const migrado = { ...raw }
   if (versao < 1) {
-    if (migrado.taxaHorariaNetaMedia === undefined) migrado.taxaHorariaNetaMedia = 0
-    if (migrado.fraisFactorReal === undefined) migrado.fraisFactorReal = 1
-    if (migrado.valorDiaConges === undefined) migrado.valorDiaConges = 0
-    if (migrado.valorDiaFerie === undefined) migrado.valorDiaFerie = 0
-    if (migrado.valorDiaRC === undefined) migrado.valorDiaRC = 0
+    if (migrado.taxaHorariaNetaMedia == null) migrado.taxaHorariaNetaMedia = 0
+    if (migrado.fraisFactorReal == null) migrado.fraisFactorReal = 1
+    if (migrado.valorDiaConges == null) migrado.valorDiaConges = 0
+    if (migrado.valorDiaFerie == null) migrado.valorDiaFerie = 0
+    if (migrado.valorDiaRC == null) migrado.valorDiaRC = 0
     migrado.versao = PADRAO_VERSAO_ACTUAL
   }
   return migrado as PadraoSalario

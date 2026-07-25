@@ -263,7 +263,7 @@ export default function AujourdhuiScreen() {
 
     if (estado.emPausa) {
       setSegServico(estado.segServico || 0)
-      setSegAmplitude(estado.segAmplitude || 0)
+      setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
       setSegPausa((estado.segPausa || 0) + tempoBackground)
     } else {
       setSegServico((estado.segServico || 0) + tempoBackground)

@@ -54,7 +54,9 @@ export function calcFraisMesPorHorarios(
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
       const m = parseInt(parts[1]) - 1
-      const a = j.id ? new Date(parseInt(j.id)).getFullYear() : ano
+      const a = parts.length >= 3
+        ? parseInt(parts[2])
+        : (j.id ? new Date(parseInt(j.id)).getFullYear() : ano)
       return m === mes && a === ano
     })
     .sort((a: any, b: any) => {

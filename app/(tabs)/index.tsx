@@ -908,11 +908,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setSegPausa(0)
       setEmPausa(false)
       emPausaRef.current = false
+      // Backfill do serviço perdido desde o fim programado da pausa (bug 5b — closure obsoleto)
+      const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
+      const fim = fimRaw ? parseInt(fimRaw) : null
+      const gapSegundos = fim ? Math.max(0, Math.floor((Date.now() - fim) / 1000)) : 0
+      const segServicoAjustado = segServico + gapSegundos
+      setSegServico(segServicoAjustado)
       setPausaFimTimestamp(null)
       await AsyncStorage.removeItem('pausaFimTimestamp')
       await guardarEstado({
         enService, emPausa: false, decouche, modeNuit,
-        segServico, segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmInicioTacho,
+        segServico: segServicoAjustado, segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmInicioTacho,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
         lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,

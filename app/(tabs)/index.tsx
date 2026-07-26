@@ -11,6 +11,13 @@ import { useApp } from '../../context/AppContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { calcularFraisJour } from '../../src/frais'
 import { log } from '../../src/utils/logger'
+import { migrarPadrao } from '../../src/engine/migracoes'
+import type { MoisData } from '../../src/types/moisdata'
+import {
+  calcEstimativaMes, calcMediasDiasTrabalho,
+  mesPagamentoSalDe,
+  type Medias,
+} from '../../src/utils/projecoes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -80,7 +87,7 @@ export default function AujourdhuiScreen() {
   const [pausaDuracaoInput, setPausaDuracaoInput] = useState('')
   const [pausaFimTimestamp, setPausaFimTimestamp] = useState<number | null>(null)
   const [showStats, setShowStats] = useState(false)
-  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, records: true })
+  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, projections: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
   const pausaInicioRef = useRef<number>(0)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
@@ -2642,6 +2649,104 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                           </SectionWrap>
                         )}
                       </View>
+
+                      {/* ── S10.5 PROJECTIONS ANNÉE ── */}
+                      {(() => {
+                        const histSal = (appState.histSal ?? []) as MoisData[]
+                        const histCal = appState.histCal ?? []
+                        const padraoRaw = appState.padrao
+                        if (!padraoRaw || histSal.length === 0) return null
+                        const padrao = migrarPadrao(padraoRaw)
+                        const anoActual = new Date().getFullYear()
+                        const mesActual = new Date().getMonth()
+
+                        const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao)
+
+                        // Mês "activo" = menor mês sem real confirmado no ano actual, ≥ mês actual
+                        const mesesComReal = new Set(
+                          histSal
+                            .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
+                            .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
+                        )
+                        let mesActivo = mesActual
+                        for (let i = mesActual; i < 12; i++) {
+                          if (!mesesComReal.has(i)) { mesActivo = i; break }
+                        }
+
+                        type Pill = { mesIdx: number; estimativa: number; isConfirmed: boolean; isActive: boolean; isFuture: boolean }
+                        const pills: Pill[] = Array.from({ length: 12 }, (_, mesIdx) => {
+                          const mHist = histSal.find(m => {
+                            const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
+                            const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
+                            return mesRec === mesIdx && anoRec === anoActual
+                          })
+                          const syntheticM: MoisData = {
+                            periode: '', moisIndex: mesIdx, annee: anoActual, fichePages: 0,
+                            mesPagamentoIndex: mesIdx, anoPagamento: anoActual,
+                            netPaye: 0, salairebrut: 0, totalCotisations: 0,
+                            remboursementFrais: 0, fraisBoletim: 0, montantTotalRecu: 0,
+                            jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
+                            analysedAt: '', entreprise: '', conducteur: '',
+                          }
+                          const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
+                          if (estimativa === 0 && !mHist) return null
+                          const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
+                          const isActive = mesIdx === mesActivo && !isConfirmed
+                          const isFuture = !isConfirmed && mesIdx > mesActivo
+                          return { mesIdx, estimativa, isConfirmed, isActive, isFuture } satisfies Pill
+                        }).filter((p): p is Pill => p !== null)
+
+                        if (pills.length === 0) return null
+
+                        const ABBR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+
+                        return (
+                          <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
+                            <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" />
+                            {statsOpen.projections && (
+                              <SectionWrap>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                                  {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture }) => (
+                                    <View key={mesIdx} style={{
+                                      width: 68, marginRight: 6, borderRadius: 10,
+                                      paddingVertical: 10, paddingHorizontal: 4,
+                                      alignItems: 'center',
+                                      backgroundColor: isActive  ? 'rgba(245,166,35,0.10)'
+                                                     : isFuture  ? 'rgba(155,89,182,0.07)'
+                                                     : isConfirmed ? 'rgba(39,174,96,0.08)'
+                                                     : c.bg,
+                                      borderWidth: 1,
+                                      borderColor: isActive  ? '#f5a623'
+                                                 : isFuture  ? 'rgba(155,89,182,0.35)'
+                                                 : isConfirmed ? 'rgba(39,174,96,0.45)'
+                                                 : c.cardBorder,
+                                    }}>
+                                      <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>
+                                        {ABBR[mesIdx]}
+                                      </Text>
+                                      <Text style={{ fontSize: 12, fontWeight: '900',
+                                        color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.text }}>
+                                        {Math.round(estimativa / 10) * 10}€
+                                      </Text>
+                                      <Text style={{ fontSize: 8, marginTop: 3,
+                                        color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.textSub }}>
+                                        {isActive ? '●' : isFuture ? '🔮' : '✓'}
+                                      </Text>
+                                    </View>
+                                  ))}
+                                </ScrollView>
+                                {mediasAnuais ? (
+                                  <Text style={{ fontSize: 10, color: c.textSub }}>
+                                    {mediasAnuais.nMeses} mois · {mediasAnuais.mediaHPorDia.toFixed(1)}h/j · {mediasAnuais.mediaFraisPorDia.toFixed(0)}€/j frais
+                                  </Text>
+                                ) : (
+                                  <Text style={{ fontSize: 10, color: c.textSub }}>Données insuffisantes pour projection</Text>
+                                )}
+                              </SectionWrap>
+                            )}
+                          </View>
+                        )
+                      })()}
 
                       {/* ── S10 RECORDS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>

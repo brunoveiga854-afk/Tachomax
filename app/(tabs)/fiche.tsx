@@ -2664,34 +2664,81 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <Animated.View style={{ position: 'absolute', bottom: 22, left: 45, width: 12, height: 8, borderRadius: 6, backgroundColor: 'rgba(180,165,140,0.5)', opacity: dustOpacity, transform: [{ scale: dustScale }] }} />
                     <Animated.View style={{ position: 'absolute', bottom: 26, left: 38, width: 9, height: 6, borderRadius: 5, backgroundColor: 'rgba(170,155,130,0.4)', opacity: dust2Opacity, transform: [{ scale: dust2Scale }] }} />
                     <Animated.View style={{ position: 'absolute', bottom: 20, left: 35, width: 7, height: 5, borderRadius: 4, backgroundColor: 'rgba(160,145,120,0.35)', opacity: dust3Opacity, transform: [{ scale: dust3Scale }] }} />
-                    {/* Camiao laranja original, virado a direita */}
-                    <View style={{ position: 'absolute', bottom: 18, left: 65 }}>
-                      <Svg width={110} height={48} viewBox="0 0 110 48">
-                        {/* Reboque */}
-                        <Rect x="0" y="8" width="68" height="30" rx="3" fill="#f5a623" opacity={0.9} />
-                        <Rect x="4" y="12" width="60" height="8" rx="1" fill="rgba(0,0,0,0.2)" />
-                        <Rect x="4" y="23" width="60" height="1" fill="rgba(255,255,255,0.15)" />
-                        <Rect x="4" y="27" width="60" height="1" fill="rgba(255,255,255,0.1)" />
-                        <Rect x="66" y="20" width="8" height="4" rx="1" fill="#cc8800" />
-                        {/* Cabine */}
-                        <Rect x="72" y="4" width="36" height="34" rx="4" fill="#e6950f" />
-                        <Rect x="80" y="9" width="22" height="14" rx="2" fill="#0f1117" opacity={0.85} />
-                        <Rect x="82" y="11" width="6" height="10" rx="1" fill="rgba(255,255,255,0.07)" />
-                        <Rect x="105" y="16" width="4" height="18" rx="1" fill="#cc8800" />
-                        <Line x1="106" y1="19" x2="108" y2="19" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Line x1="106" y1="23" x2="108" y2="23" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Line x1="106" y1="27" x2="108" y2="27" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Rect x="106" y="13" width="3" height="4" rx="1" fill="#ffe066" />
-                        {/* Rodas reboque */}
-                        <Circle cx="16" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                        <Circle cx="16" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                        <Circle cx="48" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                        <Circle cx="48" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                        {/* Rodas cabine */}
-                        <Circle cx="83" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                        <Circle cx="83" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
-                        <Circle cx="99" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                        <Circle cx="99" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
+                    {/* Camião — quinto-prato, cabine alta, capot+grelha+farol+pára-choque, tandem duplo */}
+                    <View style={{ position: 'absolute', bottom: 18, left: 45 }}>
+                      <Svg width={130} height={56} viewBox="0 0 130 56">
+                        {/* ── REBOQUE ── */}
+                        <Rect x="1" y="10" width="71" height="30" rx="2" fill="#f5a623" opacity={0.93} />
+                        <Rect x="3" y="13" width="67" height="7" rx="1" fill="rgba(0,0,0,0.18)" />
+                        <Rect x="3" y="23" width="67" height="1" fill="rgba(255,255,255,0.14)" />
+                        <Rect x="3" y="28" width="67" height="1" fill="rgba(255,255,255,0.09)" />
+                        <Rect x="1" y="37" width="71" height="3" rx="1" fill="rgba(0,0,0,0.22)" />
+                        <Rect x="1" y="10" width="3" height="30" rx="1" fill="rgba(0,0,0,0.22)" />
+                        <Rect x="1" y="16" width="3" height="8" rx="1" fill="#e03030" opacity={0.85} />
+                        {/* Pernas de suporte */}
+                        <Rect x="56" y="40" width="2" height="10" rx="1" fill={c.textSub} opacity={0.5} />
+                        <Rect x="61" y="40" width="2" height="10" rx="1" fill={c.textSub} opacity={0.5} />
+                        <Rect x="55" y="48" width="10" height="2" rx="1" fill={c.textSub} opacity={0.35} />
+                        {/* ── QUINTO-PRATO ── */}
+                        <Rect x="69" y="34" width="14" height="4" rx="1" fill="#cc8800" />
+                        <Rect x="75" y="37" width="11" height="3" rx="1" fill="#a06600" />
+                        {/* ── CHASSIS ── */}
+                        <Rect x="74" y="38" width="52" height="3" rx="1" fill={c.bg} />
+                        {/* ── TANQUES DE COMBUSTÍVEL ── */}
+                        <Rect x="78" y="25" width="6" height="16" rx="3" fill={c.card} opacity={0.92} />
+                        <Rect x="78" y="32" width="6" height="1.5" rx="0.5" fill="rgba(255,255,255,0.09)" />
+                        {/* ── CABINE (alta / sleeper) ── */}
+                        <Rect x="82" y="3" width="30" height="37" rx="4" fill="#e6950f" />
+                        <Rect x="83" y="2" width="29" height="4" rx="2" fill="#b36b00" />
+                        <Rect x="84" y="8" width="11" height="14" rx="2" fill={c.bg} opacity={0.9} />
+                        <Rect x="85.5" y="9.5" width="4" height="11" rx="1" fill="rgba(255,255,255,0.05)" />
+                        <Rect x="95" y="7" width="3" height="17" rx="1" fill="#b36b00" />
+                        <Rect x="98" y="5" width="12" height="17" rx="2" fill={c.bg} opacity={0.9} />
+                        <Rect x="99.5" y="6.5" width="5" height="14" rx="1" fill="rgba(255,255,255,0.05)" />
+                        <Rect x="84" y="25" width="11" height="0.8" rx="0.4" fill="rgba(255,255,255,0.18)" />
+                        <Rect x="90" y="23" width="3" height="1" rx="0.5" fill="rgba(255,255,255,0.28)" />
+                        {/* Espelho retrovisor */}
+                        <Rect x="79" y="10" width="4" height="1.5" rx="0.75" fill="#b36b00" />
+                        <Rect x="75" y="9" width="5" height="7" rx="1" fill="#b36b00" />
+                        {/* Chaminé de escape */}
+                        <Rect x="83" y="0" width="3.5" height="7" rx="1.5" fill={c.card} />
+                        <Rect x="82" y="0" width="5.5" height="2" rx="1" fill={c.input} />
+                        {/* ── CAPOT / MOTOR ── */}
+                        <Rect x="111" y="14" width="17" height="26" rx="2" fill="#d4870c" />
+                        <Rect x="113" y="17" width="13" height="1.5" rx="0.75" fill="rgba(0,0,0,0.18)" />
+                        <Rect x="113" y="21" width="13" height="1.5" rx="0.75" fill="rgba(0,0,0,0.14)" />
+                        <Rect x="113" y="25" width="13" height="1.5" rx="0.75" fill="rgba(0,0,0,0.10)" />
+                        <Rect x="111" y="14" width="2" height="26" rx="1" fill="rgba(0,0,0,0.28)" />
+                        {/* ── FAROL ── */}
+                        <Rect x="126" y="12" width="4" height="5" rx="1" fill="#ffe066" opacity={0.97} />
+                        <Rect x="126.5" y="12.5" width="3" height="4" rx="0.5" fill="rgba(255,255,255,0.6)" />
+                        {/* ── GRELHA FRONTAL ── */}
+                        <Rect x="127" y="17" width="3" height="13" rx="1" fill={c.input} />
+                        <Rect x="127.3" y="18.5" width="2.4" height="0.8" rx="0.4" fill="rgba(255,255,255,0.22)" />
+                        <Rect x="127.3" y="20.8" width="2.4" height="0.8" rx="0.4" fill="rgba(255,255,255,0.22)" />
+                        <Rect x="127.3" y="23.1" width="2.4" height="0.8" rx="0.4" fill="rgba(255,255,255,0.22)" />
+                        <Rect x="127.3" y="25.4" width="2.4" height="0.8" rx="0.4" fill="rgba(255,255,255,0.22)" />
+                        <Rect x="127.3" y="27.7" width="2.4" height="0.8" rx="0.4" fill="rgba(255,255,255,0.22)" />
+                        {/* ── PÁRA-CHOQUE ── */}
+                        <Rect x="126" y="30" width="4" height="10" rx="1" fill={c.card} />
+                        <Rect x="126" y="37" width="4" height="2" rx="1" fill="rgba(255,255,255,0.07)" />
+                        {/* ── RODAS REBOQUE — tandem duplo ── */}
+                        <Circle cx="21" cy="48" r="7" fill={c.bg} stroke="#f5a623" strokeWidth="1.5" />
+                        <Circle cx="17" cy="48" r="6.5" fill={c.card} stroke="#f5a623" strokeWidth="1" opacity={0.65} />
+                        <Circle cx="21" cy="48" r="2.5" fill="#f5a623" opacity={0.5} />
+                        <Circle cx="35" cy="48" r="7" fill={c.bg} stroke="#f5a623" strokeWidth="1.5" />
+                        <Circle cx="31" cy="48" r="6.5" fill={c.card} stroke="#f5a623" strokeWidth="1" opacity={0.65} />
+                        <Circle cx="35" cy="48" r="2.5" fill="#f5a623" opacity={0.5} />
+                        {/* ── RODAS TRACTEUR — eixos motrizes tandem duplo ── */}
+                        <Circle cx="88" cy="48" r="7.5" fill={c.bg} stroke="#e6950f" strokeWidth="1.5" />
+                        <Circle cx="84" cy="48" r="7" fill={c.card} stroke="#e6950f" strokeWidth="1" opacity={0.6} />
+                        <Circle cx="88" cy="48" r="2.5" fill="#e6950f" opacity={0.5} />
+                        <Circle cx="102" cy="48" r="7.5" fill={c.bg} stroke="#e6950f" strokeWidth="1.5" />
+                        <Circle cx="98" cy="48" r="7" fill={c.card} stroke="#e6950f" strokeWidth="1" opacity={0.6} />
+                        <Circle cx="102" cy="48" r="2.5" fill="#e6950f" opacity={0.5} />
+                        {/* ── EIXO DIRECTRIZ (steer) — simples ── */}
+                        <Circle cx="121" cy="48" r="6.5" fill={c.bg} stroke="#cc8800" strokeWidth="1.5" />
+                        <Circle cx="121" cy="48" r="2" fill="#cc8800" opacity={0.6} />
                       </Svg>
                     </View>
                   </View>

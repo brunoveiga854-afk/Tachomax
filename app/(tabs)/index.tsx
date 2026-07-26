@@ -2758,9 +2758,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                     <TouchableOpacity key={mesIdx} activeOpacity={0.7}
                                       onPress={() => setProjDetail(v => v?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist })}
                                       style={{
-                                        width: 68, marginRight: 6, borderRadius: 10,
-                                        paddingVertical: 10, paddingHorizontal: 4,
-                                        alignItems: 'center',
+                                        width: 72, height: 76, marginRight: 6, borderRadius: 10,
+                                        paddingHorizontal: 6,
+                                        alignItems: 'center', justifyContent: 'space-between',
+                                        paddingVertical: 8,
                                         backgroundColor: isActive  ? 'rgba(245,166,35,0.10)'
                                                        : isFuture  ? 'rgba(155,89,182,0.07)'
                                                        : isConfirmed ? 'rgba(39,174,96,0.08)'
@@ -2771,17 +2772,19 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                                    : isConfirmed ? 'rgba(39,174,96,0.45)'
                                                    : c.cardBorder,
                                       }}>
-                                      <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>
+                                      <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, textAlign: 'center' }}>
                                         {ABBR[mesIdx]}
                                       </Text>
-                                      <Text style={{ fontSize: 12, fontWeight: '900',
+                                      <Text style={{ fontSize: 12, fontWeight: '900', textAlign: 'center',
                                         color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.text }}>
                                         {Math.round(estimativa / 10) * 10}€
                                       </Text>
-                                      <Text style={{ fontSize: 8, marginTop: 3,
-                                        color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.textSub }}>
-                                        {isActive ? '●' : isFuture ? '🔮' : '✓'}
-                                      </Text>
+                                      <View style={{ height: 14, alignItems: 'center', justifyContent: 'center' }}>
+                                        <Text style={{ fontSize: 8,
+                                          color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.textSub }}>
+                                          {isActive ? '●' : isFuture ? '🔮' : '✓'}
+                                        </Text>
+                                      </View>
                                     </TouchableOpacity>
                                   ))}
                                 </ScrollView>

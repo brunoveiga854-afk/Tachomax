@@ -1092,9 +1092,6 @@ export default function MonSalaireScreen() {
   const [padraoAprendido, setPadraoAprendido] = useState<PadraoAprendido>(PADRAO_INICIAL)
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
-  const [showCadeadoModal, setShowCadeadoModal] = useState(false)
-  const [inputHlagModal, setInputHlagModal] = useState('')
-  const [inputFlagModal, setInputFlagModal] = useState('')
   const router = useRouter()
 
   const breathAnim = useRef(new Animated.Value(1)).current
@@ -2703,18 +2700,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 22 }}>{'\u{1F512}'}</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#f39c12', marginBottom: 6 }}>
-                {nFaltam === 1 ? '1 question en attente pour activer la pr\u00E9vision' : '2 questions en attente pour activer la pr\u00E9vision'}
+                {nFaltam === 1 ? '1 question en attente pour activer la prévision' : '2 questions en attente pour activer la prévision'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={{ borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#f39c12' }}
-                  onPress={() => {
-                    setInputHlagModal(String(padraoAprendido.hlag ?? 2))
-                    setInputFlagModal(String(padraoAprendido.flag ?? 1))
-                    setShowCadeadoModal(true)
-                  }}
+                  onPress={() => router.push('/onboarding?mode=edit')}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>R\u00E9pondre maintenant</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>Répondre maintenant</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(243,156,18,0.4)' }}
@@ -3063,89 +3056,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>✅ Continuer</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL CADEADO — confirmar hlag/flag */}
-      <Modal visible={showCadeadoModal} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 32 }}>
-          <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f39c12' }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#f39c12', textAlign: 'center', marginBottom: 20 }}>
-              🔓 Activer la prévision
-            </Text>
-            {!padraoAprendido.hlagConfirmado && (
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 6 }}>
-                  Ton salaire arrive combien de mois après le travail ?
-                </Text>
-                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 10 }}>
-                  Valeur actuelle : {padraoAprendido.hlag ?? 2} mois
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {[1, 2, 3].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      onPress={() => setInputHlagModal(String(n))}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-                        backgroundColor: inputHlagModal === String(n) ? 'rgba(243,156,18,0.15)' : c.input,
-                        borderWidth: inputHlagModal === String(n) ? 1.5 : 1,
-                        borderColor: inputHlagModal === String(n) ? '#f39c12' : c.cardBorder }}
-                    >
-                      <Text style={{ fontWeight: '800', color: inputHlagModal === String(n) ? '#f39c12' : c.textSub }}>{n}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-            {!padraoAprendido.flagConfirmado && (
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 6 }}>
-                  Tes frais arrivent combien de mois après ?
-                </Text>
-                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 10 }}>
-                  Valeur actuelle : {padraoAprendido.flag ?? 1} mois
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {[0, 1, 2].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      onPress={() => setInputFlagModal(String(n))}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-                        backgroundColor: inputFlagModal === String(n) ? 'rgba(243,156,18,0.15)' : c.input,
-                        borderWidth: inputFlagModal === String(n) ? 1.5 : 1,
-                        borderColor: inputFlagModal === String(n) ? '#f39c12' : c.cardBorder }}
-                    >
-                      <Text style={{ fontWeight: '800', color: inputFlagModal === String(n) ? '#f39c12' : c.textSub }}>{n}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-            <TouchableOpacity
-              style={{ backgroundColor: '#f39c12', borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 10 }}
-              onPress={async () => {
-                let novoPadrao = { ...padraoAprendido }
-                if (!padraoAprendido.hlagConfirmado && inputHlagModal) {
-                  novoPadrao = { ...novoPadrao, hlag: parseInt(inputHlagModal), hlagConfirmado: true }
-                }
-                if (!padraoAprendido.flagConfirmado && inputFlagModal) {
-                  novoPadrao = { ...novoPadrao, flag: parseInt(inputFlagModal), flagConfirmado: true }
-                }
-                await persistirPadraoAprendido(novoPadrao)
-                setShowCadeadoModal(false)
-                if (novoPadrao.hlagConfirmado && novoPadrao.flagConfirmado) setShowCadeado(false)
-                log.info('fiche', 'cadeado confirmado', { hlag: novoPadrao.hlag, flag: novoPadrao.flag })
-              }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Confirmer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ alignItems: 'center', paddingVertical: 8 }}
-              onPress={() => setShowCadeadoModal(false)}
-            >
-              <Text style={{ fontSize: 13, color: c.textSub }}>Plus tard</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>

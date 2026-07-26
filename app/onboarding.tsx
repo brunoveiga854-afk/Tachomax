@@ -240,8 +240,8 @@ export default function OnboardingScreen() {
       diaSalario: obDiaSalario,
       flag: obFraisMemeJour ? obHlag : obFlag,
       diaFrais: obFraisMemeJour ? obDiaSalario : obDiaFrais,
-      hlagConfirmado: obHlagTouched,
-      flagConfirmado: obFraisMemeJour ? obHlagTouched : obFlagTouched,
+      hlagConfirmado: params.mode === 'edit' ? true : obHlagTouched,
+      flagConfirmado: params.mode === 'edit' ? true : (obFraisMemeJour ? obHlagTouched : obFlagTouched),
       diaSalarioConfirmado: true,
       diaFraisConfirmado: true,
     }

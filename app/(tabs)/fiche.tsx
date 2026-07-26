@@ -495,6 +495,29 @@ const montantTotalRecuFiche = (d: any) =>
 const contaParaFraisAprendizagem = (d: MoisData) =>
   d.fraisConfirmado || fraisRealConfirme(d) > 0 || (d.fraisBoletim || 0) > 0 || (d.remboursementFrais || 0) > 0
 
+// ── Dias úteis Lun-Ven (sem feriados) ────────────────────────────────────────
+const joursOuvresMois = (ano: number, mes: number): number => {
+  const diasNoMes = new Date(ano, mes + 1, 0).getDate()
+  let count = 0
+  for (let d = 1; d <= diasNoMes; d++) {
+    const dow = new Date(ano, mes, d).getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
+
+const joursOuvresRestantes = (ano: number, mes: number): number => {
+  const hoje = new Date()
+  const diaInicio = (mes === hoje.getMonth() && ano === hoje.getFullYear()) ? hoje.getDate() : 1
+  const diasNoMes = new Date(ano, mes + 1, 0).getDate()
+  let count = 0
+  for (let d = diaInicio; d <= diasNoMes; d++) {
+    const dow = new Date(ano, mes, d).getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
+
 function diasCalendarioMes(hist: any[], ano: number, mes: number) {
   return hist.filter((j: any) => {
     const parts = j.date?.split('/')
@@ -1561,7 +1584,17 @@ export default function MonSalaireScreen() {
       return mes === mH && ano === aH
     })
     const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
-    if (diasTrab.length === 0) return 0
+    if (diasTrab.length === 0) {
+      // Sem dias de calendário — projecção por médias dos meses confirmados
+      const medias = calcMediasDiasTrabalho()
+      if (!medias) return 0
+      const nDias = joursOuvresMois(aH, mH)
+      const salEstimado = p.taxaHorariaNetaMedia > 0
+        ? Math.round(nDias * medias.mediaHPorDia * p.taxaHorariaNetaMedia)
+        : Math.round(nDias * medias.mediaHPorDia * p.hval * p.liquidRate)
+      const fraisEstimado = Math.round(nDias * medias.mediaFraisPorDia)
+      return salEstimado + fraisEstimado
+    }
 
     const totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
     const totalH   = totalSeg / 3600
@@ -1618,6 +1651,35 @@ export default function MonSalaireScreen() {
     }
 
     return Math.round(salLiq + totalFrais)
+  }
+
+  const calcMediasDiasTrabalho = (): { mediaHPorDia: number; mediaFraisPorDia: number; nMeses: number } | null => {
+    const p = padrao
+    const anoActual = new Date().getFullYear()
+    const amostras: { nDias: number; totalH: number; fraisDia: number }[] = []
+    for (const m of historique) {
+      if (m.moisAtipico || !contaParaSalarioAprendizagem(m)) continue
+      const [aH, mH] = mesTrabalhoDe(m, p)
+      if (aH < anoActual - 1) continue   // só ano corrente e anterior
+      const diasTrab = histCal.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const mes = parseInt(parts[1]) - 1
+        const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        return mes === mH && ano === aH && ['TRAB','DEC','work','dec'].includes(j.type || '')
+      })
+      if (diasTrab.length < 10) continue   // mês incompleto — ignora
+      const totalH = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+      if (totalH < 10) continue
+      const [aF, mF] = mesFraisTrabalhoDe(m, p)
+      const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, p)
+      const fraisReal = fraisRealConfirme(m) > 0 ? fraisRealConfirme(m) : (m.fraisBoletim || fraisCalc.total)
+      amostras.push({ nDias: diasTrab.length, totalH, fraisDia: fraisReal / diasTrab.length })
+    }
+    if (amostras.length === 0) return null
+    const mediaHPorDia = amostras.reduce((a, s) => a + s.totalH / s.nDias, 0) / amostras.length
+    const mediaFraisPorDia = amostras.reduce((a, s) => a + s.fraisDia, 0) / amostras.length
+    return { mediaHPorDia, mediaFraisPorDia, nMeses: amostras.length }
   }
 
   const animarRespiracao = () => {
@@ -2998,6 +3060,98 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   </Swipeable>
                 )
               })}
+            </View>
+          )
+        })()}
+
+        {/* ── PROJECTIONS ANNÉE ── */}
+        {showPrevision && calcResult && (() => {
+          const anoActual = new Date().getFullYear()
+          const mesReceberActivo = MOIS_NOMS.indexOf(calcResult.mesReceber.split(' ')[0])
+          const anoReceberActivo = parseInt(calcResult.mesReceber.split(' ')[1])
+
+          const rows = Array.from({ length: 12 }, (_, mesIdx) => {
+            const mHist = historique.find(m => {
+              const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
+              const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
+              return mesRec === mesIdx && anoRec === anoActual
+            })
+            const isActive = mesIdx === mesReceberActivo && anoActual === anoReceberActivo
+            const isFuture = !mHist && (
+              anoActual > anoReceberActivo ||
+              (anoActual === anoReceberActivo && mesIdx > mesReceberActivo)
+            )
+            let estimativa = 0
+            if (mHist) {
+              estimativa = calcEstimativaMes(mHist)
+            } else {
+              const syntheticM: MoisData = {
+                periode: `${MOIS_NOMS[mesIdx]} ${anoActual}`,
+                moisIndex: mesIdx, annee: anoActual, fichePages: 0,
+                mesPagamentoIndex: mesIdx, anoPagamento: anoActual,
+                netPaye: 0, salairebrut: 0, totalCotisations: 0,
+                remboursementFrais: 0, fraisBoletim: 0, montantTotalRecu: 0,
+                jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
+                analysedAt: '', entreprise: '', conducteur: '',
+              }
+              estimativa = calcEstimativaMes(syntheticM)
+            }
+            if (estimativa === 0 && !mHist) return null
+            const temReal = (mHist?.montantTotalRecu || 0) > 0
+            const delta = temReal && estimativa > 0 ? mHist!.montantTotalRecu - estimativa : null
+            const pctAcerto = delta !== null && estimativa > 0
+              ? Math.round(100 - Math.abs(delta) / mHist!.montantTotalRecu * 100)
+              : null
+            const deltaColor = delta === null ? '#aaa'
+              : Math.abs(delta) <= 30 ? '#27ae60'
+              : Math.abs(delta) <= 100 ? '#f5a623' : '#e74c3c'
+            const borderColor = isActive ? '#f5a623' : isFuture ? 'rgba(155,89,182,0.35)' : c.cardBorder
+            const bgColor = isActive ? 'rgba(245,166,35,0.08)' : isFuture ? 'rgba(155,89,182,0.05)' : c.card
+            return (
+              <View key={mesIdx} style={[st.histCard, { backgroundColor: bgColor, borderColor }]}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[st.histPeriode, { color: c.text }]}>{MOIS_NOMS[mesIdx]} {anoActual}</Text>
+                    {isActive && <Text style={{ fontSize: 9, color: '#f5a623', fontWeight: '800' }}>EN COURS</Text>}
+                    {isFuture && <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '800' }}>PROJ.</Text>}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>{isFuture ? '🔮' : 'App'}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                    {temReal && <Text style={{ fontSize: 10, color: c.cardBorder }}>→</Text>}
+                    {temReal && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#27ae60', fontWeight: '600' }}>Réel</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#27ae60' }}>{Math.round(mHist!.montantTotalRecu).toLocaleString('fr-FR')}€</Text>
+                      </View>
+                    )}
+                    {delta !== null && (
+                      <View style={{ backgroundColor: Math.abs(delta) <= 30 ? 'rgba(39,174,96,0.12)' : Math.abs(delta) <= 100 ? 'rgba(245,166,35,0.12)' : 'rgba(231,76,60,0.12)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: deltaColor }}>{delta >= 0 ? '+' : ''}{Math.round(delta)}€</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                {pctAcerto !== null ? (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
+                    <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
+                  </View>
+                ) : (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isFuture ? '#9b59b6' : c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                    <Text style={{ fontSize: 9, color: c.textSub }}>{isFuture ? 'proj.' : 'estimé'}</Text>
+                  </View>
+                )}
+              </View>
+            )
+          }).filter(Boolean)
+
+          if (rows.length === 0) return null
+          return (
+            <View style={{ marginTop: 16 }}>
+              <Text style={[st.histTitle, { color: c.textLabel }]}>PROJECTIONS {anoActual}</Text>
+              {rows}
             </View>
           )
         })()}

@@ -409,8 +409,10 @@ export default function AujourdhuiScreen() {
 
   useEffect(() => {
     if (!enService) {
-      const v = appState.kmUltimoFim
-      if (v > 0 && !kmInicioInput) {
+      const kmContexto = appState.kmUltimoFim
+      const kmHistorico = appState.histCal?.find((d: any) => (d.kmFim || 0) > 0)?.kmFim ?? null
+      const v = kmContexto > 0 ? kmContexto : kmHistorico
+      if (v && v > 0 && !kmInicioInput) {
         setKmInicioInput(String(v))
         setKmInicioAuto(true)
       }
@@ -418,7 +420,7 @@ export default function AujourdhuiScreen() {
     } else {
       setShowKmInicio(false)
     }
-  }, [enService, appState.kmUltimoFim])
+  }, [enService, appState.kmUltimoFim, appState.histCal])
 
   useFocusEffect(
     React.useCallback(() => {

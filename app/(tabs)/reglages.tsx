@@ -4,7 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Al
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet } from '../../src/utils/secureStorage'
-import { router, useLocalSearchParams } from 'expo-router'
+import { useFocusEffect, router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
@@ -127,6 +127,10 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('equipement_grue_aux').then(v => setEquipGrueAux(v === 'true'))
     atualizarCamposOk()
   }, [])
+
+  useFocusEffect(
+    React.useCallback(() => { recarregarApp() }, [])
+  )
 
   // KM: AppContext primeiro, último dia do histórico com kmFim como fallback
   // (histCal já vem ordenado mais-recente-primeiro via unshift)

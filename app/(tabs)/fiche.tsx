@@ -1569,7 +1569,7 @@ export default function MonSalaireScreen() {
   }
 
   // ── Calcula estimativa da app para um mês passado ─────────────────────────
-  const calcEstimativaMes = (m: MoisData): number => {
+  const calcEstimativaMes = (m: MoisData, mediasPreComp?: ReturnType<typeof calcMediasDiasTrabalho>): number => {
     const p = padrao
 
     // Mês de TRABALHO
@@ -1586,7 +1586,7 @@ export default function MonSalaireScreen() {
     const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
     if (diasTrab.length === 0) {
       // Sem dias de calendário — projecção por médias dos meses confirmados
-      const medias = calcMediasDiasTrabalho()
+      const medias = mediasPreComp ?? calcMediasDiasTrabalho()
       if (!medias) return 0
       const nDias = joursOuvresMois(aH, mH)
       const salEstimado = p.taxaHorariaNetaMedia > 0
@@ -3070,6 +3070,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           const mesReceberActivo = MOIS_NOMS.indexOf(calcResult.mesReceber.split(' ')[0])
           const anoReceberActivo = parseInt(calcResult.mesReceber.split(' ')[1])
 
+          const mediasAnuais = calcMediasDiasTrabalho()
           const rows = Array.from({ length: 12 }, (_, mesIdx) => {
             const mHist = historique.find(m => {
               const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
@@ -3083,7 +3084,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             )
             let estimativa = 0
             if (mHist) {
-              estimativa = calcEstimativaMes(mHist)
+              estimativa = calcEstimativaMes(mHist, mediasAnuais)
             } else {
               const syntheticM: MoisData = {
                 periode: `${MOIS_NOMS[mesIdx]} ${anoActual}`,
@@ -3094,7 +3095,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
                 analysedAt: '', entreprise: '', conducteur: '',
               }
-              estimativa = calcEstimativaMes(syntheticM)
+              estimativa = calcEstimativaMes(syntheticM, mediasAnuais)
             }
             if (estimativa === 0 && !mHist) return null
             const temReal = (mHist?.montantTotalRecu || 0) > 0

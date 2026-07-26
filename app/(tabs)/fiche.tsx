@@ -1022,6 +1022,12 @@ export default function MonSalaireScreen() {
   const [rascunhoActual, setRascunhoActual] = useState<any>(null)
   const [perguntaAtual, setPerguntaAtual] = useState(0)
   const [respostas, setRespostas] = useState<any[]>([])
+  type InputsSnapshot = {
+    parteUmSal: string; parteUmFrais: string; dataParteUm: string; mesToTrabalho: number
+    montantSal: string; montantFrais: string; interessement: string; primeNonAcc: string
+    moisAtipico: boolean; fonte: 'banco' | 'fiche'
+  }
+  const [historialInputs, setHistorialInputs] = useState<InputsSnapshot[]>([])
   const [inputValor, setInputValor] = useState('')
   const [inputDiaSal, setInputDiaSal] = useState('')
   const [inputDiaFrais, setInputDiaFrais] = useState('')
@@ -1993,6 +1999,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       interessementQ: parseFloat(inputInteressementQ.replace(',','.')) || 0,
       primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
     }
+    // Guardar snapshot dos inputs actuais antes de avançar (para restaurar ao recuar)
+    setHistorialInputs(h => {
+      const novo = [...h]
+      novo[perguntaAtual] = {
+        parteUmSal: inputParteUmSal, parteUmFrais: inputParteUmFrais,
+        dataParteUm: inputDataParteUm, mesToTrabalho: mesToTrabalhoParteUm,
+        montantSal: inputMontantSalQ, montantFrais: inputMontantFraisQ,
+        interessement: inputInteressementQ, primeNonAcc: inputPrimeNonAccQ,
+        moisAtipico: inputMoisAtipico, fonte: fonteEscolhida,
+      }
+      return novo
+    })
     const novasRespostas = [...respostas, novaResposta]
     log.info('fiche', 'resposta registada', { periode: fichaActual.periode, sal, frais: fraisReel, moisAtipico: inputMoisAtipico })
     setRespostas(novasRespostas)
@@ -2032,6 +2050,25 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
   }
 
+  const voltarPergunta = () => {
+    const prevIndex = perguntaAtual - 1
+    const snap = historialInputs[prevIndex]
+    setRespostas(r => r.slice(0, -1))
+    setPerguntaAtual(prevIndex)
+    setShowParteUm(false)
+    if (snap) {
+      setInputParteUmSal(snap.parteUmSal)
+      setInputParteUmFrais(snap.parteUmFrais)
+      setInputDataParteUm(snap.dataParteUm)
+      setMesToTrabalhoParteUm(snap.mesToTrabalho)
+      setInputMontantSalQ(snap.montantSal)
+      setInputMontantFraisQ(snap.montantFrais)
+      setInputInteressementQ(snap.interessement)
+      setInputPrimeNonAccQ(snap.primeNonAcc)
+      setInputMoisAtipico(snap.moisAtipico)
+      setFonteEscolhida(snap.fonte)
+    }
+  }
 
   const guardarTudo = async (resps: any[]) => {
     setLoading(true)
@@ -3339,11 +3376,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )}
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {perguntaAtual > 0 && (
+                      <TouchableOpacity
+                        style={{ paddingHorizontal: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
+                        onPress={voltarPergunta}
+                      >
+                        <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center' }}>{'‹‹'}{'\n'}Fiche{'\n'}préc.</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
-                      style={{ padding: 14, alignItems: 'center' }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
                       onPress={() => setShowParteUm(true)}
                     >
-                      <Text style={{ fontSize: 14, color: c.textSub }}>←</Text>
+                      <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center' }}>{'‹'}{'\n'}Partie{'\n'}1</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}

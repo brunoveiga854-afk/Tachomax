@@ -89,6 +89,7 @@ export default function AujourdhuiScreen() {
   const tsRetomouServico = useRef<number | null>(null)
   const tsInicioServico = useRef<number | null>(null)    // âncora timestamp para segServico
   const segServicoBaseRef = useRef<number>(0)            // segServico acumulado antes da pausa actual
+  const segPausaTotalBaseRef = useRef<number>(0)         // segPausaTotal acumulado antes da pausa actual
   const [servicoContinuo, setServicoContinuo] = useState(0)
   const [bannerPause, setBannerPause] = useState<null | '15min' | '30min'>(null)
 
@@ -241,6 +242,8 @@ export default function AujourdhuiScreen() {
       dateInicio: snap.dateInicio?.toISOString(),
       tsInicioServico: tsInicioServico.current,
       segServicoBase: segServicoBaseRef.current,
+      tsPauseInicio: pausaInicioRef.current,
+      segPausaTotalBase: segPausaTotalBaseRef.current,
       ...overrides,
     }
   }
@@ -274,7 +277,14 @@ export default function AujourdhuiScreen() {
       tsInicioServico.current = null
       setSegServico(computeSegServico())
       setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
-      setSegPausa((estado.segPausa || 0) + tempoBackground)
+      // Reconstruir âncora de pausa
+      const segPausaEfectivo = (estado.segPausa || 0) + tempoBackground
+      pausaInicioRef.current = estado.tsPauseInicio
+        ? estado.tsPauseInicio                              // âncora real (snapshot recente)
+        : Date.now() - segPausaEfectivo * 1000             // fallback para snapshots antigos
+      segPausaTotalBaseRef.current = Math.max(0, (estado.segPausaTotal || 0) + tempoBackground - segPausaEfectivo)
+      setSegPausa(computeSegPausa())
+      setSegPausaTotal(segPausaTotalBaseRef.current + computeSegPausa())
     } else {
       // A correr: ancorar no momento actual + tempoBackground como offset
       if (tsInicioServico.current == null) {
@@ -283,7 +293,10 @@ export default function AujourdhuiScreen() {
       }
       setSegServico(computeSegServico())
       setSegAmplitude((estado.segAmplitude || 0) + tempoBackground)
-      setSegPausa(estado.segPausa || 0)
+      pausaInicioRef.current = 0
+      segPausaTotalBaseRef.current = estado.segPausaTotal || 0
+      setSegPausa(0)
+      // setSegPausaTotal já tratado em L261
     }
   }
 
@@ -749,6 +762,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return segServicoBaseRef.current + Math.floor((Date.now() - tsInicioServico.current) / 1000)
   }
 
+  const computeSegPausa = () => {
+    if (!emPausaRef.current || !pausaInicioRef.current) return 0
+    return Math.floor((Date.now() - pausaInicioRef.current) / 1000)
+  }
+
   // Service only counts when not in pause — PONTO 6
   // Usa computeSegServico() em vez de ticks para evitar drift por throttling JS
   useEffect(() => {
@@ -766,13 +784,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
   useEffect(() => {
     if (!emPausa) return
-    const timer = setInterval(() => {
-      setSegPausa(s => {
-        segPausaRef.current = s + 1
-        return s + 1
-      })
-      setSegPausaTotal(s => s + 1)
-    }, 1000)
+    const tick = () => {
+      const dur = computeSegPausa()
+      segPausaRef.current = dur
+      setSegPausa(dur)
+      setSegPausaTotal(segPausaTotalBaseRef.current + dur)
+    }
+    tick()  // correcção imediata ao montar
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
   }, [emPausa])
 
@@ -792,9 +811,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return () => clearInterval(interval)
   }, [emPausa, pausaFimTimestamp])
 
-  useEffect(() => {
-    segPausaRef.current = segPausa
-  }, [segPausa])
+  // segPausaRef mantido actualizado no tick — useEffect de sync removido (redundante)
 
   // Amplitude overflow check — alert if service open > 16h (possible forgot to end)
   useEffect(() => {
@@ -883,6 +900,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setServicoContinuo(0); tsRetomouServico.current = Date.now()
     segServicoBaseRef.current = 0
     tsInicioServico.current = Date.now()
+    segPausaTotalBaseRef.current = 0
+    pausaInicioRef.current = 0
 
     // 4. Persistir estado
     await guardarEstado({
@@ -918,7 +937,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   const handlePause = async () => {
     if (emPausaRef.current) {
       // Reprendre — finaliser la pause courante (durée figée avant reset)
-      const duracaoPausa = segPausaRef.current
+      const duracaoPausa = computeSegPausa()   // timestamp-based, sem drift de ticks
       const pausaAtual = { dur: duracaoPausa, inicio: pausaInicioRef.current }
       const novaListaPausas = [...pausas, pausaAtual]
 
@@ -945,6 +964,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       tsRetomouServico.current = Date.now()
       setServicoContinuo(0)
 
+      segPausaTotalBaseRef.current += duracaoPausa  // acumular base antes de resetar âncora
+      pausaInicioRef.current = 0                    // desactivar âncora para computeSegPausa()
       segPausaRef.current = 0
       setSegPausa(0)
       setEmPausa(false)
@@ -1015,7 +1036,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
   }
 
-  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico) => {
+  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico, snapPausaTotal = segPausaTotal) => {
     if (!dateInicio) return
     const diasSemana = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
     const jour = diasSemana[dateInicio.getDay()]
@@ -1036,7 +1057,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       debut: horaInicio,
       fin: fimStr,
       segServico: snapService,
-      segPausa: segPausaTotal,
+      segPausa: snapPausaTotal,
       decouche,
       prevDecouche: prevDec,
       regles,
@@ -1048,7 +1069,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio, fin: fimStr,
-      segServico: snapService, segPausa: segPausaTotal, decouche, frais, modeNuit,
+      segServico: snapService, segPausa: snapPausaTotal, decouche, frais, modeNuit,
       kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
     }
     try {
@@ -1099,6 +1120,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
     // Capture values before reset for summary modal
     const snapService = computeSegServico()
+    const snapPausaTotal = segPausaTotalBaseRef.current  // acumulado final (pausa já terminada antes de chegar aqui)
     const snapKm = calcularKmManual()
 
     // Compute frais inline for summary
@@ -1117,14 +1139,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       debut: horaInicio,
       fin: fimStr,
       segServico: snapService,
-      segPausa: segPausaTotal,
+      segPausa: snapPausaTotal,
       decouche: comDecouche || decouche,
       prevDecouche: prevDecResumo,
       regles: regles2,
       valeurs: fv,
     }).total
 
-    await guardarDia(fim, snapKm, snapService)
+    await guardarDia(fim, snapKm, snapService, snapPausaTotal)
     log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, frais: snapFrais, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     await cancelarTodosAlertas()
@@ -1144,6 +1166,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setPausaBloco1Feita(false); setPausaBloco2Feita(false); tsInicioUltimaPausa.current = null
     setServicoContinuo(0); tsRetomouServico.current = null
     segServicoBaseRef.current = 0; tsInicioServico.current = null
+    segPausaTotalBaseRef.current = 0; pausaInicioRef.current = 0
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     await carregarStatsSemaine()

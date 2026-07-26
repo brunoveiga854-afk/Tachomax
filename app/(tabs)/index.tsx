@@ -15,7 +15,7 @@ import { migrarPadrao } from '../../src/engine/migracoes'
 import type { MoisData } from '../../src/types/moisdata'
 import {
   calcEstimativaMes, calcMediasDiasTrabalho,
-  mesPagamentoSalDe,
+  mesPagamentoSalDe, joursOuvresMois,
   type Medias,
 } from '../../src/utils/projecoes'
 import {
@@ -89,6 +89,10 @@ export default function AujourdhuiScreen() {
   const [showStats, setShowStats] = useState(false)
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, projections: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
+  const [projDetail, setProjDetail] = useState<any>(null)
+  const [fraisDetail, setFraisDetail] = useState(false)
+  const [pausaDetail, setPausaDetail] = useState(false)
+  const [recordDetail, setRecordDetail] = useState<number | null>(null)
   const pausaInicioRef = useRef<number>(0)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
@@ -2268,13 +2272,13 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
       {/* PONTO 2 — MODAL DÉTAIL PAUSES CE 561/2006 */}
       {/* ── STATS MODAL ── */}
-      <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null) }}>
+      <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
-              <TouchableOpacity onPress={() => { setShowStats(false); setStatsBarDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity onPress={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, color: c.textSub, fontWeight: '700' }}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -2417,13 +2421,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     const mon = new Date(d); mon.setDate(d.getDate() - (d.getDay()+6)%7); mon.setHours(0,0,0,0)
                     const k = mon.toISOString(); weeklyTotals[k] = (weeklyTotals[k]||0) + (j.segServico||0)
                   })
-                  const bestWeekSec = Object.values(weeklyTotals).reduce((a,b) => Math.max(a,b), 0)
+                  const [bestWeekKey, bestWeekSec] = Object.entries(weeklyTotals).reduce<[string, number]>(
+                    ([bk, bv], [k, v]) => v > bv ? [k, v] : [bk, bv], ['', 0]
+                  )
                   const monthlyFrais: Record<string,number> = {}
                   diasHistorique.forEach(j => {
                     const d = parseDate(j.date); if (!d) return
                     const k = `${d.getFullYear()}-${d.getMonth()}`; monthlyFrais[k] = (monthlyFrais[k]||0) + (j.frais||0)
                   })
-                  const bestMonthFrais = Object.values(monthlyFrais).reduce((a,b) => Math.max(a,b), 0)
+                  const [bestMonthFraisKey, bestMonthFrais] = Object.entries(monthlyFrais).reduce<[string, number]>(
+                    ([bk, bv], [k, v]) => v > bv ? [k, v] : [bk, bv], ['', 0]
+                  )
                   const mostKmDay = diasHistorique.reduce((best: any, j: any) => (!best || (j.kmDiarios||0) > (best.kmDiarios||0)) ? j : best, null)
 
                   return (
@@ -2553,17 +2561,37 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         <AccHeader label="⏸ PAUSES" k="pauses" />
                         {statsOpen.pauses && (
                           <SectionWrap>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>CE VALIDES</Text>
-                                <Text style={{ fontSize: 18, fontWeight: '800', color: pctValidPauses >= 80 ? '#27ae60' : '#f39c12', marginTop: 2 }}>{pctValidPauses}%</Text>
+                            <TouchableOpacity activeOpacity={0.7} onPress={() => setPausaDetail(v => !v)}>
+                              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                                <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>CE VALIDES</Text>
+                                  <Text style={{ fontSize: 18, fontWeight: '800', color: pctValidPauses >= 80 ? '#27ae60' : '#f39c12', marginTop: 2 }}>{pctValidPauses}%</Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>MOY./JOUR</Text>
+                                  <Text style={{ fontSize: 18, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{fmtHM(avgPausePerDay)}</Text>
+                                </View>
                               </View>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>MOY./JOUR</Text>
-                                <Text style={{ fontSize: 18, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{fmtHM(avgPausePerDay)}</Text>
+                              <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center', marginTop: 4 }}>Pause ≥ 45min comptée comme valide CE 561/2006</Text>
+                            </TouchableOpacity>
+                            {pausaDetail && (
+                              <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL SEMAINE</Text>
+                                {semaineDays.length === 0 ? (
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Pas de données cette semaine</Text>
+                                ) : semaineDays.map((j: any, i: number) => {
+                                  const valide = (j.segPausa || 0) >= 2700
+                                  return (
+                                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 }}>
+                                      <Text style={{ fontSize: 12, color: c.textSub }}>{j.jour} {j.date}</Text>
+                                      <Text style={{ fontSize: 12, fontWeight: '700', color: valide ? '#27ae60' : '#e74c3c' }}>
+                                        {fmtHM(j.segPausa || 0)} {valide ? '✓' : '✗'}
+                                      </Text>
+                                    </View>
+                                  )
+                                })}
                               </View>
-                            </View>
-                            <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center', marginTop: 4 }}>Pause ≥ 45min comptée comme valide CE 561/2006</Text>
+                            )}
                           </SectionWrap>
                         )}
                       </View>
@@ -2573,31 +2601,51 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         <AccHeader label="💰 FRAIS" k="frais" />
                         {statsOpen.frais && (
                           <SectionWrap>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>CE MOIS</Text>
-                                <Text style={{ fontSize: 16, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{totalFraisMois.toFixed(0)}€</Text>
+                            <TouchableOpacity activeOpacity={0.7} onPress={() => setFraisDetail(v => !v)}>
+                              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                                <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>CE MOIS</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{totalFraisMois.toFixed(0)}€</Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>PROJECTION</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{projFrais.toFixed(0)}€</Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>DÉCOUCHÉS</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{decouchesMois}</Text>
+                                </View>
                               </View>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>PROJECTION</Text>
-                                <Text style={{ fontSize: 16, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{projFrais.toFixed(0)}€</Text>
+                              <Divider />
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                                <Text style={{ fontSize: 12, color: c.textSub }}>Moyenne / jour travaillé</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{avgFraisDay.toFixed(2)}€</Text>
                               </View>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>DÉCOUCHÉS</Text>
-                                <Text style={{ fontSize: 16, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{decouchesMois}</Text>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                                <Text style={{ fontSize: 12, color: c.textSub }}>Mois précédent</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: totalFraisMois >= totalFraisLastMois ? '#27ae60' : '#e74c3c' }}>
+                                  {totalFraisLastMois.toFixed(0)}€ {totalFraisMois > totalFraisLastMois ? '↑' : totalFraisMois < totalFraisLastMois ? '↓' : '='}
+                                </Text>
                               </View>
-                            </View>
-                            <Divider />
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 12, color: c.textSub }}>Moyenne / jour travaillé</Text>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{avgFraisDay.toFixed(2)}€</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 12, color: c.textSub }}>Mois précédent</Text>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: totalFraisMois >= totalFraisLastMois ? '#27ae60' : '#e74c3c' }}>
-                                {totalFraisLastMois.toFixed(0)}€ {totalFraisMois > totalFraisLastMois ? '↑' : totalFraisMois < totalFraisLastMois ? '↓' : '='}
-                              </Text>
-                            </View>
+                            </TouchableOpacity>
+                            {fraisDetail && (
+                              <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL CE MOIS</Text>
+                                {moisDays.length === 0 ? (
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Pas de données ce mois</Text>
+                                ) : [...moisDays].sort((a: any, b: any) => {
+                                  const da = parseDate(a.date), db = parseDate(b.date)
+                                  return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
+                                }).map((j: any, i: number) => (
+                                  <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>{j.jour} {j.date}</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: (j.frais || 0) > 0 ? '#27ae60' : c.textSub }}>
+                                      {(j.frais || 0).toFixed(2)}€
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
                           </SectionWrap>
                         )}
                       </View>
@@ -2673,7 +2721,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                           if (!mesesComReal.has(i)) { mesActivo = i; break }
                         }
 
-                        type Pill = { mesIdx: number; estimativa: number; isConfirmed: boolean; isActive: boolean; isFuture: boolean }
+                        type Pill = { mesIdx: number; estimativa: number; isConfirmed: boolean; isActive: boolean; isFuture: boolean; mHist: MoisData | undefined }
                         const pills: Pill[] = Array.from({ length: 12 }, (_, mesIdx) => {
                           const mHist = histSal.find(m => {
                             const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
@@ -2693,7 +2741,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                           const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
                           const isActive = mesIdx === mesActivo && !isConfirmed
                           const isFuture = !isConfirmed && mesIdx > mesActivo
-                          return { mesIdx, estimativa, isConfirmed, isActive, isFuture } satisfies Pill
+                          return { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } satisfies Pill
                         }).filter((p): p is Pill => p !== null)
 
                         if (pills.length === 0) return null
@@ -2706,21 +2754,23 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             {statsOpen.projections && (
                               <SectionWrap>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                                  {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture }) => (
-                                    <View key={mesIdx} style={{
-                                      width: 68, marginRight: 6, borderRadius: 10,
-                                      paddingVertical: 10, paddingHorizontal: 4,
-                                      alignItems: 'center',
-                                      backgroundColor: isActive  ? 'rgba(245,166,35,0.10)'
-                                                     : isFuture  ? 'rgba(155,89,182,0.07)'
-                                                     : isConfirmed ? 'rgba(39,174,96,0.08)'
-                                                     : c.bg,
-                                      borderWidth: 1,
-                                      borderColor: isActive  ? '#f5a623'
-                                                 : isFuture  ? 'rgba(155,89,182,0.35)'
-                                                 : isConfirmed ? 'rgba(39,174,96,0.45)'
-                                                 : c.cardBorder,
-                                    }}>
+                                  {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }) => (
+                                    <TouchableOpacity key={mesIdx} activeOpacity={0.7}
+                                      onPress={() => setProjDetail(v => v?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist })}
+                                      style={{
+                                        width: 68, marginRight: 6, borderRadius: 10,
+                                        paddingVertical: 10, paddingHorizontal: 4,
+                                        alignItems: 'center',
+                                        backgroundColor: isActive  ? 'rgba(245,166,35,0.10)'
+                                                       : isFuture  ? 'rgba(155,89,182,0.07)'
+                                                       : isConfirmed ? 'rgba(39,174,96,0.08)'
+                                                       : c.bg,
+                                        borderWidth: projDetail?.mesIdx === mesIdx ? 2 : 1,
+                                        borderColor: isActive  ? '#f5a623'
+                                                   : isFuture  ? 'rgba(155,89,182,0.35)'
+                                                   : isConfirmed ? 'rgba(39,174,96,0.45)'
+                                                   : c.cardBorder,
+                                      }}>
                                       <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>
                                         {ABBR[mesIdx]}
                                       </Text>
@@ -2732,9 +2782,65 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                         color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.textSub }}>
                                         {isActive ? '●' : isFuture ? '🔮' : '✓'}
                                       </Text>
-                                    </View>
+                                    </TouchableOpacity>
                                   ))}
                                 </ScrollView>
+                                {projDetail && (() => {
+                                  const { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } = projDetail
+                                  const color = isActive ? '#f5a623' : isFuture ? '#9b59b6' : '#27ae60'
+                                  const real = mHist ? (mHist.montantTotalRecu || 0) : 0
+                                  const delta = real > 0 ? real - estimativa : 0
+                                  const pct = estimativa > 0 && real > 0 ? Math.round((real / estimativa - 1) * 100) : null
+                                  const joursOuvres = joursOuvresMois(anoActual, mesIdx)
+                                  return (
+                                    <View style={{ marginBottom: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: color + '55' }}>
+                                      <Text style={{ fontSize: 11, fontWeight: '800', color, marginBottom: 6 }}>{ABBR[mesIdx]} {anoActual}</Text>
+                                      {isConfirmed && real > 0 ? (
+                                        <>
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>Réel reçu</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#27ae60' }}>{real.toFixed(0)}€</Text>
+                                          </View>
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>Estimation</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{estimativa.toFixed(0)}€</Text>
+                                          </View>
+                                          {delta !== 0 && (
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                              <Text style={{ fontSize: 12, color: c.textSub }}>Écart</Text>
+                                              <Text style={{ fontSize: 12, fontWeight: '700', color: delta >= 0 ? '#27ae60' : '#e74c3c' }}>
+                                                {delta >= 0 ? '+' : ''}{delta.toFixed(0)}€{pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct}%)` : ''}
+                                              </Text>
+                                            </View>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>Estimation</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: '800', color }}>{estimativa.toFixed(0)}€</Text>
+                                          </View>
+                                          {mediasAnuais && (
+                                            <>
+                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                                <Text style={{ fontSize: 12, color: c.textSub }}>Jours ouvrés</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{joursOuvres} j.</Text>
+                                              </View>
+                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                                <Text style={{ fontSize: 12, color: c.textSub }}>Moy. h/jour</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{mediasAnuais.mediaHPorDia.toFixed(1)}h</Text>
+                                              </View>
+                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                                <Text style={{ fontSize: 12, color: c.textSub }}>Moy. frais/jour</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{mediasAnuais.mediaFraisPorDia.toFixed(0)}€</Text>
+                                              </View>
+                                            </>
+                                          )}
+                                        </>
+                                      )}
+                                    </View>
+                                  )
+                                })()}
                                 {mediasAnuais ? (
                                   <Text style={{ fontSize: 10, color: c.textSub }}>
                                     {mediasAnuais.nMeses} mois · {mediasAnuais.mediaHPorDia.toFixed(1)}h/j · {mediasAnuais.mediaFraisPorDia.toFixed(0)}€/j frais
@@ -2754,16 +2860,96 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         {statsOpen.records && (
                           <SectionWrap>
                             {[
-                              { label: '⏱ Service le plus long', val: longestServ ? `${longestServ.jour} ${longestServ.date} · ${fmtHM(longestServ.segServico||0)}` : '—' },
-                              { label: '📅 Meilleure semaine', val: bestWeekSec > 0 ? fmtHM(bestWeekSec) : '—' },
-                              { label: '💰 Meilleur mois (frais)', val: bestMonthFrais > 0 ? `${bestMonthFrais.toFixed(0)}€` : '—' },
-                              { label: '🛣 Max km en 1 jour', val: mostKmDay && (mostKmDay.kmDiarios||0) > 0 ? `${mostKmDay.kmDiarios} km — ${mostKmDay.jour} ${mostKmDay.date}` : '—' },
-                            ].map((r,i) => (
-                              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: c.cardBorder }}>
+                              { idx: 0, label: '⏱ Service le plus long', val: longestServ ? `${longestServ.jour} ${longestServ.date} · ${fmtHM(longestServ.segServico||0)}` : '—' },
+                              { idx: 1, label: '📅 Meilleure semaine', val: bestWeekSec > 0 ? fmtHM(bestWeekSec) : '—' },
+                              { idx: 2, label: '💰 Meilleur mois (frais)', val: bestMonthFrais > 0 ? `${bestMonthFrais.toFixed(0)}€` : '—' },
+                              { idx: 3, label: '🛣 Max km en 1 jour', val: mostKmDay && (mostKmDay.kmDiarios||0) > 0 ? `${mostKmDay.kmDiarios} km — ${mostKmDay.jour} ${mostKmDay.date}` : '—' },
+                            ].map((r) => (
+                              <TouchableOpacity key={r.idx} activeOpacity={0.7} onPress={() => setRecordDetail(v => v === r.idx ? null : r.idx)}
+                                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: r.idx < 3 ? 1 : 0, borderBottomColor: c.cardBorder }}>
                                 <Text style={{ fontSize: 12, color: c.textSub }}>{r.label}</Text>
                                 <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, maxWidth: '55%', textAlign: 'right' }}>{r.val}</Text>
-                              </View>
+                              </TouchableOpacity>
                             ))}
+                            {recordDetail === 0 && longestServ && (
+                              <View style={{ marginTop: 8, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>SERVICE LE PLUS LONG</Text>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Date</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{longestServ.jour} {longestServ.date}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Durée service</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{fmtHM(longestServ.segServico || 0)}</Text>
+                                </View>
+                                {(longestServ.segAmplitude || 0) > 0 && (
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Amplitude</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fmtHM(longestServ.segAmplitude)}</Text>
+                                  </View>
+                                )}
+                                {(longestServ.kmDiarios || 0) > 0 && (
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Km ce jour</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{longestServ.kmDiarios} km</Text>
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                            {recordDetail === 1 && bestWeekSec > 0 && (() => {
+                              const weekStart = new Date(bestWeekKey)
+                              const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6)
+                              const fmt2 = (d: Date) => `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}`
+                              return (
+                                <View style={{ marginTop: 8, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>MEILLEURE SEMAINE</Text>
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Semaine du</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fmt2(weekStart)} → {fmt2(weekEnd)}</Text>
+                                  </View>
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Total service</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{fmtHM(bestWeekSec)}</Text>
+                                  </View>
+                                </View>
+                              )
+                            })()}
+                            {recordDetail === 2 && bestMonthFrais > 0 && (() => {
+                              const [bYear, bMon] = bestMonthFraisKey.split('-').map(Number)
+                              const MOIS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+                              return (
+                                <View style={{ marginTop: 8, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>MEILLEUR MOIS (FRAIS)</Text>
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Mois</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{MOIS_FR[bMon] ?? '—'} {bYear}</Text>
+                                  </View>
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Total frais</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#27ae60' }}>{bestMonthFrais.toFixed(0)}€</Text>
+                                  </View>
+                                </View>
+                              )
+                            })()}
+                            {recordDetail === 3 && mostKmDay && (mostKmDay.kmDiarios || 0) > 0 && (
+                              <View style={{ marginTop: 8, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>MAX KM EN 1 JOUR</Text>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Date</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{mostKmDay.jour} {mostKmDay.date}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 12, color: c.textSub }}>Distance</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#2980b9' }}>{mostKmDay.kmDiarios} km</Text>
+                                </View>
+                                {(mostKmDay.segServico || 0) > 0 && (
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                    <Text style={{ fontSize: 12, color: c.textSub }}>Service ce jour</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fmtHM(mostKmDay.segServico)}</Text>
+                                  </View>
+                                )}
+                              </View>
+                            )}
                           </SectionWrap>
                         )}
                       </View>

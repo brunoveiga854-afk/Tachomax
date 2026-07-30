@@ -91,9 +91,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.tachomax.app'
+    namespace 'com.tachooffice.app'
     defaultConfig {
-        applicationId 'com.tachomax.app'
+        applicationId 'com.tachooffice.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2

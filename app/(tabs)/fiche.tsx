@@ -1753,10 +1753,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   const processarPerguntas = async (docs: DocumentoAnalysado[], padraoOverride?: PadraoAprendido) => {
     const fiches = docs.filter(d => d.tipo === 'fiche')
     if (fiches.length === 0) return
+    // Filtro: fiches já totalmente confirmadas (sal + frais) não entram no túnel de perguntas
+    const ficheJaConfirmada = (f: DocumentoAnalysado): boolean => {
+      const ex = historique.find(h =>
+        h.periode === f.periode ||
+        (h.moisIndex === f.moisIndex && h.annee === f.annee)
+      )
+      return !!ex && !!ex.salarioConfirmado && !!ex.fraisConfirmado
+    }
+    const fichesNaoConf = fiches.filter(f => !ficheJaConfirmada(f))
     const confirmados = historique.filter(h => h.salarioConfirmado || h.fraisConfirmado || h.montantTotalRecu > 0).length
     if (confirmados >= 3) {
       const fraisDoc = docs.filter(d => d.tipo === 'frais')
-      const respostasAuto = fiches.map(f => {
+      const respostasAuto = fichesNaoConf.map(f => {
         const pf = f.dados || f as any
         return {
           fiche: f,
@@ -1769,6 +1778,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           autoDetectado: true,
         }
       })
+      // Se todas as fiches já estavam confirmadas, não há nada para auto-processar
+      if (respostasAuto.length === 0) {
+        setDocumentosAnalisados([])
+        return
+      }
       const semValores = respostasAuto.filter(r => r.montantSalReel <= 0 && r.montantFraisReel <= 0)
       if (semValores.length > 0) {
         mostrarErro(`Valeurs manquantes extraites par l'IA pour ${semValores[0].fiche.periode}.\nCharge une fiche plus nette ou confirme manuellement.`)
@@ -1806,10 +1820,44 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setDocumentosAnalisados([])
       return
     }
+    // Branch B — modo manual: se todas as fiches já estão confirmadas, salta o túnel
+    if (fichesNaoConf.length === 0) {
+      let padAtual = padraoOverride ?? padraoAprendido
+      for (const ficheDoc of fiches) {
+        const pf = ficheDoc.dados || ficheDoc as any
+        const boletim: BoletimExtraido = {
+          periodo: ficheDoc.periode || '',
+          moisIndex: ficheDoc.moisIndex || 0,
+          annee: ficheDoc.annee || new Date().getFullYear(),
+          netPaye: pf.netPaye || 0,
+          salairebrut: pf.salairebrut || 0,
+          hval: pf.hval || null,
+          heuresSuppl25: pf.heuresSuppl25 || null,
+          heuresSuppl50: pf.heuresSuppl50 || null,
+          heuresNuit: pf.heuresNuit || null,
+          joursCongesN: pf.joursCongesN || null,
+          joursCongesN1: pf.joursCongesN1 || null,
+          joursRC: pf.joursRC || null,
+          fraisBoletim: pf.remboursementFrais || null,
+          rubriquesDesconhecidas: pf.rubriquesDesconhecidas || [],
+          dataPagamento: null,
+          mesTrabalho: null,
+        }
+        padAtual = actualizarPadraoComBoletim(boletim, padAtual)
+      }
+      await persistirPadraoAprendido(padAtual)
+      if (!padAtual.hlagConfirmado || !padAtual.flagConfirmado) setShowCadeado(true)
+      setDocumentosAnalisados([])
+      return
+    }
+    // Filtrar documentosAnalisados para o túnel usar apenas fiches não confirmadas
+    // (responderPergunta faz docs.filter(tipo==='fiche')[perguntaAtual] — index navega correctamente)
+    const docsParaTunel = docs.filter(d => d.tipo !== 'fiche' || !ficheJaConfirmada(d))
+    setDocumentosAnalisados(docsParaTunel)
     setRespostas([]); setPerguntaAtual(0); setInputValor('')
     setInputDiaSal(String(padrao.diaSalario)); setInputDiaFrais(String(padrao.diaFrais))
-    // Pré-preenche sal + frais da primeira fiche se a IA os extraiu
-    const fichaZero = fiches[0]
+    // Pré-preenche sal + frais da primeira fiche não confirmada
+    const fichaZero = fichesNaoConf[0]
     const pf = fichaZero?.dados || fichaZero as any
     const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)

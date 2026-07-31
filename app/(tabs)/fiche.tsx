@@ -1019,6 +1019,7 @@ export default function MonSalaireScreen() {
   const [fonteEscolhida, setFonteEscolhida] = useState<'banco' | 'fiche'>('banco')
   const [inputDataParteUm, setInputDataParteUm] = useState('')
   const [mesToTrabalhoParteUm, setMesToTrabalhoParteUm] = useState(0)
+  const [inputTotalHeures, setInputTotalHeures] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -1869,6 +1870,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setShowParteUm(true)
     setInputParteUmSal(netPayeZero > 0 ? String(netPayeZero) : '')
     setInputParteUmFrais(fraisZero > 0 ? String(fraisZero) : '')
+    const totalHeuresZero = (fichaZero?.dados?.totalHeures || (fichaZero as any)?.totalHeures || 0)
+    setInputTotalHeures(totalHeuresZero > 0 ? String(totalHeuresZero) : '')
     setFonteEscolhida('banco')
     setInputDataParteUm('')
     setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
@@ -1938,6 +1941,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       moisAtipico: inputMoisAtipico,
       interessementQ: parseFloat(inputInteressementQ.replace(',','.')) || 0,
       primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
+      totalHeuresManual: parseFloat(inputTotalHeures.replace(',', '.')) || 0,
     }
     // Guardar snapshot dos inputs actuais antes de avançar (para restaurar ao recuar)
     setHistorialInputs(h => {
@@ -2064,7 +2068,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         moisAtipico: resp.moisAtipico || false,
         joursConges: fiche.joursConges || 0, montantConges: fiche.montantConges || 0,
         joursFeries: fiche.joursFeries || 0, montantFeries: fiche.montantFeries || 0,
-        joursRC: fiche.joursRC || 0, montantRC: fiche.montantRC || 0, totalHeures: fiche.totalHeures || 0,
+        joursRC: fiche.joursRC || 0, montantRC: fiche.montantRC || 0,
+        totalHeures: (resp.totalHeuresManual || 0) > 0 ? resp.totalHeuresManual : (fiche.totalHeures || 0),
         // Coeficientes salariais reais
         hbase: fiche.hbase || 0, hval: fiche.hval || 0,
         h25: fiche.h25 || 0, lim25: fiche.lim25 || 0, h50: fiche.h50 || 0,
@@ -3108,31 +3113,51 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         </Text>
                       </TouchableOpacity>
 
-                      {/* ── Mês de trabalho ── */}
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
-                        Ce salaire correspond au travail de quel mois ?
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                        {[0, 1, 2].map(offset => {
-                          const [a, m] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -offset)
-                          return (
-                            <TouchableOpacity key={offset}
-                              style={{ flex: 1, padding: 10, borderRadius: 12, alignItems: 'center',
-                                backgroundColor: mesToTrabalhoParteUm === offset ? 'rgba(245,166,35,0.15)' : c.input,
-                                borderWidth: mesToTrabalhoParteUm === offset ? 1.5 : 1,
-                                borderColor: mesToTrabalhoParteUm === offset ? '#f5a623' : c.cardBorder }}
-                              onPress={() => setMesToTrabalhoParteUm(offset)}
-                            >
-                              <Text style={{ fontSize: 12, color: mesToTrabalhoParteUm === offset ? '#f5a623' : c.textSub }}>
-                                {MOIS_NOMS[m]} {a}
-                              </Text>
-                              <Text style={{ fontSize: 10, color: c.textSub }}>
-                                {offset === 0 ? 'même mois' : `${offset} mois avant`}
-                              </Text>
-                            </TouchableOpacity>
-                          )
-                        })}
-                      </View>
+                      {/* ── Mês de trabalho (só quando hlag ainda não confirmado) ou Horas ── */}
+                      {padraoAprendido.hlagConfirmado ? (
+                        <>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
+                            ⏱ Heures travaillées ce mois (facultatif)
+                          </Text>
+                          <TextInput
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 20,
+                                     fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder,
+                                     textAlign: 'center', marginBottom: 16 }}
+                            value={inputTotalHeures}
+                            onChangeText={setInputTotalHeures}
+                            keyboardType="decimal-pad"
+                            placeholder={dadosFicha.totalHeures > 0 ? String(dadosFicha.totalHeures) : '—'}
+                            placeholderTextColor={c.textSub}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
+                            Ce salaire correspond au travail de quel mois ?
+                          </Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                            {[0, 1, 2].map(offset => {
+                              const [a, m] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -offset)
+                              return (
+                                <TouchableOpacity key={offset}
+                                  style={{ flex: 1, padding: 10, borderRadius: 12, alignItems: 'center',
+                                    backgroundColor: mesToTrabalhoParteUm === offset ? 'rgba(245,166,35,0.15)' : c.input,
+                                    borderWidth: mesToTrabalhoParteUm === offset ? 1.5 : 1,
+                                    borderColor: mesToTrabalhoParteUm === offset ? '#f5a623' : c.cardBorder }}
+                                  onPress={() => setMesToTrabalhoParteUm(offset)}
+                                >
+                                  <Text style={{ fontSize: 12, color: mesToTrabalhoParteUm === offset ? '#f5a623' : c.textSub }}>
+                                    {MOIS_NOMS[m]} {a}
+                                  </Text>
+                                  <Text style={{ fontSize: 10, color: c.textSub }}>
+                                    {offset === 0 ? 'même mois' : `${offset} mois avant`}
+                                  </Text>
+                                </TouchableOpacity>
+                              )
+                            })}
+                          </View>
+                        </>
+                      )}
 
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                         <View style={{ flex: 1 }}>

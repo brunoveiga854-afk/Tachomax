@@ -90,6 +90,45 @@ export default function AujourdhuiScreen() {
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, projections: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
   const [projDetail, setProjDetail] = useState<any>(null)
+  // Pré-abre projDetail no mês activo quando o modal Stats abre (só se ainda null)
+  useEffect(() => {
+    if (!showStats) return
+    if (projDetail !== null) return
+    const histSal = (appState.histSal ?? []) as MoisData[]
+    const histCal = appState.histCal ?? []
+    const padraoRaw = appState.padrao
+    if (!padraoRaw || histSal.length === 0) return
+    const padrao = migrarPadrao(padraoRaw)
+    const anoActual = new Date().getFullYear()
+    const mesActual = new Date().getMonth()
+    const mesesComReal = new Set(
+      histSal
+        .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
+        .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
+    )
+    let mesActivo = mesActual
+    for (let i = mesActual; i < 12; i++) {
+      if (!mesesComReal.has(i)) { mesActivo = i; break }
+    }
+    const mHist = histSal.find(m => {
+      const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
+      const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
+      return mesRec === mesActivo && anoRec === anoActual
+    })
+    const mediasAnuais = calcMediasDiasTrabalho(histSal, histCal, padrao)
+    const syntheticM: MoisData = {
+      periode: '', moisIndex: mesActivo, annee: anoActual, fichePages: 0,
+      mesPagamentoIndex: mesActivo, anoPagamento: anoActual,
+      netPaye: 0, salairebrut: 0, totalCotisations: 0,
+      remboursementFrais: 0, fraisBoletim: 0, montantTotalRecu: 0,
+      jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
+      analysedAt: '', entreprise: '', conducteur: '',
+    }
+    const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
+    if (estimativa === 0 && !mHist) return
+    const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
+    setProjDetail({ mesIdx: mesActivo, estimativa, isConfirmed, isActive: !isConfirmed, isFuture: false, mHist })
+  }, [showStats])
   const [fraisDetail, setFraisDetail] = useState(false)
   const [pausaDetail, setPausaDetail] = useState(false)
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
@@ -2681,17 +2720,19 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         {statsOpen.assiduite && (
                           <SectionWrap>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>TRAVAIL</Text>
+                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minHeight: 60, justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }} numberOfLines={1}>TRAVAIL</Text>
                                 <Text style={{ fontSize: 20, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{travMois}</Text>
                               </View>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>REPOS/CONGÉS</Text>
+                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minHeight: 60, justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }} numberOfLines={1}>CONGÉS</Text>
                                 <Text style={{ fontSize: 20, fontWeight: '800', color: '#9b59b6', marginTop: 2 }}>{reposMois}</Text>
                               </View>
-                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>STREAK</Text>
-                                <Text style={{ fontSize: 20, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{streak}🔥</Text>
+                              <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minHeight: 60, justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }} numberOfLines={1}>STREAK</Text>
+                                <View style={{ height: 24, justifyContent: 'center', marginTop: 2 }}>
+                                  <Text style={{ fontSize: 20, fontWeight: '800', color: '#f5a623' }}>{streak}🔥</Text>
+                                </View>
                               </View>
                             </View>
                           </SectionWrap>

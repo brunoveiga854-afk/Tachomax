@@ -3278,7 +3278,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         </Text>
                       </View>
 
-                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                         <TouchableOpacity
                           style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'banco' ? 'rgba(41,128,185,0.12)' : c.input, borderWidth: fonteEscolhida === 'banco' ? 1.5 : 1, borderColor: fonteEscolhida === 'banco' ? '#2980b9' : c.cardBorder }}
                           onPress={() => {
@@ -3307,7 +3307,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>
                             💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
                           </Text>
                           <TextInput
@@ -3321,7 +3321,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: c.text, marginBottom: 8 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>
                             🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
                           </Text>
                           <TextInput
@@ -3344,7 +3344,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>🤝 INTÉRESSEMENT</Text>
                           <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
                             value={inputInteressementQ}
                             onChangeText={setInputInteressementQ}
                             keyboardType="decimal-pad"
@@ -3355,7 +3355,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>🛡 NON-ACCIDENT</Text>
                           <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 10, padding: 10, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
+                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
                             value={inputPrimeNonAccQ}
                             onChangeText={setInputPrimeNonAccQ}
                             keyboardType="decimal-pad"

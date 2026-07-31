@@ -128,6 +128,9 @@ export default function AujourdhuiScreen() {
     if (estimativa === 0 && !mHist) return
     const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
     setProjDetail({ mesIdx: mesActivo, estimativa, isConfirmed, isActive: !isConfirmed, isFuture: false, mHist })
+    setTimeout(() => {
+      pillsScrollRef.current?.scrollTo({ x: Math.max(0, mesActivo - 1) * 78, animated: false })
+    }, 50)
   }, [showStats])
   const [fraisDetail, setFraisDetail] = useState(false)
   const [pausaDetail, setPausaDetail] = useState(false)
@@ -215,6 +218,7 @@ export default function AujourdhuiScreen() {
   const estadoAtualRef = useRef<any>({})
   const statsScrollRef = useRef<any>(null)
   const mainScrollRef = useRef<any>(null)
+  const pillsScrollRef = useRef<any>(null)
 
   const MAX_SERVICE = modeNuit ? 10 * 3600 : 12 * 3600
   const MAX_AMPLITUDE = modeNuit ? 13 * 3600 : 15 * 3600
@@ -2795,7 +2799,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" />
                             {statsOpen.projections && (
                               <SectionWrap>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                                <ScrollView ref={pillsScrollRef} horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 8 }}>
                                   {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }) => (
                                     <TouchableOpacity key={mesIdx} activeOpacity={0.7}
                                       onPress={() => setProjDetail(v => v?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist })}
@@ -2874,6 +2878,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                                 <Text style={{ fontSize: 12, color: c.textSub }}>Moy. h/jour</Text>
                                                 <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{mediasAnuais.mediaHPorDia.toFixed(1)}h</Text>
+                                              </View>
+                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                                <Text style={{ fontSize: 12, color: c.textSub }}>Heures totales est.</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>~{Math.round(joursOuvres * mediasAnuais.mediaHPorDia)}h</Text>
                                               </View>
                                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                                 <Text style={{ fontSize: 12, color: c.textSub }}>Moy. frais/jour</Text>

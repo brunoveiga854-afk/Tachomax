@@ -16,14 +16,11 @@ import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, 
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
 
 // Chaves a exportar/importar (AsyncStorage)
+// monSalaire_padrao/aprendizagem_padrao omitidos: recalculados automaticamente
+// pelo motor (analisarPadraoV2) ao abrir o separador Fiche após import
 const BACKUP_KEYS = [
   'historique',
-]
-
-// Chaves a exportar de SecureStore
-const SECURE_BACKUP_KEYS = [
-  'monSalaire_padrao',
-  'aprendizagem_padrao',
+  'monSalaire_v2',
 ]
 
 export default function ReglagesScreen() {
@@ -208,12 +205,6 @@ export default function ReglagesScreen() {
           try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
         }
       }
-      for (const key of SECURE_BACKUP_KEYS) {
-        const val = await secureGet(key)
-        if (val) {
-          try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
-        }
-      }
       const json = JSON.stringify(backup, null, 2)
       const date = new Date().toISOString().slice(0, 10)
       const filename = `tachooffice_backup_${date}.json`
@@ -281,7 +272,7 @@ export default function ReglagesScreen() {
       }
       log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()
-      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nRedémarre l'app pour voir tes données.`)
+      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {
       log.error('reglages', 'confirmarImport falhou', e)

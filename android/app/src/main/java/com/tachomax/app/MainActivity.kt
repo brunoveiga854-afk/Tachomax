@@ -1,4 +1,4 @@
-package com.tachooffice.app
+package com.tachomax.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

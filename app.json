@@ -17,7 +17,7 @@
         "backgroundColor": "#0f1117"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.tachooffice.app",
+      "package": "com.tachomax.app",
       "versionCode": 2,
       "permissions": []
     },

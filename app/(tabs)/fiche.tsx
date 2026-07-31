@@ -1000,8 +1000,7 @@ export default function MonSalaireScreen() {
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [calculando, setCalculando] = useState(false)
   const [calculandoMsg, setCalculandoMsg] = useState('')
-  const scrollAnim = useRef(new Animated.Value(0)).current
-  const dustAnim = useRef(new Animated.Value(0)).current
+  const scanAnim = useRef(new Animated.Value(0)).current
   const [showPrevision, setShowPrevision] = useState(false)
   const [showAnalyse, setShowAnalyse] = useState(false)
   const [driftAlert, setDriftAlert] = useState<DriftAlert | null>(null)
@@ -1202,17 +1201,14 @@ export default function MonSalaireScreen() {
   }, [appState.camposObrigatoriosOk])
 
   useEffect(() => {
-    if (!loading) { setLoadingMsg(0); scrollAnim.setValue(0); dustAnim.setValue(0); return }
+    if (!loading) { setLoadingMsg(0); scanAnim.setValue(0); return }
     const msgs = 4
     const iv = setInterval(() => setLoadingMsg(i => (i + 1) % msgs), 1500)
-    const scrollLoop = Animated.loop(
-      Animated.timing(scrollAnim, { toValue: 240, duration: 2400, useNativeDriver: true, easing: Easing.linear })
+    const scanLoop = Animated.loop(
+      Animated.timing(scanAnim, { toValue: 1, duration: 1800, useNativeDriver: true, easing: Easing.linear })
     )
-    const dustLoop = Animated.loop(
-      Animated.timing(dustAnim, { toValue: 1, duration: 950, useNativeDriver: true })
-    )
-    scrollLoop.start(); dustLoop.start()
-    return () => { clearInterval(iv); scrollLoop.stop(); dustLoop.stop() }
+    scanLoop.start()
+    return () => { clearInterval(iv); scanLoop.stop() }
   }, [loading])
 
   const charger = async () => {
@@ -2724,75 +2720,43 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               {/* Cena animada — camião da direita para a esquerda */}
               {(() => {
                 const SCENE_W = 240
-                const neg = Animated.multiply(scrollAnim, -1)
-                const dustOpacity = dustAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.55, 0.25, 0] })
-                const dustScale  = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.8] })
-                const dust2Opacity = dustAnim.interpolate({ inputRange: [0, 0.25, 0.65, 1], outputRange: [0, 0.45, 0.15, 0] })
-                const dust2Scale   = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.2] })
-                const dust3Opacity = dustAnim.interpolate({ inputRange: [0, 0.15, 0.5, 1], outputRange: [0, 0.35, 0.1, 0] })
-                const dust3Scale   = dustAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.8] })
-                const trees: [number, number, number][] = [
-                  [195, 435, 52], [148, 388, 36], [105, 345, 26], [60, 300, 44], [22, 262, 20],
-                ]
-                const roadMarks: number[] = [8, 68, 128, 188]
-                const renderTree = (x: number, h: number, key: string) => {
-                  const w = h * 0.46
-                  return (
-                    <Animated.View key={key} style={{ position: 'absolute', bottom: 18, transform: [{ translateX: Animated.add(new Animated.Value(x), neg) }] }}>
-                      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-                        <Rect x={(w - 4) / 2} y={h * 0.67} width={4} height={h * 0.33} fill="#3a2010" />
-                        <Path d={`M ${w/2} 0 L ${w} ${h*0.67} L 0 ${h*0.67} Z`} fill="#0a240a" />
-                        <Path d={`M ${w/2} ${h*0.18} L ${w*0.85} ${h*0.55} L ${w*0.15} ${h*0.55} Z`} fill="#0e300e" />
-                      </Svg>
-                    </Animated.View>
-                  )
-                }
+                const SCENE_H = 118
+                const DOC_W = 160
+                const DOC_H = 96
+                const DOC_X = (SCENE_W - DOC_W) / 2
+                const DOC_Y = (SCENE_H - DOC_H) / 2
+                const beamY = scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0, DOC_H - 4] })
+                const glowY = scanAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, DOC_H - 12] })
+                const mkSpark = (lo: number, mid: number, hi: number) => ({
+                  op:    scanAnim.interpolate({ inputRange: [lo, mid, hi], outputRange: [0, 1, 0], extrapolate: 'clamp' }),
+                  scale: scanAnim.interpolate({ inputRange: [lo, mid, hi], outputRange: [0.4, 1.5, 0.4], extrapolate: 'clamp' }),
+                })
+                const s1 = mkSpark(0.18, 0.25, 0.32)
+                const s2 = mkSpark(0.43, 0.50, 0.57)
+                const s3 = mkSpark(0.63, 0.70, 0.77)
+                const s4 = mkSpark(0.78, 0.85, 0.92)
+                const textLines = [10, 20, 30, 45, 55, 66, 78]
                 return (
-                  <View style={{ width: SCENE_W, height: 118, overflow: 'hidden', backgroundColor: '#07090f', borderRadius: 14, marginBottom: 6 }}>
-                    {[[18,8,3],[55,5,2],[90,12,2],[140,4,3],[185,9,2],[210,6,3]].map(([x,y,r],i) => (
-                      <View key={i} style={{ position: 'absolute', top: y, left: x, width: r, height: r, borderRadius: r/2, backgroundColor: 'rgba(255,255,220,0.45)' }} />
-                    ))}
-                    {trees.map(([x1, x2, h], i) => [renderTree(x1, h, `ta${i}`), renderTree(x2, h, `tb${i}`)])}
-                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 18, backgroundColor: '#10131c' }} />
-                    <View style={{ position: 'absolute', bottom: 17, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-                    {roadMarks.map((x, i) => [
-                      <Animated.View key={`ra${i}`} style={{ position: 'absolute', bottom: 7, height: 2, width: 24, backgroundColor: '#f5a623', opacity: 0.35, borderRadius: 1, transform: [{ translateX: Animated.add(new Animated.Value(x), neg) }] }} />,
-                      <Animated.View key={`rb${i}`} style={{ position: 'absolute', bottom: 7, height: 2, width: 24, backgroundColor: '#f5a623', opacity: 0.35, borderRadius: 1, transform: [{ translateX: Animated.add(new Animated.Value(x + SCENE_W), neg) }] }} />,
-                    ])}
-                    {/* Peira (atras do camiao, lado esquerdo) */}
-                    <Animated.View style={{ position: 'absolute', bottom: 22, left: 45, width: 12, height: 8, borderRadius: 6, backgroundColor: 'rgba(180,165,140,0.5)', opacity: dustOpacity, transform: [{ scale: dustScale }] }} />
-                    <Animated.View style={{ position: 'absolute', bottom: 26, left: 38, width: 9, height: 6, borderRadius: 5, backgroundColor: 'rgba(170,155,130,0.4)', opacity: dust2Opacity, transform: [{ scale: dust2Scale }] }} />
-                    <Animated.View style={{ position: 'absolute', bottom: 20, left: 35, width: 7, height: 5, borderRadius: 4, backgroundColor: 'rgba(160,145,120,0.35)', opacity: dust3Opacity, transform: [{ scale: dust3Scale }] }} />
-                    {/* Camiao laranja original, virado a direita */}
-                    <View style={{ position: 'absolute', bottom: 18, left: 65 }}>
-                      <Svg width={110} height={48} viewBox="0 0 110 48">
-                        {/* Reboque */}
-                        <Rect x="0" y="8" width="68" height="30" rx="3" fill="#f5a623" opacity={0.9} />
-                        <Rect x="4" y="12" width="60" height="8" rx="1" fill="rgba(0,0,0,0.2)" />
-                        <Rect x="4" y="23" width="60" height="1" fill="rgba(255,255,255,0.15)" />
-                        <Rect x="4" y="27" width="60" height="1" fill="rgba(255,255,255,0.1)" />
-                        <Rect x="66" y="20" width="8" height="4" rx="1" fill="#cc8800" />
-                        {/* Cabine */}
-                        <Rect x="72" y="4" width="36" height="34" rx="4" fill="#e6950f" />
-                        <Rect x="80" y="9" width="22" height="14" rx="2" fill="#0f1117" opacity={0.85} />
-                        <Rect x="82" y="11" width="6" height="10" rx="1" fill="rgba(255,255,255,0.07)" />
-                        <Rect x="105" y="16" width="4" height="18" rx="1" fill="#cc8800" />
-                        <Line x1="106" y1="19" x2="108" y2="19" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Line x1="106" y1="23" x2="108" y2="23" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Line x1="106" y1="27" x2="108" y2="27" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                        <Rect x="106" y="13" width="3" height="4" rx="1" fill="#ffe066" />
-                        {/* Rodas reboque */}
-                        <Circle cx="16" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                        <Circle cx="16" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                        <Circle cx="48" cy="40" r="7" fill="#1a1a2e" stroke="#f5a623" strokeWidth="2" />
-                        <Circle cx="48" cy="40" r="2.5" fill="#f5a623" opacity={0.6} />
-                        {/* Rodas cabine */}
-                        <Circle cx="83" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                        <Circle cx="83" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
-                        <Circle cx="99" cy="40" r="7" fill="#1a1a2e" stroke="#e6950f" strokeWidth="2" />
-                        <Circle cx="99" cy="40" r="2.5" fill="#e6950f" opacity={0.6} />
-                      </Svg>
+                  <View style={{ width: SCENE_W, height: SCENE_H, backgroundColor: '#07090f', borderRadius: 14, marginBottom: 6, alignItems: 'center', justifyContent: 'center' }}>
+                    {/* Documento */}
+                    <View style={{ width: DOC_W, height: DOC_H, backgroundColor: c.card, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(245,166,35,0.30)', overflow: 'hidden' }}>
+                      {/* Linhas de texto simuladas */}
+                      {textLines.map((y, i) => (
+                        <View key={i} style={{ position: 'absolute', top: y, left: 12, right: i % 3 === 2 ? 44 : 14, height: 2, backgroundColor: 'rgba(245,166,35,0.12)', borderRadius: 1 }} />
+                      ))}
+                      {/* Glow difuso atrás do feixe */}
+                      <Animated.View style={{ position: 'absolute', left: 0, right: 0, height: 20, backgroundColor: 'rgba(245,166,35,0.07)', transform: [{ translateY: glowY }] }} />
+                      {/* Feixe de luz */}
+                      <Animated.View style={{ position: 'absolute', left: 0, right: 0, height: 3, backgroundColor: '#f5a623', opacity: 0.88, transform: [{ translateY: beamY }] }} />
                     </View>
+                    {/* Faísca 1 — esquerda, 25% */}
+                    <Animated.View style={{ position: 'absolute', left: DOC_X + 24, top: DOC_Y + Math.round(0.25 * DOC_H), width: 5, height: 5, borderRadius: 3, backgroundColor: '#ffe066', opacity: s1.op, transform: [{ scale: s1.scale }] }} />
+                    {/* Faísca 2 — direita, 50% */}
+                    <Animated.View style={{ position: 'absolute', left: DOC_X + 110, top: DOC_Y + Math.round(0.50 * DOC_H), width: 4, height: 4, borderRadius: 2, backgroundColor: '#f5a623', opacity: s2.op, transform: [{ scale: s2.scale }] }} />
+                    {/* Faísca 3 — centro, 70% */}
+                    <Animated.View style={{ position: 'absolute', left: DOC_X + 62, top: DOC_Y + Math.round(0.70 * DOC_H), width: 5, height: 5, borderRadius: 3, backgroundColor: '#ffe066', opacity: s3.op, transform: [{ scale: s3.scale }] }} />
+                    {/* Faísca 4 — direita, 85% */}
+                    <Animated.View style={{ position: 'absolute', left: DOC_X + 130, top: DOC_Y + Math.round(0.85 * DOC_H), width: 4, height: 4, borderRadius: 2, backgroundColor: '#ffffff', opacity: s4.op, transform: [{ scale: s4.scale }] }} />
                   </View>
                 )
               })()}

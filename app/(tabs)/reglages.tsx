@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { secureGet } from '../../src/utils/secureStorage'
+import { secureGet, secureDelete } from '../../src/utils/secureStorage'
 import { useFocusEffect, router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -176,8 +176,10 @@ export default function ReglagesScreen() {
 
   const apagaTudo = async () => {
     const backupPath = await criarBackupSilencioso()
-    log.warn('reglages', 'RESET TOTAL — AsyncStorage.clear()', { backupCriado: !!backupPath })
+    log.warn('reglages', 'RESET TOTAL — AsyncStorage.clear() + SecureStore delete', { backupCriado: !!backupPath })
     await AsyncStorage.clear()
+    await secureDelete('monSalaire_padrao')
+    await secureDelete('aprendizagem_padrao')
     setShowModalReset(false)
     const backupMsg = backupPath
       ? "\n\n💾 Sauvegarde automatique créée avant la réinitialisation."

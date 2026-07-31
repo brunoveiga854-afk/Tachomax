@@ -3,7 +3,7 @@
 
 import { PADRAO_INICIAL, PadraoAprendido } from './aprendizagem'
 
-export const PADRAO_VERSAO_ACTUAL = 1
+export const PADRAO_VERSAO_ACTUAL = 2
 
 export type PadraoSalario = {
   descoberto: boolean; diaSalario: number; diaFrais: number
@@ -16,6 +16,7 @@ export type PadraoSalario = {
   regles?: { ptDejAte: number; dejMinAmp: number; dinerDe: number }
   taxaHorariaNetaMedia: number
   fraisFactorReal: number
+  horasFactorReal: number     // ratio médio fiche/cal; 1.0 = sem diferença
   _conflitHbase?: { extraido: number; onboarding: number } | null
   _hbaseManual?: boolean
   _hvalManual?: boolean
@@ -27,6 +28,7 @@ export type PadraoSalario = {
 /**
  * Migrates monSalaire_padrao from any schema version to the current one.
  * v0 → v1: adds taxaHorariaNetaMedia, fraisFactorReal, valorDia* fields.
+ * v1 → v2: adds horasFactorReal (ratio fiche/cal hours; default 1).
  */
 export function migrarPadrao(raw: any): PadraoSalario {
   const versao = raw?.versao ?? 0
@@ -37,8 +39,11 @@ export function migrarPadrao(raw: any): PadraoSalario {
     if (migrado.valorDiaConges == null) migrado.valorDiaConges = 0
     if (migrado.valorDiaFerie == null) migrado.valorDiaFerie = 0
     if (migrado.valorDiaRC == null) migrado.valorDiaRC = 0
-    migrado.versao = PADRAO_VERSAO_ACTUAL
   }
+  if (versao < 2) {
+    if (migrado.horasFactorReal == null) migrado.horasFactorReal = 1
+  }
+  migrado.versao = PADRAO_VERSAO_ACTUAL
   return migrado as PadraoSalario
 }
 

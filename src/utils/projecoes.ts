@@ -89,13 +89,31 @@ export function calcMediasDiasTrabalho(
       const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
       return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
     })
-    if (diasTrab.length < 10) continue
-    const totalH = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
-    if (totalH < 10) continue
+    const totalHCal = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+    const totalHFiche = m.totalHeures || 0
+
+    let totalH: number
+    let nDias: number
+    if (diasTrab.length >= 10 && totalHCal >= 10) {
+      // Caso normal: calendário suficiente
+      totalH = totalHCal * ((padrao as any).horasFactorReal > 1 ? (padrao as any).horasFactorReal : 1)
+      nDias = diasTrab.length
+    } else if (totalHFiche >= 10 && diasTrab.length > 0) {
+      // Fallback: calendário incompleto mas há dias reais + totalHeures da fiche
+      totalH = totalHFiche
+      nDias = diasTrab.length
+    } else if (totalHFiche >= 10) {
+      // Último recurso: só fiche, estima nDias por jours ouvrés
+      totalH = totalHFiche
+      nDias = joursOuvresMois(aH, mH)
+    } else {
+      continue  // sem dados suficientes
+    }
+
     const [aF, mF] = mesFraisTrabalhoDe(m, padrao)
     const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, padrao)
     const fraisReal = fraisRealConfirme(m) > 0 ? fraisRealConfirme(m) : (m.fraisBoletim || fraisCalc.total)
-    amostras.push({ nDias: diasTrab.length, totalH, fraisDia: fraisReal / diasTrab.length })
+    amostras.push({ nDias, totalH, fraisDia: fraisReal / nDias })
   }
   if (amostras.length === 0) return null
   const mediaHPorDia = amostras.reduce((a, s) => a + s.totalH / s.nDias, 0) / amostras.length

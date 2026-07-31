@@ -890,10 +890,16 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
         return me === mH && an === aH
       })
       const diasTrab = todosDiasMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
-      if (diasTrab.length === 0) continue
-      const totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
-      const totalH = totalSeg / 3600
-      if (totalH < 10) continue
+      const totalHCal = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+      const totalHFiche = m.totalHeures || 0
+      let totalH: number
+      if (totalHCal >= 10) {
+        totalH = totalHCal
+      } else if (totalHFiche >= 10) {
+        totalH = totalHFiche   // fallback: horas confirmadas pelo utilizador ou IA
+      } else {
+        continue               // sem dados suficientes
+      }
       // Normalizar: subtrair pay de congés/fériés antes de dividir pelas horas
       // Evita que meses com muitos congés inflacionem a taxa por hora
       const nConges = todosDiasMes.filter((j: any) => ['FERIE', 'vac'].includes(j.type || '')).length
@@ -938,6 +944,34 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     }
   }
 
+  // J. Factor de correcção de horas — aprende ratio fiche/cal quando ambas as fontes existem
+  // Detecta subregisto sistemático no calendário (ex.: horas de espera ou nocturnas não registadas)
+  const mesesComAmbas = dados.filter(d =>
+    contaParaSalarioAprendizagem(d) && (d.totalHeures || 0) >= 10 && !d.moisAtipico
+  )
+  if (mesesComAmbas.length >= 2 && hist.length > 0) {
+    const ratios: number[] = []
+    for (const m of mesesComAmbas) {
+      const [aH, mH] = mesTrabalhoDe(m, base)
+      const diasTrab = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const me = parseInt(parts[1]) - 1
+        const an = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+        return me === mH && an === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+      })
+      const totalHCal = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
+      if (totalHCal < 10) continue  // calendário insuficiente — ratio não fiável
+      const ratio = (m.totalHeures!) / totalHCal
+      if (ratio > 0.7 && ratio < 1.5) ratios.push(ratio)  // filtrar outliers
+    }
+    if (ratios.length >= 2) {
+      base.horasFactorReal = Math.round(
+        ratios.reduce((a, b) => a + b, 0) / ratios.length * 1000
+      ) / 1000
+    }
+  }
+
   base.descoberto = dados.filter(d => contaParaSalarioAprendizagem(d) || contaParaFraisAprendizagem(d) || d.montantTotalRecu > 0).length >= 3 || dados.length >= 2
   base.confianca = calcularPrecisao(base, dados.length)
   return base
@@ -949,7 +983,7 @@ export default function MonSalaireScreen() {
   const [historique, setHistorique] = useState<MoisData[]>([])
   const [padrao, setPadrao] = useState<Padrao>({
     descoberto: false, diaSalario: 5, diaFrais: 10, defasagemFrais: 3, confianca: 0,
-    horasExtrasMedia: 0, taxaHorariaNetaMedia: 0, fraisFactorReal: 0,
+    horasExtrasMedia: 0, taxaHorariaNetaMedia: 0, fraisFactorReal: 0, horasFactorReal: 1,
     ptd: 4.42, dej: 16.36, din: 23.94, nui: 23.94,
     valorDiaConges: 0, valorDiaFerie: 0, valorDiaRC: 0,
     ...DEF_SAL

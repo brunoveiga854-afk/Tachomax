@@ -15,7 +15,7 @@ import { migrarPadrao } from '../../src/engine/migracoes'
 import type { MoisData } from '../../src/types/moisdata'
 import {
   calcEstimativaMes, calcMediasDiasTrabalho,
-  mesPagamentoSalDe, joursOuvresMois,
+  mesPagamentoSalDe, joursOuvresMois, mesTrabalhoDe,
   type Medias,
 } from '../../src/utils/projecoes'
 import {
@@ -2882,6 +2882,28 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                           )}
                                         </>
                                       )}
+                                      {mHist && (mHist.totalHeures || 0) > 0 && (() => {
+                                        const [aH, mH] = mesTrabalhoDe(mHist, padrao)
+                                        const diasTrabMes = histCal.filter((j: any) => {
+                                          const parts = j.date?.split('/')
+                                          if (!parts || parts.length < 2) return false
+                                          const mes = parseInt(parts[1]) - 1
+                                          const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+                                          return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+                                        })
+                                        const totalHCal = Math.round(diasTrabMes.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600)
+                                        const totalHFiche = Math.round(mHist.totalHeures!)
+                                        const diffH = Math.abs(totalHFiche - totalHCal)
+                                        const accentColor = diffH > 2 ? '#f5a623' : c.text
+                                        return (
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>⏱ Heures</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: accentColor }}>
+                                              {totalHCal > 0 ? `${totalHCal}h (cal) → ` : ''}{totalHFiche}h (fiche)
+                                            </Text>
+                                          </View>
+                                        )
+                                      })()}
                                     </View>
                                   )
                                 })()}

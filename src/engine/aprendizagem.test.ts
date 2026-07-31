@@ -249,7 +249,7 @@ describe('migrarPadrao', () => {
       // versao absent — this is a v0 object
     }
     const migrated = migrarPadrao(raw)
-    expect(migrated.versao).toBe(1)
+    expect(migrated.versao).toBe(2)
     expect(migrated.taxaHorariaNetaMedia).toBe(0)
     expect(migrated.fraisFactorReal).toBe(1)
     expect(migrated.valorDiaConges).toBe(0)
@@ -269,7 +269,7 @@ describe('migrarPadrao', () => {
       versao: 1,
     }
     const migrated = migrarPadrao(raw)
-    expect(migrated.versao).toBe(1)
+    expect(migrated.versao).toBe(2)
     expect(migrated.taxaHorariaNetaMedia).toBe(13.20)
     expect(migrated.fraisFactorReal).toBe(1.05)
     expect(migrated.valorDiaConges).toBe(120)

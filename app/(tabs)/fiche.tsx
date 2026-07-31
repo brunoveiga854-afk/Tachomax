@@ -1591,7 +1591,10 @@ export default function MonSalaireScreen() {
         try {
           res = await fetch(PROXY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET ?? '',
+            },
             body: JSON.stringify(body),
             signal: ctrl.signal,
           })

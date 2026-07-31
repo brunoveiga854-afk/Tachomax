@@ -3,6 +3,11 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method Not Allowed' }
   }
 
+  const appSecret = process.env.APP_SECRET
+  if (!appSecret || event.headers['x-app-secret'] !== appSecret) {
+    return { statusCode: 401, body: 'Unauthorized' }
+  }
+
   try {
     const body = JSON.parse(event.body)
 

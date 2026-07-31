@@ -1,6 +1,6 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet } from '../../src/utils/secureStorage'
@@ -1166,6 +1166,7 @@ export default function ReglagesScreen() {
       {/* MODAL NOM / PRÉNOM */}
       <Modal visible={showNomModal} transparent animationType="slide">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowNomModal(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, borderWidth: 1, borderColor: c.cardBorder }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 20, textAlign: 'center' }}>👤 Conducteur</Text>
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', letterSpacing: 1.5, marginBottom: 6 }}>PRÉNOM</Text>
@@ -1204,6 +1205,7 @@ export default function ReglagesScreen() {
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>✅ Sauvegarder</Text>
             </TouchableOpacity>
           </TouchableOpacity>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
 

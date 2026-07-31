@@ -2317,7 +2317,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       {/* PONTO 2 — MODAL DÉTAIL PAUSES CE 561/2006 */}
       {/* ── STATS MODAL ── */}
       <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
@@ -3070,7 +3070,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 })()}
               </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* MODAL — Durée de pause (remplace l'Alert) */}

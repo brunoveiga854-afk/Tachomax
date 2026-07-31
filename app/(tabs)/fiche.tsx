@@ -1689,7 +1689,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       processarDocumentos(docs)
-    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.") }
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : ''
+      if (msg.includes('Timeout') || msg.includes('réseau')) {
+        mostrarErro(msg)
+      } else {
+        mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
+      }
+    }
     setLoading(false)
   }
 
@@ -1756,7 +1763,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         }
       }
       processarDocumentos(docs)
-    } catch (e) { mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.") }
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : ''
+      if (msg.includes('Timeout') || msg.includes('réseau')) {
+        mostrarErro(msg)
+      } else {
+        mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
+      }
+    }
     setLoading(false)
   }
 

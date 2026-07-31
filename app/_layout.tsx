@@ -5,6 +5,7 @@ import { AppProvider } from '../context/AppContext'
 import { ThemeProvider } from '../context/ThemeContext'
 import { LangueProvider } from '../context/LangueContext'
 import { useEffect } from 'react'
+import { ErrorBoundary } from '../src/ErrorBoundary'
 import { inicializarTrial } from '../src/trial'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SplashScreen from 'expo-splash-screen'
@@ -29,11 +30,13 @@ export default function RootLayout() {
       <AppProvider>
         <ThemeProvider>
           <LangueProvider>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            </Stack>
-            <StatusBar style="auto" />
+            <ErrorBoundary>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              </Stack>
+              <StatusBar style="auto" />
+            </ErrorBoundary>
           </LangueProvider>
         </ThemeProvider>
       </AppProvider>

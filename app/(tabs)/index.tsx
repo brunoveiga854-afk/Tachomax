@@ -2926,7 +2926,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 )}
                                 {padrao.taxaHorariaNetaMedia > 0 && (
                                   <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
-                                    <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>🧮 CALCULETTE HEURES</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, marginBottom: 2 }}>💶 J'ai reçu X€ — combien d'heures ?</Text>
+                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>Converte un montant reçu en heures estimées selon ton taux actuel.</Text>
                                     <TextInput
                                       style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder }}
                                       keyboardType="numeric"

@@ -15,9 +15,15 @@ import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
 
-// Chaves a exportar/importar
+// Chaves a exportar/importar (AsyncStorage)
 const BACKUP_KEYS = [
   'historique',
+]
+
+// Chaves a exportar de SecureStore
+const SECURE_BACKUP_KEYS = [
+  'monSalaire_padrao',
+  'aprendizagem_padrao',
 ]
 
 export default function ReglagesScreen() {
@@ -198,6 +204,12 @@ export default function ReglagesScreen() {
       }
       for (const key of BACKUP_KEYS) {
         const val = await AsyncStorage.getItem(key)
+        if (val) {
+          try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
+        }
+      }
+      for (const key of SECURE_BACKUP_KEYS) {
+        const val = await secureGet(key)
         if (val) {
           try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val }
         }

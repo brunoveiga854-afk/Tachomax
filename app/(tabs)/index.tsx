@@ -132,6 +132,7 @@ export default function AujourdhuiScreen() {
   const [fraisDetail, setFraisDetail] = useState(false)
   const [pausaDetail, setPausaDetail] = useState(false)
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
+  const [calcMontant, setCalcMontant] = useState('')
   const pausaInicioRef = useRef<number>(0)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
@@ -2913,6 +2914,43 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   </Text>
                                 ) : (
                                   <Text style={{ fontSize: 10, color: c.textSub }}>Données insuffisantes pour projection</Text>
+                                )}
+                                {padrao.taxaHorariaNetaMedia > 0 && (
+                                  <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
+                                    <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>🧮 CALCULETTE HEURES</Text>
+                                    <TextInput
+                                      style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder }}
+                                      keyboardType="numeric"
+                                      placeholder="Salaire net reçu (€)"
+                                      placeholderTextColor={c.textSub as string}
+                                      value={calcMontant}
+                                      onChangeText={setCalcMontant}
+                                    />
+                                    {(() => {
+                                      const val = parseFloat(calcMontant.replace(',', '.'))
+                                      if (!val || val <= 0) return null
+                                      const hCal = val / padrao.taxaHorariaNetaMedia
+                                      const hFiche = padrao.horasFactorReal !== 1 ? hCal * padrao.horasFactorReal : null
+                                      return (
+                                        <View style={{ marginTop: 8 }}>
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>Heures calendrier</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{hCal.toFixed(1)}h</Text>
+                                          </View>
+                                          {hFiche !== null && (
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                              <Text style={{ fontSize: 12, color: c.textSub }}>Heures fiche (×{padrao.horasFactorReal.toFixed(3)})</Text>
+                                              <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{hFiche.toFixed(1)}h</Text>
+                                            </View>
+                                          )}
+                                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                            <Text style={{ fontSize: 12, color: c.textSub }}>Taux utilisé</Text>
+                                            <Text style={{ fontSize: 11, color: c.textSub }}>{padrao.taxaHorariaNetaMedia.toFixed(3)} €/h net</Text>
+                                          </View>
+                                        </View>
+                                      )
+                                    })()}
+                                  </View>
                                 )}
                               </SectionWrap>
                             )}

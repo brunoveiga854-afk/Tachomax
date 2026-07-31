@@ -136,6 +136,7 @@ export default function AujourdhuiScreen() {
   const [pausaDetail, setPausaDetail] = useState(false)
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
   const [calcMontant, setCalcMontant] = useState('')
+  const [calcFrais, setCalcFrais] = useState('')
   const pausaInicioRef = useRef<number>(0)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
@@ -2934,13 +2935,30 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                       value={calcMontant}
                                       onChangeText={setCalcMontant}
                                     />
+                                    <TextInput
+                                      style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder, marginTop: 6 }}
+                                      keyboardType="numeric"
+                                      placeholder="Frais reçus (€) — optionnel"
+                                      placeholderTextColor={c.textSub as string}
+                                      value={calcFrais}
+                                      onChangeText={setCalcFrais}
+                                    />
                                     {(() => {
                                       const val = parseFloat(calcMontant.replace(',', '.'))
                                       if (!val || val <= 0) return null
-                                      const hCal = val / padrao.taxaHorariaNetaMedia
+                                      const frais = parseFloat(calcFrais.replace(',', '.')) || 0
+                                      const net = val - frais
+                                      if (net <= 0) return null
+                                      const hCal = net / padrao.taxaHorariaNetaMedia
                                       const hFiche = padrao.horasFactorReal !== 1 ? hCal * padrao.horasFactorReal : null
                                       return (
                                         <View style={{ marginTop: 8 }}>
+                                          {frais > 0 && (
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                              <Text style={{ fontSize: 12, color: c.textSub }}>Salaire net utilisé</Text>
+                                              <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{net.toFixed(2)} €</Text>
+                                            </View>
+                                          )}
                                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                             <Text style={{ fontSize: 12, color: c.textSub }}>Heures calendrier</Text>
                                             <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{hCal.toFixed(1)}h</Text>

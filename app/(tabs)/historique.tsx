@@ -573,6 +573,21 @@ const getJoursMois = () => {
       const { uri } = await Print.printToFileAsync({ html, base64: false })
       setFicheLoading(false)
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
+      // Marquer automatiquement la semaine comme envoyée dans le suivi "Folhe Hebdo"
+      try {
+        const firstDow = new Date(lundi.getFullYear(), lundi.getMonth(), 1).getDay()
+        const firstMondayOfWeek1 = new Date(lundi.getFullYear(), lundi.getMonth(), 1)
+        firstMondayOfWeek1.setDate(1 - (firstDow === 0 ? 6 : firstDow - 1))
+        const semaineIdx = Math.round((lundi.getTime() - firstMondayOfWeek1.getTime()) / (7 * 86400000))
+        const chave = `folhaEnviada_${lundi.getFullYear()}_${lundi.getMonth()}`
+        const raw = await AsyncStorage.getItem(chave)
+        const arr: boolean[] = raw ? JSON.parse(raw) : []
+        arr[semaineIdx] = true
+        await AsyncStorage.setItem(chave, JSON.stringify(arr))
+        log.info('historique', 'folhe auto-marquée', { semaine: numSemana, semaineIdx, chave })
+      } catch (eF) {
+        log.warn('historique', 'folhe auto-mark falhou (non-bloquant)', eF)
+      }
     } catch (e) {
       setFicheLoading(false)
       Alert.alert('Erreur', String(e))

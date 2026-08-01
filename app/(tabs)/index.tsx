@@ -3013,7 +3013,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                       </Text>
                                       <View style={{ flexDirection: 'row', gap: 4 }}>
                                         {(['€→h', 'h→€'] as const).map(m => (
-                                          <TouchableOpacity key={m} onPress={() => { setCalcMode(m); setCalcMontant(''); setCalcFrais(''); setCalcHeures('') }}
+                                          <TouchableOpacity key={m} onPress={() => { log.info('index', 'calculette mode', { de: calcMode, para: m }); setCalcMode(m); setCalcMontant(''); setCalcFrais(''); setCalcHeures('') }}
                                             style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: calcMode === m ? '#f5a623' : c.card, borderWidth: 1, borderColor: calcMode === m ? '#f5a623' : c.cardBorder }}>
                                             <Text style={{ fontSize: 10, fontWeight: '700', color: calcMode === m ? '#fff' : c.textSub }}>{m}</Text>
                                           </TouchableOpacity>

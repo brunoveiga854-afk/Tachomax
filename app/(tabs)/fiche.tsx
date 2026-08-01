@@ -3449,6 +3449,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ color: c.textSub, fontSize: 13 }}>Frais reçus</Text>
                 <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.fraisRecuConfirme || modalDetail?.fraisBoletim || modalDetail?.remboursementFrais || 0)}</Text>
               </View>
+              {(modalDetail?.totalHeures || 0) > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: c.textSub, fontSize: 13 }}>⏱ Heures travaillées</Text>
+                  <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>{Math.round(modalDetail!.totalHeures!)}h</Text>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder }}>
                 <Text style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>Total reçu</Text>
                 <Text style={{ color: '#27ae60', fontWeight: '800', fontSize: 17 }}>{fmt(modalDetail?.montantTotalRecu || 0)}</Text>

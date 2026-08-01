@@ -46,6 +46,33 @@ type Jour = {
 }
 const PAUSA_MAX = 4.5 * 3600
 const STORAGE_KEY = 'TACHOOFFICE_estado'
+
+// ─── Stats sub-components — defined at module level so React never remounts ──
+// Defining components inside a render body creates a new reference each render,
+// causing React to unmount/remount children (including TextInputs) on every
+// state change, which closes the keyboard after each keystroke.
+type StatsC = Record<string, string>
+type StatsOpenKey = 'repos' | 'hebdo' | 'bsem' | 'sept' | 'pauses' | 'frais' | 'amplitude' | 'assiduite' | 'projections' | 'records'
+
+const SectionWrap = ({ children, c }: { children: React.ReactNode; c: StatsC }) => (
+  <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, marginBottom: 4 }}>{children}</View>
+)
+const AccHeader = ({ label, k, c, sectionPositions }: { label: string; k: StatsOpenKey; c: StatsC; sectionPositions: Record<string, number> }) => (
+  <View onLayout={(e) => { sectionPositions[k] = e.nativeEvent.layout.y }}
+    style={{ paddingVertical: 10, paddingHorizontal: 2 }}>
+    <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
+  </View>
+)
+const ProgBar = ({ pct, color, c }: { pct: number; color: string; c: StatsC }) => (
+  <View style={{ height: 6, backgroundColor: c.progressBg, borderRadius: 3, marginVertical: 6 }}>
+    <View style={{ height: 6, width: `${Math.min(pct, 100)}%` as any, backgroundColor: color, borderRadius: 3 }} />
+  </View>
+)
+const StatsDivider = ({ c }: { c: StatsC }) => (
+  <View style={{ height: 1, backgroundColor: c.cardBorder, marginVertical: 8 }} />
+)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
   const { t } = useLangue()
@@ -2359,21 +2386,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   // Section accordion header with auto-scroll
                   const sectionPositions: Record<string, number> = {}
-                  const AccHeader = ({ label, k }: { label: string; k: keyof typeof statsOpen }) => (
-                    <View onLayout={(e) => { sectionPositions[k] = e.nativeEvent.layout.y }}
-                      style={{ paddingVertical: 10, paddingHorizontal: 2 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{label}</Text>
-                    </View>
-                  )
-                  const SectionWrap = ({ children }: { children: React.ReactNode }) => (
-                    <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, marginBottom: 4 }}>{children}</View>
-                  )
-                  const ProgBar = ({ pct, color }: { pct: number; color: string }) => (
-                    <View style={{ height: 6, backgroundColor: c.progressBg, borderRadius: 3, marginVertical: 6 }}>
-                      <View style={{ height: 6, width: `${Math.min(pct, 100)}%` as any, backgroundColor: color, borderRadius: 3 }} />
-                    </View>
-                  )
-                  const Divider = () => <View style={{ height: 1, backgroundColor: c.cardBorder, marginVertical: 8 }} />
 
                   // ── SECTION 1 — REPOS QUOTIDIEN ───────────────────────────
                   const reposQSec = (() => {
@@ -2485,9 +2497,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     <>
                       {/* ── S1 REPOS QUOTIDIEN ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="🛌 REPOS QUOTIDIEN" k="repos" />
+                        <AccHeader label="🛌 REPOS QUOTIDIEN" k="repos" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.repos && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             {reposQSec == null ? (
                               <Text style={{ color: c.textSub, fontSize: 13 }}>Pas assez de données (2 jours min.)</Text>
                             ) : (
@@ -2496,9 +2508,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   <Text style={{ fontSize: 13, color: c.textSub }}>Dernier repos</Text>
                                   <Text style={{ fontSize: 16, fontWeight: '800', color: restColor }}>{fmtHM(reposQSec)}</Text>
                                 </View>
-                                <ProgBar pct={(reposQSec / (11*3600)) * 100} color={restColor} />
+                                <ProgBar pct={(reposQSec / (11*3600)) * 100} color={restColor} c={c} />
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: restColor, marginBottom: 8 }}>{restLabel}</Text>
-                                <Divider />
+                                <StatsDivider c={c} />
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: c.textLabel, letterSpacing: 1, marginBottom: 6 }}>3 DERNIERS JOURS</Text>
                                 {last3.slice(0,3).map((j,i) => (
                                   <View key={j.id||i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
@@ -2514,9 +2526,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S2 REPOS HEBDO ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="🏠 REPOS HEBDOMADAIRE" k="hebdo" />
+                        <AccHeader label="🏠 REPOS HEBDOMADAIRE" k="hebdo" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.hebdo && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             {!lastFriday ? (
                               <Text style={{ color: c.textSub, fontSize: 13 }}>Aucun vendredi trouvé</Text>
                             ) : (
@@ -2526,7 +2538,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   <Text style={{ fontSize: 13, color: c.textSub }}>Repos écoulé</Text>
                                   <Text style={{ fontSize: 16, fontWeight: '800', color: hebdoColor }}>{hebdoSec ? fmtHM(hebdoSec) : '—'}</Text>
                                 </View>
-                                <ProgBar pct={hebdoPct} color={hebdoColor} />
+                                <ProgBar pct={hebdoPct} color={hebdoColor} c={c} />
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: hebdoColor }}>
                                   {hebdoSec && hebdoSec >= 45*3600 ? '✅ Repos hebdo normal (45h) respecté' : `⚠️ ${hebdoSec ? fmtHM(Math.max(0,45*3600-hebdoSec)) : '45h00'} restantes`}
                                 </Text>
@@ -2539,14 +2551,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       {/* ── S3 90H / 2 SEM — MIXTE + LD only ── */}
                       {(profil === 'MIXTE' || profil === 'LD') && (
                         <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                          <AccHeader label="📅 90H / 2 SEM." k="bsem" />
+                          <AccHeader label="📅 90H / 2 SEM." k="bsem" c={c} sectionPositions={sectionPositions} />
                           {statsOpen.bsem && (
-                            <SectionWrap>
+                            <SectionWrap c={c}>
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Text style={{ fontSize: 13, color: c.textSub }}>14 derniers jours</Text>
                                 <Text style={{ fontSize: 16, fontWeight: '800', color: col90 }}>{fmtHM(tot14Seg)} / 90h</Text>
                               </View>
-                              <ProgBar pct={pct90} color={col90} />
+                              <ProgBar pct={pct90} color={col90} c={c} />
                               {reste90 < 0
                                 ? <Text style={{ fontSize: 13, fontWeight: '800', color: '#e74c3c' }}>🚨 Dépassée de {fmtHM(Math.abs(reste90))}</Text>
                                 : <Text style={{ fontSize: 13, fontWeight: '700', color: '#27ae60' }}>Reste {fmtHM(reste90)}</Text>
@@ -2558,9 +2570,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S4 7 DERNIERS JOURS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="📆 7 DERNIERS JOURS" k="sept" />
+                        <AccHeader label="📆 7 DERNIERS JOURS" k="sept" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.sept && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 4, marginBottom: 6 }}>
                               {last7Days.map((day, i) => {
                                 const dStr = `${String(day.getDate()).padStart(2,'0')}/${String(day.getMonth()+1).padStart(2,'0')}`
@@ -2605,9 +2617,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S6 PAUSES ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="⏸ PAUSES" k="pauses" />
+                        <AccHeader label="⏸ PAUSES" k="pauses" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.pauses && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             <TouchableOpacity activeOpacity={0.7} onPress={() => setPausaDetail(v => !v)}>
                               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -2645,9 +2657,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S7 FRAIS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="💰 FRAIS" k="frais" />
+                        <AccHeader label="💰 FRAIS" k="frais" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.frais && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             <TouchableOpacity activeOpacity={0.7} onPress={() => setFraisDetail(v => !v)}>
                               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -2663,7 +2675,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   <Text style={{ fontSize: 16, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{decouchesMois}</Text>
                                 </View>
                               </View>
-                              <Divider />
+                              <StatsDivider c={c} />
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
                                 <Text style={{ fontSize: 12, color: c.textSub }}>Moyenne / jour travaillé</Text>
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{avgFraisDay.toFixed(2)}€</Text>
@@ -2699,9 +2711,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S8 AMPLITUDE ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="📏 AMPLITUDE" k="amplitude" />
+                        <AccHeader label="📏 AMPLITUDE" k="amplitude" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.amplitude && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                               <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
                                 <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>MOY. SEMAINE</Text>
@@ -2724,9 +2736,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S9 ASSIDUITÉ ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="🗓 ASSIDUITÉ" k="assiduite" />
+                        <AccHeader label="🗓 ASSIDUITÉ" k="assiduite" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.assiduite && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                               <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minHeight: 60, justifyContent: 'center' }}>
                                 <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }} numberOfLines={1}>TRAVAIL</Text>
@@ -2799,9 +2811,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                         return (
                           <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                            <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" />
+                            <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" c={c} sectionPositions={sectionPositions} />
                             {statsOpen.projections && (
-                              <SectionWrap>
+                              <SectionWrap c={c}>
                                 <ScrollView ref={pillsScrollRef} horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 8 }}>
                                   {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }) => (
                                     <TouchableOpacity key={mesIdx} activeOpacity={0.7}
@@ -2942,10 +2954,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                         ))}
                                       </View>
                                     </View>
-                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 2 }}>
                                       {calcMode === '€→h'
                                         ? 'Convertit un montant reçu en heures estimées selon ton taux actuel.'
                                         : 'Estime le salaire net pour un nombre d\'heures. Frais non inclus (dépendent des jours).'}
+                                    </Text>
+                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
+                                      {'Basé sur ta moyenne générale'}
+                                      {mediasAnuais ? ` (${mediasAnuais.nMeses} mois confirmés)` : ''}
+                                      {' — pas un mois spécifique.'}
                                     </Text>
 
                                     {calcMode === '€→h' ? (
@@ -3043,9 +3060,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S10 RECORDS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="🏆 RECORDS" k="records" />
+                        <AccHeader label="🏆 RECORDS" k="records" c={c} sectionPositions={sectionPositions} />
                         {statsOpen.records && (
-                          <SectionWrap>
+                          <SectionWrap c={c}>
                             {[
                               { idx: 0, label: '⏱ Service le plus long', val: longestServ ? `${longestServ.jour} ${longestServ.date} · ${fmtHM(longestServ.segServico||0)}` : '—' },
                               { idx: 1, label: '📅 Meilleure semaine', val: bestWeekSec > 0 ? fmtHM(bestWeekSec) : '—' },

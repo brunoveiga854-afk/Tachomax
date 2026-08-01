@@ -52,7 +52,14 @@ const STORAGE_KEY = 'TACHOOFFICE_estado'
 // causing React to unmount/remount children (including TextInputs) on every
 // state change, which closes the keyboard after each keystroke.
 type StatsC = Record<string, string>
-type StatsOpenKey = 'repos' | 'hebdo' | 'bsem' | 'sept' | 'pauses' | 'frais' | 'amplitude' | 'assiduite' | 'projections' | 'records'
+type StatsOpenKey = 'repos' | 'hebdo' | 'bsem' | 'sept' | 'pauses' | 'frais' | 'amplitude' | 'assiduite' | 'folha' | 'projections' | 'records'
+
+/** Nombre de semaines (lun–dim) qui "touchent" le mois donné (4 ou 5). */
+function nSemainesMois(year: number, month: number): number {
+  const firstDow = new Date(year, month, 1).getDay() // 0=dim
+  const nDays = new Date(year, month + 1, 0).getDate()
+  return Math.ceil((nDays + (firstDow === 0 ? 6 : firstDow - 1)) / 7)
+}
 
 const SectionWrap = ({ children, c }: { children: React.ReactNode; c: StatsC }) => (
   <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 14, marginBottom: 4 }}>{children}</View>
@@ -114,7 +121,7 @@ export default function AujourdhuiScreen() {
   const [pausaDuracaoInput, setPausaDuracaoInput] = useState('')
   const [pausaFimTimestamp, setPausaFimTimestamp] = useState<number | null>(null)
   const [showStats, setShowStats] = useState(false)
-  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, projections: true, records: true })
+  const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, folha: true, projections: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
   const [projDetail, setProjDetail] = useState<any>(null)
   // Pré-abre projDetail no mês activo quando o modal Stats abre (só se ainda null)
@@ -159,9 +166,22 @@ export default function AujourdhuiScreen() {
       pillsScrollRef.current?.scrollTo({ x: Math.max(0, mesActivo - 1) * 78, animated: false })
     }, 50)
   }, [showStats])
+  // Charge les checkboxes "folhe envoyée" pour le mois courant.
+  // La clé change chaque mois → état repart toujours de zéro sans nettoyage.
+  useEffect(() => {
+    if (!showStats) return
+    const agora = new Date()
+    const chave = `folhaEnviada_${agora.getFullYear()}_${agora.getMonth()}`
+    AsyncStorage.getItem(chave).then(raw => {
+      setFolhaChave(chave)
+      setFolhasEnviadas(raw ? JSON.parse(raw) : [])
+    })
+  }, [showStats])
   const [fraisDetail, setFraisDetail] = useState(false)
   const [pausaDetail, setPausaDetail] = useState(false)
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
+  const [folhasEnviadas, setFolhasEnviadas] = useState<boolean[]>([])
+  const [folhaChave, setFolhaChave] = useState('')
   const [calcMontant, setCalcMontant] = useState('')
   const [calcFrais, setCalcFrais] = useState('')
   const [calcHeures, setCalcHeures] = useState('')
@@ -2758,6 +2778,52 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                           </SectionWrap>
                         )}
                       </View>
+
+                      {/* ── S9.5 FOLHE HEBDO ENVOYÉE ── */}
+                      {(() => {
+                        const agora = new Date()
+                        const nSem = nSemainesMois(agora.getFullYear(), agora.getMonth())
+                        const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+                        const toggleFolha = async (i: number) => {
+                          const next = Array.from({ length: nSem }, (_, j) => j === i ? !folhasEnviadas[j] : (folhasEnviadas[j] ?? false))
+                          setFolhasEnviadas(next)
+                          await AsyncStorage.setItem(folhaChave || `folhaEnviada_${agora.getFullYear()}_${agora.getMonth()}`, JSON.stringify(next))
+                        }
+                        return (
+                          <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
+                            <AccHeader label="📋 FOLHE HEBDO ENVOYÉE" k="folha" c={c} sectionPositions={sectionPositions} />
+                            {statsOpen.folha && (
+                              <SectionWrap c={c}>
+                                <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 10 }}>
+                                  {MOIS_FR[agora.getMonth()]} {agora.getFullYear()} — coche chaque semaine une fois la feuille envoyée.
+                                </Text>
+                                {Array.from({ length: nSem }, (_, i) => {
+                                  const checked = folhasEnviadas[i] ?? false
+                                  return (
+                                    <TouchableOpacity key={i} onPress={() => toggleFolha(i)}
+                                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < nSem - 1 ? 1 : 0, borderBottomColor: c.cardBorder }}>
+                                      <View style={{
+                                        width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+                                        borderColor: checked ? '#27ae60' : c.cardBorder,
+                                        backgroundColor: checked ? '#27ae60' : 'transparent',
+                                        alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                                      }}>
+                                        {checked && <Text style={{ fontSize: 13, color: '#fff', fontWeight: '800' }}>✓</Text>}
+                                      </View>
+                                      <Text style={{ fontSize: 14, fontWeight: checked ? '700' : '400', color: checked ? '#27ae60' : c.text }}>
+                                        Semaine {i + 1}
+                                      </Text>
+                                      {checked && (
+                                        <Text style={{ fontSize: 11, color: '#27ae60', marginLeft: 8 }}>envoyée ✓</Text>
+                                      )}
+                                    </TouchableOpacity>
+                                  )
+                                })}
+                              </SectionWrap>
+                            )}
+                          </View>
+                        )
+                      })()}
 
                       {/* ── S10.5 PROJECTIONS ANNÉE ── */}
                       {(() => {

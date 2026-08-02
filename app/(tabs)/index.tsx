@@ -2863,9 +2863,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                     { label: '🍴 Dîner',    n: nDin, val: nDin * (pr.din  || 23.94) },
                                     { label: '🌙 Nuit',     n: nNui, val: nNui * (pr.nui  || 23.94) },
                                   ].filter(r => r.n > 0)
-                                  const moisHist = (appState.histSal as MoisData[] ?? []).find(m =>
-                                    m.moisIndex === fraisNavMonth && (m.annee === fraisNavYear || m.pagamentoSalAno === fraisNavYear)
-                                  )
+                                  const moisHist = (appState.histSal as MoisData[] ?? []).find(m => {
+                                    const fMes = m.mesFraisTrabalhoIndex ?? m.moisIndex
+                                    const fAno = m.anoFraisTrabalho ?? m.annee
+                                    return fMes === fraisNavMonth && fAno === fraisNavYear
+                                  })
                                   const totalReel = moisHist
                                     ? (moisHist.fraisRecuConfirme || moisHist.fraisBoletim || moisHist.remboursementFrais || 0)
                                     : 0

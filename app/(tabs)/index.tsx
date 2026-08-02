@@ -2476,6 +2476,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const decouchesMois = moisDays.filter(j => j.decouche || j.type === 'DEC').length
                   const fraisBreakdown = (() => {
                     const pr = appState.padrao
+                    log.info('index', 'fraisBreakdown calc', { padraoExiste: !!pr, totalDiasHistorique: diasHistorique?.length, thisMonth, thisYear })
                     if (!pr) return null
                     return calcFraisMesPorHorarios(diasHistorique, thisYear, thisMonth, migrarPadrao(pr))
                   })()

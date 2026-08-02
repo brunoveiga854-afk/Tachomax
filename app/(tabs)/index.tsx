@@ -2725,22 +2725,24 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         >
                           <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: c.text }}>💰 FRAIS</Text>
                           {statsOpen.frais && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                               <TouchableOpacity
                                 onPress={e => { e.stopPropagation(); setFraisMesOffset(v => v - 1) }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
-                                <Text style={{ fontSize: 20, color: c.textSub, paddingHorizontal: 6 }}>‹</Text>
+                                <Text style={{ fontSize: 22, color: c.textSub, paddingHorizontal: 8 }}>‹</Text>
                               </TouchableOpacity>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: fraisNavIsCurrentMonth ? '#27ae60' : c.textSub, minWidth: 58, textAlign: 'center' }}>
-                                {fraisNavLabel}
-                              </Text>
+                              <View style={{ width: 62, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: fraisNavIsCurrentMonth ? '#27ae60' : c.textSub, textAlign: 'center' }}>
+                                  {fraisNavLabel}
+                                </Text>
+                              </View>
                               <TouchableOpacity
                                 onPress={e => { e.stopPropagation(); setFraisMesOffset(v => Math.min(v + 1, 0)) }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 disabled={fraisNavIsCurrentMonth}
                               >
-                                <Text style={{ fontSize: 20, color: fraisNavIsCurrentMonth ? c.progressBg : c.textSub, paddingHorizontal: 6 }}>›</Text>
+                                <Text style={{ fontSize: 22, color: fraisNavIsCurrentMonth ? c.progressBg : c.textSub, paddingHorizontal: 8 }}>›</Text>
                               </TouchableOpacity>
                             </View>
                           )}
@@ -2780,10 +2782,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL {fraisNavLabel.toUpperCase()}</Text>
                                 {fraisNavBreakdown && fraisNavBreakdown.total > 0 && (() => {
                                   const pr = migrarPadrao(appState.padrao)
+                                  const DEFAULT_DIN = 20.80
+                                  const DEFAULT_NUI = 20.80
                                   const nPtd = pr.ptd > 0 ? Math.round(fraisNavBreakdown.ptd / pr.ptd) : 0
                                   const nDej = pr.dej > 0 ? Math.round(fraisNavBreakdown.dej / pr.dej) : 0
-                                  const nDin = pr.din > 0 ? Math.round(fraisNavBreakdown.din / pr.din) : 0
-                                  const nNui = pr.nui > 0 ? Math.round(fraisNavBreakdown.nui / pr.nui) : 0
+                                  const nDin = pr.din > 0 ? Math.round(fraisNavBreakdown.din / pr.din)
+                                             : fraisNavBreakdown.din > 0 ? Math.round(fraisNavBreakdown.din / DEFAULT_DIN) : 0
+                                  const nNui = pr.nui > 0 ? Math.round(fraisNavBreakdown.nui / pr.nui)
+                                             : fraisNavBreakdown.nui > 0 ? Math.round(fraisNavBreakdown.nui / DEFAULT_NUI) : 0
                                   const rows = [
                                     { label: '☕ Pt-déj',   n: nPtd, val: fraisNavBreakdown.ptd },
                                     { label: '🍽 Déjeuner', n: nDej, val: fraisNavBreakdown.dej },

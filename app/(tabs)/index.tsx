@@ -3065,6 +3065,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                         const mesHorasCard = ((mesIdx - padrao.hlag) % 12 + 12) % 12
                                         const todayDay = new Date().getDate()
                                         if (mesHorasCard === mesActual) {
+                                          const diasNoMes = new Date(anoActual, mesActual + 1, 0).getDate()
+                                          const diasRestantes = diasNoMes - todayDay
+                                          if (diasRestantes <= 5) {
+                                            return (
+                                              <Text style={{ fontSize: 11, color: '#27ae60', marginBottom: 6 }}>
+                                                {'✅ Quasi-complet — '}{diasRestantes > 0 ? `encore ${diasRestantes} j.` : 'dernier jour'}{' · estimation fiable'}
+                                              </Text>
+                                            )
+                                          }
                                           return (
                                             <Text style={{ fontSize: 11, color: '#f5a623', marginBottom: 6 }}>
                                               🔄 Mois de travail en cours — estimation provisoire

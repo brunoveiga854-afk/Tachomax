@@ -1337,31 +1337,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     LD:    { emoji: '🛣️', label: 'Longue Distance', max: '56h/sem' },
   }
 
-  if (!appReady && !appReadyRef.current) {
-    return (
-      <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#f5a623" />
-      </SafeAreaView>
-    )
-  }
-
-  const openKmModal = () => {
-    kmScaleAnim.setValue(0.4)
-    kmOpacityAnim.setValue(0)
-    setShowKmModal(true)
-    Animated.parallel([
-      Animated.spring(kmScaleAnim, { toValue: 1, tension: 120, friction: 7, useNativeDriver: true }),
-      Animated.timing(kmOpacityAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-    ]).start()
-  }
-
-  const closeKmModal = () => {
-    Animated.parallel([
-      Animated.spring(kmScaleAnim, { toValue: 0.4, tension: 160, friction: 10, useNativeDriver: true }),
-      Animated.timing(kmOpacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-    ]).start(() => setShowKmModal(false))
-  }
-
+  // ── Hooks que devem correr antes de qualquer early return ──────────────────
   const projecoesPills = useMemo(() => {
     const histSal = (appState.histSal ?? []) as MoisData[]
     const histCal = appState.histCal ?? []
@@ -1423,6 +1399,32 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const navDate = new Date(now.getFullYear(), now.getMonth() + fraisMesOffset, 1)
     return calcFraisMesPorHorarios(diasHistorique, navDate.getFullYear(), navDate.getMonth(), migrarPadrao(pr))
   }, [diasHistorique, appState.padrao, fraisMesOffset])
+  // ── fim hooks antes do early return ───────────────────────────────────────
+
+  if (!appReady && !appReadyRef.current) {
+    return (
+      <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#f5a623" />
+      </SafeAreaView>
+    )
+  }
+
+  const openKmModal = () => {
+    kmScaleAnim.setValue(0.4)
+    kmOpacityAnim.setValue(0)
+    setShowKmModal(true)
+    Animated.parallel([
+      Animated.spring(kmScaleAnim, { toValue: 1, tension: 120, friction: 7, useNativeDriver: true }),
+      Animated.timing(kmOpacityAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start()
+  }
+
+  const closeKmModal = () => {
+    Animated.parallel([
+      Animated.spring(kmScaleAnim, { toValue: 0.4, tension: 160, friction: 10, useNativeDriver: true }),
+      Animated.timing(kmOpacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+    ]).start(() => setShowKmModal(false))
+  }
 
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>

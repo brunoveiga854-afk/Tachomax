@@ -612,17 +612,28 @@ const getJoursMois = () => {
         const ano = lundi.getFullYear()
         const mes = lundi.getMonth()
 
-        // Quais índices (0-5) pertencem ao mês/ano da chave
-        const indicesDesseMes = [0,1,2,3,4,5].filter(i => {
-          const d = new Date(lundi)
-          d.setDate(lundi.getDate() + i)
-          return d.getFullYear() === ano && d.getMonth() === mes
+        // Recalcular diasComDados localmente com o lundi da função (não o lundiFiche do ecrã)
+        const diasComDadosLocal = [0,1,2,3,4,5].map(i => {
+          const d = new Date(lundi); d.setDate(lundi.getDate() + i)
+          return !!historique.find(j => {
+            const parts = j.date.split('/')
+            const m2 = parseInt(parts[1]) - 1; const d2 = parseInt(parts[0])
+            const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+            return d2 === d.getDate() && m2 === d.getMonth() && a2 === d.getFullYear()
+          })
         })
 
-        // Só marca se todos os dias desse mês estiverem na selecção
+        // Índices com dados E pertencentes ao mês/ano da chave
+        const indicesComDadosDesseMes = [0,1,2,3,4,5].filter(i => {
+          const d = new Date(lundi); d.setDate(lundi.getDate() + i)
+          return d.getFullYear() === ano && d.getMonth() === mes && diasComDadosLocal[i]
+        })
+
+        // Só marca se todos os dias com dados desse mês estiverem na selecção
         // (indicesSelecionados === undefined = todos seleccionados = sempre inclui)
         const todosIncluidos = !indicesSelecionados ||
-          indicesDesseMes.every(i => indicesSelecionados.includes(i))
+          indicesComDadosDesseMes.length === 0 ||
+          indicesComDadosDesseMes.every(i => indicesSelecionados.includes(i))
 
         if (todosIncluidos) {
           const firstDow = new Date(ano, mes, 1).getDay()
@@ -635,7 +646,7 @@ const getJoursMois = () => {
           await AsyncStorage.setItem(chave, JSON.stringify(arr))
           log.info('historique', 'folhe auto-marquée', { semaine: numSemana, semaineIdx, chave })
         } else {
-          log.info('historique', 'folhe auto-mark ignorada (sélection partielle)', { indicesSelecionados, indicesDesseMes })
+          log.info('historique', 'folhe auto-mark ignorada (sélection partielle)', { indicesSelecionados, indicesComDadosDesseMes })
         }
       } catch (eF) {
         log.warn('historique', 'folhe auto-mark falhou (non-bloquant)', eF)

@@ -1409,6 +1409,21 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal }
   }, [appState.histSal, appState.histCal, appState.padrao])
 
+  const fraisBreakdown = useMemo(() => {
+    const pr = appState.padrao
+    if (!pr) return null
+    const now = new Date()
+    return calcFraisMesPorHorarios(diasHistorique, now.getFullYear(), now.getMonth(), migrarPadrao(pr))
+  }, [diasHistorique, appState.padrao])
+
+  const fraisNavBreakdown = useMemo(() => {
+    const pr = appState.padrao
+    if (!pr) return null
+    const now = new Date()
+    const navDate = new Date(now.getFullYear(), now.getMonth() + fraisMesOffset, 1)
+    return calcFraisMesPorHorarios(diasHistorique, navDate.getFullYear(), navDate.getMonth(), migrarPadrao(pr))
+  }, [diasHistorique, appState.padrao, fraisMesOffset])
+
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
       {storageErro && (
@@ -2526,11 +2541,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     : 0
                   const projFrais = avgFraisDay * workingDaysInMonth
                   const decouchesMois = moisDays.filter(j => j.decouche || j.type === 'DEC').length
-                  const fraisBreakdown = (() => {
-                    const pr = appState.padrao
-                    if (!pr) return null
-                    return calcFraisMesPorHorarios(diasHistorique, thisYear, thisMonth, migrarPadrao(pr))
-                  })()
 
                   // ── FRAIS NAVEGAÇÃO (offset independente de moisDays) ──────
                   const fraisNavDate = new Date(thisYear, thisMonth + fraisMesOffset, 1)
@@ -2556,11 +2566,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const fraisNavProj = fraisNavIsCurrentMonth && fraisNavMoisDays.length > 0
                     ? fraisNavAvgDay * Math.round(fraisNavMoisDays.length / new Date().getDate() * fraisNavDaysInMonth)
                     : fraisNavTotal
-                  const fraisNavBreakdown = (() => {
-                    const pr = appState.padrao
-                    if (!pr) return null
-                    return calcFraisMesPorHorarios(diasHistorique, fraisNavYear, fraisNavMonth, migrarPadrao(pr))
-                  })()
                   const MOIS_FR_NAV = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
                   const fraisNavLabel = `${MOIS_FR_NAV[fraisNavMonth]} ${fraisNavYear}`
 

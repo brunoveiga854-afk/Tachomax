@@ -1557,11 +1557,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   </View>
                 </View>
               ) : kmInicioInput ? (
-                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: '#f5a623', fontSize: 13, fontWeight: '700' }}>📍 {t.kmDebutLabel} {kmInicioInput}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => setShowKmInicio(true)} style={{ paddingVertical: 8, paddingHorizontal: 4 }}>
                   <Text style={{ fontSize: 12 }}><Text style={{ color: '#e74c3c', fontSize: 14 }}>📍</Text><Text style={{ color: c.textSub, opacity: 0.6 }}> {t.kmDebut}</Text></Text>
                 </TouchableOpacity>
               )}
@@ -1583,11 +1583,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 <View style={[st.semCard, { backgroundColor: c.card, borderColor: c.cardBorder, paddingBottom: 12 }]}>
                   {/* Month navigation */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <TouchableOpacity onPress={() => navegarMes(-1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+                    <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => navegarMes(-1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontSize: 16, color: c.text, fontWeight: '700' }}>←</Text>
                     </TouchableOpacity>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: c.textLabel, letterSpacing: 1.5 }}>{MOIS_NOMS[calMes]} {calAno}</Text>
-                    <TouchableOpacity onPress={() => navegarMes(1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+                    <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => navegarMes(1)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontSize: 16, color: c.text, fontWeight: '700' }}>→</Text>
                     </TouchableOpacity>
                   </View>
@@ -2123,7 +2123,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               {(['TRAB','DEC','FER','FERIE','RC','OFF'] as const).map(type => {
                 const cfg: Record<string, {emoji: string, label: string}> = { TRAB: { emoji: '💼', label: 'Travail' }, DEC: { emoji: '🌙', label: 'Découché' }, FER: { emoji: '🎉', label: 'Férié' }, FERIE: { emoji: '🏖️', label: 'Congé' }, RC: { emoji: '🔄', label: 'Repos C.' }, OFF: { emoji: '❌', label: 'Repos' } }
                 return (
-                  <TouchableOpacity key={type} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: addType === type ? '#f5a623' : c.cardBorder, backgroundColor: addType === type ? 'rgba(245,166,35,0.1)' : 'transparent' }} onPress={() => { setAddType(type); calcularFraisAuto(addDebut, addFin, addServico, type) }}>
+                  <TouchableOpacity key={type} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: addType === type ? '#f5a623' : c.cardBorder, backgroundColor: addType === type ? 'rgba(245,166,35,0.1)' : 'transparent' }} onPress={() => { setAddType(type); calcularFraisAuto(addDebut, addFin, addServico, type) }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: addType === type ? '#f5a623' : c.textSub }}>{cfg[type].emoji} {cfg[type].label}</Text>
                   </TouchableOpacity>
                 )
@@ -2377,7 +2377,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
-              <TouchableOpacity onPress={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, color: c.textSub, fontWeight: '700' }}>✕</Text>
               </TouchableOpacity>
             </View>

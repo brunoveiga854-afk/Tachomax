@@ -2934,7 +2934,13 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 <ScrollView ref={pillsScrollRef} horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 8 }}>
                                   {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }) => (
                                     <TouchableOpacity key={mesIdx} activeOpacity={0.7}
-                                      onPress={() => setProjDetail(v => v?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist })}
+                                      onPress={() => {
+                                        const next = projDetail?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }
+                                        setProjDetail(next)
+                                        if (next !== null) {
+                                          pillsScrollRef.current?.scrollTo({ x: Math.max(0, mesIdx - 1) * 78, animated: true })
+                                        }
+                                      }}
                                       style={{
                                         width: 72, height: 76, marginRight: 6, borderRadius: 10,
                                         paddingHorizontal: 6,
@@ -2949,6 +2955,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                                    : isFuture  ? 'rgba(155,89,182,0.35)'
                                                    : isConfirmed ? 'rgba(39,174,96,0.45)'
                                                    : c.cardBorder,
+                                        transform: projDetail?.mesIdx === mesIdx ? [{ scale: 1.08 }] : [{ scale: 1 }],
                                       }}>
                                       <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, textAlign: 'center' }}>
                                         {ABBR[mesIdx]}
@@ -3055,12 +3062,26 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 ) : (
                                   <Text style={{ fontSize: 10, color: c.textSub }}>Données insuffisantes pour projection</Text>
                                 )}
-                                {padrao.taxaHorariaNetaMedia > 0 && (
+                                {padrao.taxaHorariaNetaMedia > 0 && (() => {
+                                  const ABBR_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+                                  const moisLabel = projDetail != null ? ABBR_LONG[projDetail.mesIdx] + ' ' + anoActual : null
+                                  const txMes = (projDetail?.isConfirmed && (projDetail.mHist?.netPaye || 0) > 0 && (projDetail.mHist?.totalHeures || 0) > 0)
+                                    ? (projDetail.mHist.netPaye / projDetail.mHist.totalHeures)
+                                    : null
+                                  const taxa = txMes ?? padrao.taxaHorariaNetaMedia
+                                  const txLabel = txMes != null
+                                    ? `taux réel de ${ABBR_LONG[projDetail.mesIdx]}`
+                                    : mediasAnuais
+                                      ? `moyenne générale (${mediasAnuais.nMeses} mois confirmés)`
+                                      : 'moyenne générale'
+                                  return (
                                   <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
                                     {/* Cabeçalho com toggle */}
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                                       <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, flex: 1 }}>
-                                        {calcMode === '€→h' ? '💶 J\'ai reçu X€ — combien d\'heures ?' : '⏱ J\'ai fait Xh — combien je reçois ?'}
+                                        {moisLabel
+                                          ? (calcMode === '€→h' ? `💶 Combien d'heures pour ${moisLabel} ?` : `⏱ Combien pour ${moisLabel} ?`)
+                                          : (calcMode === '€→h' ? '💶 J\'ai reçu X€ — combien d\'heures ?' : '⏱ J\'ai fait Xh — combien je reçois ?')}
                                       </Text>
                                       <View style={{ flexDirection: 'row', gap: 4 }}>
                                         {(['€→h', 'h→€'] as const).map(m => (
@@ -3073,13 +3094,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                     </View>
                                     <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 2 }}>
                                       {calcMode === '€→h'
-                                        ? 'Convertit un montant reçu en heures estimées selon ton taux actuel.'
+                                        ? 'Convertit un montant reçu en heures estimées selon ton taux.'
                                         : 'Estime le salaire net pour un nombre d\'heures. Frais non inclus (dépendent des jours).'}
                                     </Text>
                                     <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
-                                      {'Basé sur ta moyenne générale'}
-                                      {mediasAnuais ? ` (${mediasAnuais.nMeses} mois confirmés)` : ''}
-                                      {' — pas un mois spécifique.'}
+                                      {`Basé sur le ${txLabel} — pas un mois spécifique.`}
                                     </Text>
 
                                     {calcMode === '€→h' ? (
@@ -3106,7 +3125,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                           const frais = parseFloat(calcFrais.replace(',', '.')) || 0
                                           const net = val - frais
                                           if (net <= 0) return null
-                                          const hCal = net / padrao.taxaHorariaNetaMedia
+                                          const hCal = net / taxa
                                           const hFiche = padrao.horasFactorReal !== 1 ? hCal * padrao.horasFactorReal : null
                                           return (
                                             <View style={{ marginTop: 8 }}>
@@ -3128,7 +3147,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                               )}
                                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                                 <Text style={{ fontSize: 12, color: c.textSub }}>Taux utilisé</Text>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>{padrao.taxaHorariaNetaMedia.toFixed(3)} €/h net</Text>
+                                                <Text style={{ fontSize: 11, color: c.textSub }}>{taxa.toFixed(3)} €/h net · {txLabel}</Text>
                                               </View>
                                             </View>
                                           )
@@ -3147,7 +3166,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                         {(() => {
                                           const h = parseFloat(calcHeures.replace(',', '.'))
                                           if (!h || h <= 0) return null
-                                          const net = h * padrao.taxaHorariaNetaMedia
+                                          const net = h * taxa
                                           return (
                                             <View style={{ marginTop: 8 }}>
                                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
@@ -3160,7 +3179,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                               </View>
                                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                                 <Text style={{ fontSize: 12, color: c.textSub }}>Taux utilisé</Text>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>{padrao.taxaHorariaNetaMedia.toFixed(3)} €/h net</Text>
+                                                <Text style={{ fontSize: 11, color: c.textSub }}>{taxa.toFixed(3)} €/h net · {txLabel}</Text>
                                               </View>
                                             </View>
                                           )
@@ -3168,7 +3187,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                       </>
                                     )}
                                   </View>
-                                )}
+                                  )
+                                })()}
                               </SectionWrap>
                             )}
                           </View>

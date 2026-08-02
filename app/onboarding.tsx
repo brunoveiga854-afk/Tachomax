@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet } from '../src/utils/secureStorage'
@@ -12,13 +12,16 @@ import { TachoLogo } from '../src/TachoLogo'
 import { PADRAO_INICIAL } from '../src/engine/aprendizagem'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 
-const { width } = Dimensions.get('window')
+// width moved inside component via useWindowDimensions
 
 type Profil = 'CD' | 'MIXTE' | 'LD'
 
 export default function OnboardingScreen() {
   const { recarregarApp } = useApp()
   const { showToast } = useToast()
+  const { width } = useWindowDimensions()
+  const sc = Math.min(Math.max(width / 375, 0.85), 1.15)
+  const btnNextStyle = [st.btnNext, { padding: Math.round(14 * sc) }] as const
   const [etape, setEtape] = useState(0)
   const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ mode?: string }>()
@@ -310,7 +313,7 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={[st.btnNext, { marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24 }]} onPress={() => setEtape(1)}>
+          <TouchableOpacity style={[...btnNextStyle, { marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24 }]} onPress={() => setEtape(1)}>
             <Text style={st.btnNextText}>COMMENCER →</Text>
           </TouchableOpacity>
         </View>
@@ -377,10 +380,10 @@ export default function OnboardingScreen() {
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
               <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(2)}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 2 }]} onPress={() => setEtape(2)}>
               <Text style={st.btnNextText}>SUIVANT →</Text>
             </TouchableOpacity>
           </View>
@@ -655,10 +658,10 @@ export default function OnboardingScreen() {
           )}
         </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
               <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2, marginTop: 0 }]} onPress={() => setEtape(3)}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 2, marginTop: 0 }]} onPress={() => setEtape(3)}>
               <Text style={st.btnNextText}>SUIVANT →</Text>
             </TouchableOpacity>
           </View>
@@ -808,10 +811,10 @@ export default function OnboardingScreen() {
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
-            <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
               <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[st.btnNext, { flex: 2, opacity: terminando ? 0.5 : 1 }]} onPress={terminerOnboarding} disabled={terminando}>
+            <TouchableOpacity style={[...btnNextStyle, { flex: 2, opacity: terminando ? 0.5 : 1 }]} onPress={terminerOnboarding} disabled={terminando}>
               <Text style={st.btnNextText}>{terminando ? 'En cours...' : 'DÉMARRER 🚛'}</Text>
             </TouchableOpacity>
           </View>

@@ -54,11 +54,14 @@ const STORAGE_KEY = 'TACHOOFFICE_estado'
 type StatsC = Record<string, string>
 type StatsOpenKey = 'repos' | 'hebdo' | 'bsem' | 'sept' | 'pauses' | 'frais' | 'amplitude' | 'assiduite' | 'folha' | 'projections' | 'records'
 
-/** Nombre de semaines (lun–dim) qui "touchent" le mois donné (4 ou 5). */
+/** Nombre de semaines dont le lundi tombe dans ce mois (4 ou 5, jamais 6). */
 function nSemainesMois(year: number, month: number): number {
-  const firstDow = new Date(year, month, 1).getDay() // 0=dim
   const nDays = new Date(year, month + 1, 0).getDate()
-  return Math.ceil((nDays + (firstDow === 0 ? 6 : firstDow - 1)) / 7)
+  const firstDow = new Date(year, month, 1).getDay() // 0=dim
+  const firstMondayDay = firstDow === 1 ? 1 : firstDow === 0 ? 2 : 9 - firstDow
+  let count = 0
+  for (let d = firstMondayDay; d <= nDays; d += 7) count++
+  return count
 }
 
 const SectionWrap = ({ children, c }: { children: React.ReactNode; c: StatsC }) => (

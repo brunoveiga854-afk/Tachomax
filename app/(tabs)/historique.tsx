@@ -576,9 +576,8 @@ const getJoursMois = () => {
       // Marquer automatiquement la semaine comme envoyée dans le suivi "Folhe Hebdo"
       try {
         const firstDow = new Date(lundi.getFullYear(), lundi.getMonth(), 1).getDay()
-        const firstMondayOfWeek1 = new Date(lundi.getFullYear(), lundi.getMonth(), 1)
-        firstMondayOfWeek1.setDate(1 - (firstDow === 0 ? 6 : firstDow - 1))
-        const semaineIdx = Math.round((lundi.getTime() - firstMondayOfWeek1.getTime()) / (7 * 86400000))
+        const firstMondayDay = firstDow === 1 ? 1 : firstDow === 0 ? 2 : 9 - firstDow
+        const semaineIdx = Math.round((lundi.getDate() - firstMondayDay) / 7)
         const chave = `folhaEnviada_${lundi.getFullYear()}_${lundi.getMonth()}`
         const raw = await AsyncStorage.getItem(chave)
         const arr: boolean[] = raw ? JSON.parse(raw) : []

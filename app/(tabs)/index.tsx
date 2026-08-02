@@ -759,7 +759,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       const lista = appState.histCal ?? []
       const [dia, mes] = addDiaStr.split('/').map(Number)
       if (dia && mes) prevDec = diaAnteriorDecouche(lista, new Date(calAno, mes - 1, dia))
-    } catch (e) {}
+    } catch (e) { log.warn('index', 'calcFraisAuto: falha ao carregar regles/prevDec (usando defaults)', e) }
     const result = calcularFraisJour({
       type,
       debut,
@@ -1159,7 +1159,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       regles = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
       lista = existente ? JSON.parse(existente) : []
-    } catch (e) {}
+    } catch (e) { log.warn('index', 'terminerServico: falha ao carregar regles/historique (usando defaults)', e) }
     const prevDec = diaAnteriorDecouche(lista, dateInicio)
     const frais = calcularFraisJour({
       type: decouche ? 'DEC' : 'TRAB',
@@ -2480,7 +2480,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const decouchesMois = moisDays.filter(j => j.decouche || j.type === 'DEC').length
                   const fraisBreakdown = (() => {
                     const pr = appState.padrao
-                    log.info('index', 'fraisBreakdown calc', { padraoExiste: !!pr, totalDiasHistorique: diasHistorique?.length, thisMonth, thisYear })
                     if (!pr) return null
                     return calcFraisMesPorHorarios(diasHistorique, thisYear, thisMonth, migrarPadrao(pr))
                   })()

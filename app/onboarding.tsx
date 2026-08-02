@@ -250,7 +250,7 @@ export default function OnboardingScreen() {
     }
     await withRetry(() => secureSet('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     log.info('onboarding', 'terminerOnboarding concluído')
     setTerminando(false)
     router.replace('/(tabs)/fiche')

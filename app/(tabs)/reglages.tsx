@@ -165,7 +165,7 @@ export default function ReglagesScreen() {
     log.warn('reglages', 'historique apagado pelo utilizador')
     await AsyncStorage.removeItem('historique')
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     setShowModalHistorique(false)
     setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
     setTimeout(() => setShowModalSucesso(true), 300)
@@ -283,7 +283,7 @@ export default function ReglagesScreen() {
       }
       log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()
-      showToast('✓ Alterações aplicadas')
+      showToast('✓ Modifications appliquées')
       setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {

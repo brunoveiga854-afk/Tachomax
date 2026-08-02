@@ -379,7 +379,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     log.info('historique', 'dia eliminado', { id })
   }
   const apagaSeleccionados = async () => {
@@ -388,7 +388,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     setSelecionados(new Set())
     setModoSelecao(false)
     log.info('historique', 'multi-select apagados', { count: ids.size })
@@ -933,7 +933,7 @@ const getJoursMois = () => {
                         setHistorique(nova)
                         await AsyncStorage.setItem('historique', JSON.stringify(nova))
                         await recarregarApp()
-                        showToast('✓ Alterações aplicadas')
+                        showToast('✓ Modifications appliquées')
                       }},
                     ]
                   )

@@ -2249,7 +2249,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))
                   setDiasHistorique(nova)
                   await recarregarApp()
-                  showToast('✓ Alterações aplicadas')
+                  showToast('✓ Modifications appliquées')
                   setEditandoDiaId(null)
                   setShowAddDia(false)
                   carregarStatsSemaine()

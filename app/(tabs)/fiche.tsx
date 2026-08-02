@@ -1163,7 +1163,7 @@ export default function MonSalaireScreen() {
     const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
     await persistirPadrao(novoPadrao)
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     setSelMeses(new Set())
     setModoSelMeses(false)
   }
@@ -2230,7 +2230,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await persistirPadrao(novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
     await recarregarApp()
-    showToast('✓ Alterações aplicadas')
+    showToast('✓ Modifications appliquées')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo')
@@ -3120,7 +3120,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
                                 await recarregarApp()
-                                showToast('✓ Alterações aplicadas')
+                                showToast('✓ Modifications appliquées')
                               }
                             }
                           ]
@@ -3683,10 +3683,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
       {/* MODAL FRAIS RÉELS */}
       <Modal visible={showModalFraisReel} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setShowModalFraisReel(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#2980b9' }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#2980b9' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>🍽️ Corriger les frais</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
               Estimé depuis <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesFraisLabel}</Text>
@@ -3747,7 +3747,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     await recarregarApp()
-                    showToast('✓ Alterações aplicadas')
+                    showToast('✓ Modifications appliquées')
                     log.info('fiche', 'frais reels guardados', { periode: calcResult.mesFraisLabel })
                   }
                   setShowModalFraisReel(false)
@@ -3756,18 +3756,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Appliquer</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
           </ScrollView>
           </KeyboardAvoidingView>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* MODAL SALAIRE NET RÉEL */}
       <Modal visible={showModalSalNet} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setShowModalSalNet(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#27ae60' }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#27ae60' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Confirmer le salaire net</Text>
             <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
               Estimé pour <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesReceber}</Text>
@@ -3869,7 +3869,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     await recarregarApp()
-                    showToast('✓ Alterações aplicadas')
+                    showToast('✓ Modifications appliquées')
                     log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
                   }
                   setShowModalSalNet(false)
@@ -3880,10 +3880,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>✅ Confirmer</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
           </ScrollView>
           </KeyboardAvoidingView>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* MODAL EDITAR */}
@@ -4002,7 +4002,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
                   await recarregarApp()
-                  showToast('✓ Alterações aplicadas')
+                  showToast('✓ Modifications appliquées')
                   setModalDetail(updated)
                   log.info('fiche', 'fiche editada', { periode: updated.periode, netPaye: updated.netPaye, salairebrut: updated.salairebrut, moisAtipico: updated.moisAtipico })
                   setShowModalEdit(false)

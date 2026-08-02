@@ -313,7 +313,7 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={[...btnNextStyle, { marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24 }]} onPress={() => setEtape(1)}>
+          <TouchableOpacity style={[...btnNextStyle, { marginBottom: (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) + 8 }]} onPress={() => setEtape(1)}>
             <Text style={st.btnNextText}>COMMENCER →</Text>
           </TouchableOpacity>
         </View>

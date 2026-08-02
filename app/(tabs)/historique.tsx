@@ -609,15 +609,34 @@ const getJoursMois = () => {
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
       // Marquer automatiquement la semaine comme envoyée dans le suivi "Folhe Hebdo"
       try {
-        const firstDow = new Date(lundi.getFullYear(), lundi.getMonth(), 1).getDay()
-        const firstMondayDay = firstDow === 1 ? 1 : firstDow === 0 ? 2 : 9 - firstDow
-        const semaineIdx = Math.round((lundi.getDate() - firstMondayDay) / 7)
-        const chave = `folhaEnviada_${lundi.getFullYear()}_${lundi.getMonth()}`
-        const raw = await AsyncStorage.getItem(chave)
-        const arr: boolean[] = raw ? JSON.parse(raw) : []
-        arr[semaineIdx] = true
-        await AsyncStorage.setItem(chave, JSON.stringify(arr))
-        log.info('historique', 'folhe auto-marquée', { semaine: numSemana, semaineIdx, chave })
+        const ano = lundi.getFullYear()
+        const mes = lundi.getMonth()
+
+        // Quais índices (0-5) pertencem ao mês/ano da chave
+        const indicesDesseMes = [0,1,2,3,4,5].filter(i => {
+          const d = new Date(lundi)
+          d.setDate(lundi.getDate() + i)
+          return d.getFullYear() === ano && d.getMonth() === mes
+        })
+
+        // Só marca se todos os dias desse mês estiverem na selecção
+        // (indicesSelecionados === undefined = todos seleccionados = sempre inclui)
+        const todosIncluidos = !indicesSelecionados ||
+          indicesDesseMes.every(i => indicesSelecionados.includes(i))
+
+        if (todosIncluidos) {
+          const firstDow = new Date(ano, mes, 1).getDay()
+          const firstMondayDay = firstDow === 1 ? 1 : firstDow === 0 ? 2 : 9 - firstDow
+          const semaineIdx = Math.round((lundi.getDate() - firstMondayDay) / 7)
+          const chave = `folhaEnviada_${ano}_${mes}`
+          const raw = await AsyncStorage.getItem(chave)
+          const arr: boolean[] = raw ? JSON.parse(raw) : []
+          arr[semaineIdx] = true
+          await AsyncStorage.setItem(chave, JSON.stringify(arr))
+          log.info('historique', 'folhe auto-marquée', { semaine: numSemana, semaineIdx, chave })
+        } else {
+          log.info('historique', 'folhe auto-mark ignorada (sélection partielle)', { indicesSelecionados, indicesDesseMes })
+        }
       } catch (eF) {
         log.warn('historique', 'folhe auto-mark falhou (non-bloquant)', eF)
       }

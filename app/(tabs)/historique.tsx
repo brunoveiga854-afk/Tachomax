@@ -341,6 +341,7 @@ const getJoursMois = () => {
     const nova = historique.filter(j => j.id !== id)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    await recarregarApp()
     log.info('historique', 'dia eliminado', { id })
   }
   const eliminarNota = async (id: string) => {
@@ -841,6 +842,7 @@ const getJoursMois = () => {
                         const nova = historique.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
                         setHistorique(nova)
                         await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                        await recarregarApp()
                       }},
                     ]
                   )

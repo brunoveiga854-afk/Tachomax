@@ -155,6 +155,7 @@ export default function ReglagesScreen() {
   const apagaHistorique = async () => {
     log.warn('reglages', 'historique apagado pelo utilizador')
     await AsyncStorage.removeItem('historique')
+    await recarregarApp()
     setShowModalHistorique(false)
     setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
     setTimeout(() => setShowModalSucesso(true), 300)

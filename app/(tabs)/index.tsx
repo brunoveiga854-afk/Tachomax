@@ -2146,6 +2146,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const nova = lista.filter((j: any) => j.id !== editandoDiaId)
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))
                   setDiasHistorique(nova)
+                  await recarregarApp()
                   setEditandoDiaId(null)
                   setShowAddDia(false)
                   carregarStatsSemaine()

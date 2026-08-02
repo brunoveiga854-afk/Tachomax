@@ -2194,6 +2194,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     perfLog.time('fiche', 'guardarTudo:persistirPadrao')
     await persistirPadrao(novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
+    await recarregarApp()
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo')
@@ -2947,6 +2948,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                 log.warn('fiche', 'mês eliminado', { periode: m.periode })
                                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
+                                await recarregarApp()
                               }
                             }
                           ]
@@ -3632,6 +3634,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    await recarregarApp()
                     log.info('fiche', 'frais reels guardados', { periode: calcResult.mesFraisLabel })
                   }
                   setShowModalFraisReel(false)
@@ -3752,6 +3755,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    await recarregarApp()
                     log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
                   }
                   setShowModalSalNet(false)

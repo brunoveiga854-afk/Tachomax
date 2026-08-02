@@ -1,0 +1,20 @@
+[33m247f549[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m feat: migrate sensitive padrao data to expo-secure-store
+[33mf73f14c[m feat: add performance monitoring to logger, calcularSalario and guardarTudo
+[33m7d34733[m feat: show vacation pay impact in salary calculation
+[33m91a6ab2[m feat: add detectarAnomaliasSalariais with unit tests
+[33m6b4a8bb[m feat: add fade transitions to pergunta and success modals
+[33mca79723[m chore: remove misnamed stray file
+[33m5eeb736[m fix: eliminate value bleeding between fiches (stale closure, hlag guard, cancel reset)
+[33mffec077[m chore: bump version to 1.1.0 (versionCode 2)
+[33mae1465e[m test: add unit tests for gerarPerguntasObrigatorias and migrarPadrao
+[33m3c0828c[m fix: improve chamarProxy error classification and logging
+[33m3943412[m feat: enhance santé checks with backup detection and log counts
+[33md54710f[m fix: add log.error and setCalculando(false) in calcularSalario catch
+[33m540ce4f[m fix: backup aprendizagem_padrao before removing on corruption
+[33m3bc8306[m feat: add schema migration for aprendizagem_padrao
+[33mab7189c[m feat: sanitize frais_valores before AsyncStorage write
+[33ma7d5c3f[m feat: add retry logic to onboarding AsyncStorage writes
+[33m8cacdbc[m feat: validate historique entries before save
+[33m90386f0[m feat: add haptic feedback on save actions
+[33m90285a9[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: savedSalBeforeVerif usa netPayeProx directo - elimina stale closure
+[33m00305d4[m fix: montantSalTemp actualizado com netPayeProx antes de savedSalBeforeVerif

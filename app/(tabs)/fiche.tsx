@@ -1038,6 +1038,8 @@ export default function MonSalaireScreen() {
   const [showModalCancelar, setShowModalCancelar] = useState(false)
   const [showModalFraisReel, setShowModalFraisReel] = useState(false)
   const [showModalSalNet, setShowModalSalNet] = useState(false)
+  const [modoSelMeses, setModoSelMeses] = useState(false)
+  const [selMeses, setSelMeses] = useState<Set<string>>(new Set())
   const [inputSalNet, setInputSalNet] = useState('')
   const [inputInteressement, setInputInteressement] = useState('')
   const [inputPrimeNonAcc, setInputPrimeNonAcc] = useState('')
@@ -1147,6 +1149,18 @@ export default function MonSalaireScreen() {
     setPadrao(p)
     await secureSet('monSalaire_padrao', JSON.stringify(p))
     log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
+  }
+
+  const apagaSelMeses = async (periodes: Set<string>) => {
+    const nova = historique.filter(h => !periodes.has(h.periode))
+    setHistorique(nova)
+    await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
+    log.warn('fiche', 'meses eliminados (multi-select)', { count: periodes.size })
+    const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+    await persistirPadrao(novoPadrao)
+    await recarregarApp()
+    setSelMeses(new Set())
+    setModoSelMeses(false)
   }
 
   // Recarregar padrao + historique sempre que a aba ganha foco
@@ -2917,7 +2931,46 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   )
                 })()}
 
-              <Text style={[st.histTitle, { color: c.textLabel }]}>HISTORIQUE</Text>
+              {modoSelMeses ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const listaRev = historique.slice().reverse()
+                      const todosSelec = listaRev.every(m => selMeses.has(m.periode))
+                      setSelMeses(todosSelec ? new Set() : new Set(listaRev.map(m => m.periode)))
+                    }}
+                    style={{ flex: 1, backgroundColor: c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.navBtnBorder }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>✓ Tudo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setSelMeses(new Set()); setModoSelMeses(false) }}
+                    style={{ flex: 1, backgroundColor: c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.navBtnBorder }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>✕ Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (selMeses.size === 0) return
+                      Alert.alert(
+                        '🗑️ Supprimer la sélection?',
+                        `${selMeses.size} mois — action irréversible.`,
+                        [
+                          { text: 'Annuler', style: 'cancel' },
+                          { text: 'Supprimer', style: 'destructive', onPress: () => apagaSelMeses(selMeses) },
+                        ]
+                      )
+                    }}
+                    style={{ flex: 1.2, backgroundColor: selMeses.size > 0 ? '#e74c3c' : c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: selMeses.size > 0 ? '#e74c3c' : c.navBtnBorder }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: selMeses.size > 0 ? 'white' : c.textSub }}>
+                      🗑️ Apagar{selMeses.size > 0 ? ` (${selMeses.size})` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={[st.histTitle, { color: c.textLabel }]}>HISTORIQUE</Text>
+              )}
 
               {historique.slice().reverse().map((m, i) => {
                 const estimativa = calcEstimativaMes(m)
@@ -2927,9 +2980,92 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   ? Math.round(100 - Math.abs(delta) / m.montantTotalRecu * 100)
                   : null
                 const deltaColor = delta === null ? c.textSub : Math.abs(delta) <= 30 ? '#27ae60' : Math.abs(delta) <= 100 ? '#f5a623' : '#e74c3c'
+                const esteSelec = selMeses.has(m.periode)
 
-                return (
-                  <Swipeable key={i} renderRightActions={() => (
+                const cardTouchable = (
+                  <TouchableOpacity
+                    style={[
+                      st.histCard,
+                      { backgroundColor: c.card, borderColor: c.cardBorder },
+                      modoSelMeses && esteSelec && { borderColor: '#27ae60', borderWidth: 1.5 },
+                    ]}
+                    onPress={modoSelMeses ? () => setSelMeses(prev => {
+                      const next = new Set(prev)
+                      next.has(m.periode) ? next.delete(m.periode) : next.add(m.periode)
+                      return next
+                    }) : () => setModalDetail(m)}
+                    onLongPress={() => { setSelMeses(new Set([m.periode])); setModoSelMeses(true) }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
+                      {/* Linha comparação */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        {estimativa > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>App</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                          </View>
+                        )}
+                        {estimativa > 0 && temReal && <Text style={{ fontSize: 10, color: c.cardBorder }}>→</Text>}
+                        {temReal && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontSize: 10, color: '#27ae60', fontWeight: '600' }}>Réel</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#27ae60' }}>{Math.round(m.montantTotalRecu).toLocaleString('fr-FR')}€</Text>
+                          </View>
+                        )}
+                        {delta !== null && (
+                          <View style={{ backgroundColor: Math.abs(delta) <= 30 ? 'rgba(39,174,96,0.12)' : Math.abs(delta) <= 100 ? 'rgba(245,166,35,0.12)' : 'rgba(231,76,60,0.12)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: deltaColor }}>
+                              {delta >= 0 ? '+' : ''}{Math.round(delta)}€
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      {/* Extras breakdown */}
+                      {((m.interessement || 0) > 0 || (m.primeNonAccident || 0) > 0) && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                          {(m.interessement || 0) > 0 && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '700' }}>🤝 Intéressement</Text>
+                              <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '800' }}>+{Math.round(m.interessement || 0)}€</Text>
+                            </View>
+                          )}
+                          {(m.primeNonAccident || 0) > 0 && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '700' }}>🛡 Non-accident</Text>
+                              <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '800' }}>+{Math.round(m.primeNonAccident || 0)}€</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                    {modoSelMeses ? (
+                      <Text style={{ fontSize: 22, color: esteSelec ? '#27ae60' : c.textSub }}>
+                        {esteSelec ? '✓' : '○'}
+                      </Text>
+                    ) : pctAcerto !== null ? (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
+                        <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
+                      </View>
+                    ) : estimativa > 0 ? (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
+                        <Text style={{ fontSize: 9, color: c.textSub }}>estimé</Text>
+                      </View>
+                    ) : (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>{fmt(m.montantTotalRecu)}</Text>
+                        <Text style={[st.histSub, { color: c.textSub }]}>reçu</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )
+
+                return modoSelMeses ? (
+                  <View key={m.periode}>{cardTouchable}</View>
+                ) : (
+                  <Swipeable key={m.periode} renderRightActions={() => (
                     <TouchableOpacity
                       style={{ backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 80, marginBottom: 8, borderRadius: 14, marginHorizontal: 4 }}
                       onPress={() => {
@@ -2959,67 +3095,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       <Text style={{ fontSize: 10, color: 'white', fontWeight: '700', marginTop: 2 }}>Supprimer</Text>
                     </TouchableOpacity>
                   )}>
-                    <TouchableOpacity style={[st.histCard, { backgroundColor: c.card, borderColor: c.cardBorder }]} onPress={() => setModalDetail(m)}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
-                        {/* Linha comparação */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          {estimativa > 0 && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>App</Text>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
-                            </View>
-                          )}
-                          {estimativa > 0 && temReal && <Text style={{ fontSize: 10, color: c.cardBorder }}>→</Text>}
-                          {temReal && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <Text style={{ fontSize: 10, color: '#27ae60', fontWeight: '600' }}>Réel</Text>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#27ae60' }}>{Math.round(m.montantTotalRecu).toLocaleString('fr-FR')}€</Text>
-                            </View>
-                          )}
-                          {delta !== null && (
-                            <View style={{ backgroundColor: Math.abs(delta) <= 30 ? 'rgba(39,174,96,0.12)' : Math.abs(delta) <= 100 ? 'rgba(245,166,35,0.12)' : 'rgba(231,76,60,0.12)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 10, fontWeight: '800', color: deltaColor }}>
-                                {delta >= 0 ? '+' : ''}{Math.round(delta)}€
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        {/* Extras breakdown */}
-                        {((m.interessement || 0) > 0 || (m.primeNonAccident || 0) > 0) && (
-                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                            {(m.interessement || 0) > 0 && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '700' }}>🤝 Intéressement</Text>
-                                <Text style={{ fontSize: 9, color: '#9b59b6', fontWeight: '800' }}>+{Math.round(m.interessement || 0)}€</Text>
-                              </View>
-                            )}
-                            {(m.primeNonAccident || 0) > 0 && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(39,174,96,0.1)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '700' }}>🛡 Non-accident</Text>
-                                <Text style={{ fontSize: 9, color: '#27ae60', fontWeight: '800' }}>+{Math.round(m.primeNonAccident || 0)}€</Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                      {pctAcerto !== null ? (
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
-                          <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
-                        </View>
-                      ) : estimativa > 0 ? (
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 14, fontWeight: '800', color: c.textSub }}>{Math.round(estimativa).toLocaleString('fr-FR')}€</Text>
-                          <Text style={{ fontSize: 9, color: c.textSub }}>estimé</Text>
-                        </View>
-                      ) : (
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#27ae60' }}>{fmt(m.montantTotalRecu)}</Text>
-                          <Text style={[st.histSub, { color: c.textSub }]}>reçu</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
+                    {cardTouchable}
                   </Swipeable>
                 )
               })}

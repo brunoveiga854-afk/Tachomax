@@ -2231,16 +2231,31 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         </View>
 
         {showPrevision && calcResult ? (
+          (() => {
+            const confPct = precisaoEstimativaMotor(padraoAprendido, mesesConfirmados)
+            return (
           <Animated.View style={[st.previsionCard, { transform: [{ scale: calcResult.mesAberto ? pulseAnim : breathAnim }] }]}>
             <Text style={st.previsionLabel}>ESTIMÉ {calcResult.mesReceber.split(' ')[0].toUpperCase()} {calcResult.mesReceber.split(' ')[1]}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
-              {calcResult.mesAberto && (
-                <Text style={{ fontSize: 28, color: 'rgba(255,255,255,0.8)', fontWeight: '800', marginTop: 8, marginRight: 4 }}>≈</Text>
-              )}
-              <Text style={st.previsionMontant}>{countingVal.toLocaleString('fr-FR')}€</Text>
-            </View>
+            {confPct < 70 ? (
+              <View style={{ marginBottom: 4, backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 14, padding: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 28, marginBottom: 6 }}>🔍</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white', textAlign: 'center', marginBottom: 6 }}>
+                  Données insuffisantes
+                </Text>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', textAlign: 'center', lineHeight: 18 }}>
+                  {'Confirme au moins 2 mois de salaire réel\n(bouton 💰 ci-dessous) pour obtenir une estimation fiable.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                {calcResult.mesAberto && (
+                  <Text style={{ fontSize: 28, color: 'rgba(255,255,255,0.8)', fontWeight: '800', marginTop: 8, marginRight: 4 }}>≈</Text>
+                )}
+                <Text style={st.previsionMontant}>{countingVal.toLocaleString('fr-FR')}€</Text>
+              </View>
+            )}
             <Text style={st.previsionConfianca}>
-              {'\u{1F4CA}'} Confiance : {precisaoEstimativaMotor(padraoAprendido, mesesConfirmados)}%
+              {'\u{1F4CA}'} Confiance : {confPct}%
             </Text>
             <Text style={st.previsionJour}>
               net · tout reçu avant le {calcResult.diaFrais} {calcResult.mesReceber.split(' ')[0]} 🎉
@@ -2658,6 +2673,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>↩ Retour</Text>
             </TouchableOpacity>
           </Animated.View>
+            )
+          })()
         ) : camposOk === 'false' ? (
           <View style={{ marginHorizontal: 20, marginTop: 16, marginBottom: 8, backgroundColor: 'rgba(231,76,60,0.12)', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: 'rgba(231,76,60,0.4)' }}>
             <Text style={{ fontSize: 14, fontWeight: '800', color: '#e74c3c', marginBottom: 10, lineHeight: 21 }}>

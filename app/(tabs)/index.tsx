@@ -1544,17 +1544,24 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   )}
                   {reposOk && (
                     <View style={{ marginHorizontal: 16, marginBottom: 6, backgroundColor: repos45Ok ? 'rgba(39,174,96,0.06)' : c.card, borderRadius: 12, borderWidth: 1, borderColor: repos45Ok ? '#27ae60' : c.cardBorder, padding: 12 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <Text style={{ fontSize: 10, fontWeight: '800', color: repos45Ok ? '#27ae60' : c.textLabel, letterSpacing: 0.5 }}>🏠 REPOS HEBDO</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '900', color: repos45Ok ? '#27ae60' : c.text }}>{fmtHM(reposS)}<Text style={{ fontSize: 10, color: c.textSub }}> / 45h00</Text></Text>
-                      </View>
-                      <View style={{ height: 5, backgroundColor: c.progressBg, borderRadius: 3 }}>
-                        <View style={{ height: 5, width: `${pctRepos45}%` as any, backgroundColor: repos45Ok ? '#27ae60' : pctRepos45 > 70 ? '#f39c12' : '#2980b9', borderRadius: 3 }} />
-                      </View>
-                      {!repos45Ok && (
-                        <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 4 }}>
-                          Repos hebdomadaire — encore {fmtHM(Math.max(0, reposMin45h - reposS))}
-                        </Text>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: repos45Ok ? '#27ae60' : c.textLabel, letterSpacing: 0.5, marginBottom: 6 }}>🏠 REPOS HEBDO</Text>
+                      {repos45Ok ? (
+                        <>
+                          <ProgBar pct={100} color="#27ae60" c={c} />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60', marginTop: 4 }}>✅ Repos hebdo respecté (45h+)</Text>
+                        </>
+                      ) : (
+                        <>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '900', color: c.text }}>{fmtHM(reposS)}<Text style={{ fontSize: 10, color: c.textSub }}> / 45h00</Text></Text>
+                          </View>
+                          <View style={{ height: 5, backgroundColor: c.progressBg, borderRadius: 3 }}>
+                            <View style={{ height: 5, width: `${pctRepos45}%` as any, backgroundColor: pctRepos45 > 70 ? '#f39c12' : '#2980b9', borderRadius: 3 }} />
+                          </View>
+                          <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 4 }}>
+                            Repos hebdomadaire — encore {fmtHM(Math.max(0, reposMin45h - reposS))}
+                          </Text>
+                        </>
                       )}
                     </View>
                   )}

@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Al
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
+import { COR_OFF } from '../../src/constants/cores'
 import { useFocusEffect, router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -294,17 +295,17 @@ export default function ReglagesScreen() {
     card: themeSombre ? '#181c27' : '#ffffff',
     cardBorder: themeSombre ? '#2a3045' : '#d0d5e8',
     text: themeSombre ? '#eef0f5' : '#1a1f35',
-    textSub: themeSombre ? '#6b7394' : '#555e80',
-    textLabel: themeSombre ? '#6b7394' : '#3a4060',
+    textSub: themeSombre ? COR_OFF : '#555e80',
+    textLabel: themeSombre ? COR_OFF : '#3a4060',
     infoBox: themeSombre ? '#0f1117' : '#e8eaf2',
     profilBtnBg: themeSombre ? '#1f2436' : '#e8eaf2',
     profilBtnBorder: themeSombre ? '#2a3045' : '#c0c5d8',
-    profilBtnText: themeSombre ? '#6b7394' : '#3a4060',
+    profilBtnText: themeSombre ? COR_OFF : '#3a4060',
     langueBtn: themeSombre ? '#1f2436' : '#e8eaf2',
     langueBtnBorder: themeSombre ? '#2a3045' : '#c0c5d8',
     divider: themeSombre ? '#2a3045' : '#d0d5e8',
     dangerText: themeSombre ? '#eef0f5' : '#1a1f35',
-    dangerSub: themeSombre ? '#6b7394' : '#555e80',
+    dangerSub: themeSombre ? COR_OFF : '#555e80',
     version: themeSombre ? '#2a3045' : '#9096b0',
   }
 

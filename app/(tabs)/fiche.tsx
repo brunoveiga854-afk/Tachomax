@@ -24,6 +24,7 @@ import {
   type Medias,
 } from '../../src/utils/projecoes'
 import { log, perfLog } from '../../src/utils/logger'
+import { COR_OFF } from '../../src/constants/cores'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
 const migrarParaSecureStore = async (key: string): Promise<void> => {
@@ -1099,8 +1100,8 @@ export default function MonSalaireScreen() {
     card: themeSombre ? '#181c27' : '#ffffff',
     cardBorder: themeSombre ? '#2a3045' : '#d0d5e8',
     text: themeSombre ? '#eef0f5' : '#1a1f35',
-    textSub: themeSombre ? '#6b7394' : '#555e80',
-    textLabel: themeSombre ? '#6b7394' : '#3a4060',
+    textSub: themeSombre ? COR_OFF : '#555e80',
+    textLabel: themeSombre ? COR_OFF : '#3a4060',
     input: themeSombre ? '#1f2436' : '#f0f2f8',
   }), [themeSombre])
 

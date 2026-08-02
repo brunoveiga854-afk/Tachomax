@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, COR_FRAIS } from '../../src/constants/cores'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
 import React, { useEffect, useState, useRef, useMemo } from 'react'
@@ -1620,8 +1621,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                           else if (registo.type === 'TRAB')  { bgColor = 'rgba(39,174,96,0.18)';   typeColor = '#27ae60'; typeLabel = 'TRAV.' }
                           else if (registo.type === 'FERIE') { bgColor = 'rgba(155,89,182,0.18)'; typeColor = '#9b59b6'; typeLabel = 'CONGÉ' }
                           else if (registo.type === 'FER')   { bgColor = 'rgba(243,156,18,0.18)';  typeColor = '#f39c12'; typeLabel = 'FÉRIÉ' }
-                          else if (registo.type === 'RC')    { bgColor = 'rgba(26,188,156,0.18)';  typeColor = '#1abc9c'; typeLabel = 'R.C.' }
-                          else if (registo.type === 'OFF')   { bgColor = 'rgba(107,115,148,0.15)'; typeColor = '#6b7394'; typeLabel = 'REPOS' }
+                          else if (registo.type === 'RC')    { bgColor = COR_RC_BG_MD;  typeColor = COR_RC;  typeLabel = 'R.C.' }
+                          else if (registo.type === 'OFF')   { bgColor = COR_OFF_BG_MD; typeColor = COR_OFF; typeLabel = 'REPOS' }
                         }
                         return (
                           <TouchableOpacity key={diaIdx} style={{ flex: 1, alignItems: 'center', opacity: isFuturo ? 0.3 : 1 }}
@@ -1659,7 +1660,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       {[
                         { color: '#27ae60', label: 'TRAVAIL' },
                         { color: '#2980b9', label: 'DÉCOUCHÉ' },
-                        { color: '#6b7394', label: 'REPOS' },
+                        { color: COR_OFF, label: 'REPOS' },
                       ].map(item => (
                         <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                           <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: item.color }} />
@@ -1670,7 +1671,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
                       {[
                         { color: '#9b59b6', label: 'CONGÉ' },
-                        { color: '#1abc9c', label: 'R.COMP.' },
+                        { color: COR_RC, label: 'R.COMP.' },
                         { color: '#f39c12', label: 'FÉRIÉ' },
                       ].map(item => (
                         <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -1893,11 +1894,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               </TouchableOpacity>
               <TouchableOpacity onPress={handleTerminer}
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  backgroundColor: 'rgba(192,57,43,0.10)',
-                  borderWidth: 1.5, borderColor: '#c0392b',
+                  backgroundColor: COR_STOP_BG,
+                  borderWidth: 1.5, borderColor: COR_STOP,
                   borderRadius: 14, paddingVertical: 14 }}>
                 <Text style={{ fontSize: 16 }}>⏹</Text>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#c0392b', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: COR_STOP, letterSpacing: 0.5 }}>
                   {t.terminer.toUpperCase()}
                 </Text>
               </TouchableOpacity>
@@ -2010,8 +2011,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       else if (registo.type === 'TRAB') { bgColor = 'rgba(39,174,96,0.18)';   typeColor = '#27ae60'; typeLabel = 'TRAV.' }
                       else if (registo.type === 'FERIE'){ bgColor = 'rgba(155,89,182,0.18)'; typeColor = '#9b59b6'; typeLabel = 'CONGÉ' }
                       else if (registo.type === 'FER')  { bgColor = 'rgba(243,156,18,0.18)';  typeColor = '#f39c12'; typeLabel = 'FÉRIÉ' }
-                      else if (registo.type === 'RC')   { bgColor = 'rgba(26,188,156,0.18)';  typeColor = '#1abc9c'; typeLabel = 'R.C.' }
-                      else if (registo.type === 'OFF')  { bgColor = 'rgba(107,115,148,0.15)'; typeColor = '#6b7394'; typeLabel = 'REPOS' }
+                      else if (registo.type === 'RC')   { bgColor = COR_RC_BG_MD;  typeColor = COR_RC;  typeLabel = 'R.C.' }
+                      else if (registo.type === 'OFF')  { bgColor = COR_OFF_BG_MD; typeColor = COR_OFF; typeLabel = 'REPOS' }
                     }
                     return (
                       <TouchableOpacity key={diaIdx} style={{ flex: 1, alignItems: 'center', opacity: isFuturo ? 0.3 : 1 }}
@@ -2067,8 +2068,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 { color: '#2980b9', label: 'Découché' },
                 { color: '#9b59b6', label: 'Congé' },
                 { color: '#f39c12', label: 'Férié' },
-                { color: '#1abc9c', label: 'Repos C.' },
-                { color: '#6b7394', label: 'Repos' },
+                { color: COR_RC,  label: 'Repos C.' },
+                { color: COR_OFF, label: 'Repos' },
               ].map(item => (
                 <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color }} />
@@ -2338,10 +2339,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 </View>
               </View>
               <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, overflow: 'hidden' }}>
-                <View style={{ height: 4, backgroundColor: '#8e44ad' }} />
+                <View style={{ height: 4, backgroundColor: COR_FRAIS }} />
                 <View style={{ padding: 14, alignItems: 'center', gap: 2 }}>
                   <Text style={{ fontSize: 11, color: c.textSub, fontWeight: '700', letterSpacing: 1 }}>FRAIS</Text>
-                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#8e44ad', letterSpacing: -1 }}>{summaryData ? `${summaryData.frais.toFixed(0)}` : '—'}<Text style={{ fontSize: 14 }}>€</Text></Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: COR_FRAIS, letterSpacing: -1 }}>{summaryData ? `${summaryData.frais.toFixed(0)}` : '—'}<Text style={{ fontSize: 14 }}>€</Text></Text>
                 </View>
               </View>
             </View>
@@ -3306,7 +3307,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               value={pausaDuracaoInput}
               onChangeText={v => setPausaDuracaoInput(v.replace(/[^0-9hH:]/g, ''))}
               placeholder="HH:MM  ou  45"
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               keyboardType="numbers-and-punctuation"
               maxLength={6}
               style={{ borderWidth: 1.5, borderColor: pausaDuracaoInput ? '#f39c12' : '#2a3045', borderRadius: 14, padding: 14, fontSize: 28, fontWeight: '900', color: c.text, backgroundColor: c.bg, textAlign: 'center', marginBottom: 16, letterSpacing: 2 }}
@@ -3447,9 +3448,9 @@ const st = StyleSheet.create({
   btnReprendre: { borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.12)' },
   btnPauseIcon: { fontSize: 20 },
   btnPauseLabel: { fontSize: 14, fontWeight: '700', color: '#f39c12', letterSpacing: 1 },
-  btnStop: { flex: 1, backgroundColor: 'rgba(192,57,43,0.12)', borderWidth: 1.5, borderColor: '#c0392b', borderRadius: 50, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
+  btnStop: { flex: 1, backgroundColor: COR_STOP_BG, borderWidth: 1.5, borderColor: COR_STOP, borderRadius: 50, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
   btnStopIcon: { fontSize: 20 },
-  btnStopLabel: { fontSize: 14, fontWeight: '700', color: '#c0392b', letterSpacing: 1 },
+  btnStopLabel: { fontSize: 14, fontWeight: '700', color: COR_STOP, letterSpacing: 1 },
   decoucheCard: { borderWidth: 1, borderRadius: 14, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   decoucheLabel: { fontSize: 14, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
   decoucheSub: { fontSize: 13, marginTop: 2 },

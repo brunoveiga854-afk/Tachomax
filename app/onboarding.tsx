@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions, TextInput, Keyboa
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet } from '../src/utils/secureStorage'
+import { COR_OFF } from '../src/constants/cores'
 import { log } from '../src/utils/logger'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useApp } from '../context/AppContext'
@@ -330,7 +331,7 @@ export default function OnboardingScreen() {
               value={prenom}
               onChangeText={setPrenom}
               placeholder="Ex: Bruno"
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               autoCapitalize="words"
               returnKeyType="next"
             />
@@ -342,7 +343,7 @@ export default function OnboardingScreen() {
               value={nom}
               onChangeText={setNom}
               placeholder="Ex: Veiga"
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               autoCapitalize="characters"
               returnKeyType="done"
             />
@@ -374,7 +375,7 @@ export default function OnboardingScreen() {
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(0)}>
-              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+              <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[st.btnNext, { flex: 2 }]} onPress={() => setEtape(2)}>
               <Text style={st.btnNextText}>SUIVANT →</Text>
@@ -419,7 +420,7 @@ export default function OnboardingScreen() {
             }}
             style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: dataEntrada ? '#f5a623' : '#2a3045', alignItems: 'center', marginBottom: 8 }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '800', color: dataEntrada ? '#f5a623' : '#6b7394' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: dataEntrada ? '#f5a623' : COR_OFF }}>
               {dataEntrada
                 ? `📅 Depuis le ${String(dataEntrada.getDate()).padStart(2, '0')}/${String(dataEntrada.getMonth() + 1).padStart(2, '0')}/${dataEntrada.getFullYear()}`
                 : "📅 Choisir la date d'entrée"}
@@ -439,7 +440,7 @@ export default function OnboardingScreen() {
             value={coefficient}
             onChangeText={v => setCoefficient(v.replace(/[^0-9]/g, ''))}
             placeholder="ex: 138"
-            placeholderTextColor="#6b7394"
+            placeholderTextColor={COR_OFF}
             keyboardType="number-pad"
             maxLength={3}
             style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#2a3045', marginBottom: 24 }}
@@ -459,7 +460,7 @@ export default function OnboardingScreen() {
                 style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: !obHbaseIsCustom && obHbase === h ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: !obHbaseIsCustom && obHbase === h ? 1.5 : 1, borderColor: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#2a3045' }}
               >
                 <Text style={{ fontSize: 15, fontWeight: '800', color: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#eef0f5' }}>{h}h</Text>
-                <Text style={{ fontSize: 10, color: !obHbaseIsCustom && obHbase === h ? '#f5a623' : '#6b7394', marginTop: 1 }}>{sub}</Text>
+                <Text style={{ fontSize: 10, color: !obHbaseIsCustom && obHbase === h ? '#f5a623' : COR_OFF, marginTop: 1 }}>{sub}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
@@ -467,7 +468,7 @@ export default function OnboardingScreen() {
               style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: obHbaseIsCustom ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: obHbaseIsCustom ? 1.5 : 1, borderColor: obHbaseIsCustom ? '#f5a623' : '#2a3045' }}
             >
               <Text style={{ fontSize: 15, fontWeight: '800', color: obHbaseIsCustom ? '#f5a623' : '#eef0f5' }}>Autre</Text>
-              <Text style={{ fontSize: 10, color: obHbaseIsCustom ? '#f5a623' : '#6b7394', marginTop: 1 }}>saisir manuellement</Text>
+              <Text style={{ fontSize: 10, color: obHbaseIsCustom ? '#f5a623' : COR_OFF, marginTop: 1 }}>saisir manuellement</Text>
             </TouchableOpacity>
           </View>
           {obHbaseIsCustom && (
@@ -481,7 +482,7 @@ export default function OnboardingScreen() {
               }}
               keyboardType="number-pad"
               placeholder="ex: 151, 186..."
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               maxLength={4}
               style={{ borderWidth: 1.5, borderColor: obHbaseCustomInput ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 12, textAlign: 'center' }}
             />
@@ -491,11 +492,11 @@ export default function OnboardingScreen() {
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
             <TouchableOpacity onPress={() => setObSaisirBrut(true)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: obSaisirBrut ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: obSaisirBrut ? 1.5 : 1, borderColor: obSaisirBrut ? '#f5a623' : '#2a3045' }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: obSaisirBrut ? '#f5a623' : '#9ba3b8' }}>Taux brut/h</Text>
-              <Text style={{ fontSize: 10, color: obSaisirBrut ? '#f5a623' : '#6b7394', marginTop: 1 }}>je saisis €/h brut</Text>
+              <Text style={{ fontSize: 10, color: obSaisirBrut ? '#f5a623' : COR_OFF, marginTop: 1 }}>je saisis €/h brut</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setObSaisirBrut(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: !obSaisirBrut ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: !obSaisirBrut ? 1.5 : 1, borderColor: !obSaisirBrut ? '#f5a623' : '#2a3045' }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: !obSaisirBrut ? '#f5a623' : '#9ba3b8' }}>Net mensuel</Text>
-              <Text style={{ fontSize: 10, color: !obSaisirBrut ? '#f5a623' : '#6b7394', marginTop: 1 }}>je saisis € net/mois</Text>
+              <Text style={{ fontSize: 10, color: !obSaisirBrut ? '#f5a623' : COR_OFF, marginTop: 1 }}>je saisis € net/mois</Text>
             </TouchableOpacity>
           </View>
           {obSaisirBrut ? (
@@ -506,10 +507,10 @@ export default function OnboardingScreen() {
                 onChangeText={setObHvalBrut}
                 keyboardType="numeric"
                 placeholder="ex: 18.50"
-                placeholderTextColor="#6b7394"
+                placeholderTextColor={COR_OFF}
                 style={{ borderWidth: 1, borderColor: obHvalBrut ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 6, textAlign: 'center' }}
               />
-              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 20, textAlign: 'center' }}>
+              <Text style={{ fontSize: 11, color: COR_OFF, marginBottom: 20, textAlign: 'center' }}>
                 {'Brut mensuel: '}
                 <Text style={{ color: '#eef0f5', fontWeight: '700' }}>
                   {obHvalBrut && obHbase > 0 ? (parseFloat(obHvalBrut) * obHbase).toFixed(0) + ' €' : '---'}
@@ -528,10 +529,10 @@ export default function OnboardingScreen() {
                 onChangeText={setObSalNet}
                 keyboardType="numeric"
                 placeholder="ex: 2800"
-                placeholderTextColor="#6b7394"
+                placeholderTextColor={COR_OFF}
                 style={{ borderWidth: 1, borderColor: obSalNet ? '#f5a623' : '#2a3045', borderRadius: 12, padding: 13, fontSize: 18, fontWeight: '800', color: '#eef0f5', backgroundColor: '#181c27', marginBottom: 6, textAlign: 'center' }}
               />
-              <Text style={{ fontSize: 11, color: '#6b7394', marginBottom: 20, textAlign: 'center' }}>
+              <Text style={{ fontSize: 11, color: COR_OFF, marginBottom: 20, textAlign: 'center' }}>
                 {'Taux horaire net: '}
                 <Text style={{ color: '#f5a623', fontWeight: '700' }}>
                   {obSalNet && obHbase > 0 ? (parseFloat(obSalNet) / obHbase).toFixed(2) + ' €/h' : '---'}
@@ -566,7 +567,7 @@ export default function OnboardingScreen() {
                 if (num >= 1 && num <= 31) setObDiaSalario(num)
               }}
               placeholder="Jour du mois (1-31)"
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               keyboardType="number-pad"
               maxLength={2}
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1.5, borderColor: '#f5a623', marginBottom: 8 }}
@@ -627,7 +628,7 @@ export default function OnboardingScreen() {
                     if (num >= 1 && num <= 31) setObDiaFrais(num)
                   }}
                   placeholder="Jour du mois (1-31)"
-                  placeholderTextColor="#6b7394"
+                  placeholderTextColor={COR_OFF}
                   keyboardType="number-pad"
                   maxLength={2}
                   style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 10, color: '#eef0f5', fontSize: 18, fontWeight: '800', textAlign: 'center', borderWidth: 1.5, borderColor: '#f5a623', marginBottom: 8 }}
@@ -652,7 +653,7 @@ export default function OnboardingScreen() {
         </ScrollView>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045', marginTop: 0 }]} onPress={() => setEtape(1)}>
-              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+              <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[st.btnNext, { flex: 2, marginTop: 0 }]} onPress={() => setEtape(3)}>
               <Text style={st.btnNextText}>SUIVANT →</Text>
@@ -687,7 +688,7 @@ export default function OnboardingScreen() {
                   style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: typeVehicule === val ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: typeVehicule === val ? 1.5 : 1, borderColor: typeVehicule === val ? '#f5a623' : '#2a3045', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: '800', color: typeVehicule === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
-                  <Text style={{ fontSize: 11, color: typeVehicule === val ? '#f5a623' : '#6b7394' }}>{sub}</Text>
+                  <Text style={{ fontSize: 11, color: typeVehicule === val ? '#f5a623' : COR_OFF }}>{sub}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -717,7 +718,7 @@ export default function OnboardingScreen() {
                   style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: typeCargo === val ? 'rgba(245,166,35,0.12)' : '#181c27', borderWidth: typeCargo === val ? 1.5 : 1, borderColor: typeCargo === val ? '#f5a623' : '#2a3045', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: '800', color: typeCargo === val ? '#f5a623' : '#eef0f5' }}>{label}</Text>
-                  <Text style={{ fontSize: 11, color: typeCargo === val ? '#f5a623' : '#6b7394' }}>{sub}</Text>
+                  <Text style={{ fontSize: 11, color: typeCargo === val ? '#f5a623' : COR_OFF }}>{sub}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -735,7 +736,7 @@ export default function OnboardingScreen() {
                   onPress={async () => { set(!state); await AsyncStorage.setItem('equipement_' + key, String(!state)) }}
                   style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, backgroundColor: state ? 'rgba(245,166,35,0.15)' : '#181c27', borderWidth: state ? 1.5 : 1, borderColor: state ? '#f5a623' : '#2a3045' }}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: state ? '#f5a623' : '#6b7394' }}>{label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: state ? '#f5a623' : COR_OFF }}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -747,20 +748,20 @@ export default function OnboardingScreen() {
                 onPress={async () => { setTracteurType('immat'); await AsyncStorage.setItem('tracteur_type', 'immat') }}
                 style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: tracteurType === 'immat' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: tracteurType === 'immat' ? 1.5 : 1, borderColor: tracteurType === 'immat' ? '#f5a623' : '#2a3045' }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'immat' ? '#f5a623' : '#6b7394' }}>Immatriculation</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'immat' ? '#f5a623' : COR_OFF }}>Immatriculation</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => { setTracteurType('parc'); await AsyncStorage.setItem('tracteur_type', 'parc') }}
                 style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: tracteurType === 'parc' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: tracteurType === 'parc' ? 1.5 : 1, borderColor: tracteurType === 'parc' ? '#f5a623' : '#2a3045' }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'parc' ? '#f5a623' : '#6b7394' }}>Numéro de parc</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: tracteurType === 'parc' ? '#f5a623' : COR_OFF }}>Numéro de parc</Text>
               </TouchableOpacity>
             </View>
             <TextInput
               value={tracteurValue}
               onChangeText={async (v) => { setTracteurValue(v); await AsyncStorage.setItem('tracteur_value', v) }}
               placeholder={tracteurType === 'immat' ? 'ex: AB-123-CD' : 'ex: T042'}
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               autoCapitalize="characters"
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
             />
@@ -772,20 +773,20 @@ export default function OnboardingScreen() {
                 onPress={async () => { setRemorqueType('immat'); await AsyncStorage.setItem('remorque_type', 'immat') }}
                 style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: remorqueType === 'immat' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: remorqueType === 'immat' ? 1.5 : 1, borderColor: remorqueType === 'immat' ? '#f5a623' : '#2a3045' }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'immat' ? '#f5a623' : '#6b7394' }}>Immatriculation</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'immat' ? '#f5a623' : COR_OFF }}>Immatriculation</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => { setRemorqueType('parc'); await AsyncStorage.setItem('remorque_type', 'parc') }}
                 style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: remorqueType === 'parc' ? 'rgba(245,166,35,0.12)' : '#181c27', alignItems: 'center', borderWidth: remorqueType === 'parc' ? 1.5 : 1, borderColor: remorqueType === 'parc' ? '#f5a623' : '#2a3045' }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'parc' ? '#f5a623' : '#6b7394' }}>Numéro de parc</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: remorqueType === 'parc' ? '#f5a623' : COR_OFF }}>Numéro de parc</Text>
               </TouchableOpacity>
             </View>
             <TextInput
               value={remorqueValue}
               onChangeText={async (v) => { setRemorqueValue(v); await AsyncStorage.setItem('remorque_value', v) }}
               placeholder={remorqueType === 'immat' ? 'ex: AB-123-CD' : 'ex: AP2'}
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               autoCapitalize="characters"
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
             />
@@ -797,7 +798,7 @@ export default function OnboardingScreen() {
               value={kmInicial}
               onChangeText={async (v) => { setKmInicial(v); if (v) await AsyncStorage.setItem('km_ultimo_fim', v) }}
               placeholder="ex: 847320"
-              placeholderTextColor="#6b7394"
+              placeholderTextColor={COR_OFF}
               keyboardType="numeric"
               style={{ backgroundColor: '#181c27', borderRadius: 10, padding: 12, color: '#eef0f5', fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: '#2a3045', marginBottom: 20 }}
             />
@@ -805,7 +806,7 @@ export default function OnboardingScreen() {
 
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: insets.bottom > 0 ? insets.bottom + 8 : 24, paddingTop: 12 }}>
             <TouchableOpacity style={[st.btnNext, { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#2a3045' }]} onPress={() => setEtape(2)}>
-              <Text style={[st.btnNextText, { color: '#6b7394' }]}>← Retour</Text>
+              <Text style={[st.btnNextText, { color: COR_OFF }]}>← Retour</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[st.btnNext, { flex: 2, opacity: terminando ? 0.5 : 1 }]} onPress={terminerOnboarding} disabled={terminando}>
               <Text style={st.btnNextText}>{terminando ? 'En cours...' : 'DÉMARRER 🚛'}</Text>
@@ -869,8 +870,8 @@ const st = StyleSheet.create({
   profilEmoji: { fontSize: 28 },
   profilInfo: { flex: 1 },
   profilTitre: { fontSize: 16, fontWeight: '800', color: '#eef0f5', marginBottom: 4 },
-  profilDesc: { fontSize: 12, color: '#6b7394', lineHeight: 18, marginBottom: 4 },
-  profilLimites: { fontSize: 11, color: '#6b7394', fontWeight: '700' },
+  profilDesc: { fontSize: 12, color: COR_OFF, lineHeight: 18, marginBottom: 4 },
+  profilLimites: { fontSize: 11, color: COR_OFF, fontWeight: '700' },
   profilCheck: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#2a3045', alignItems: 'center', justifyContent: 'center' },
   profilCheckActive: { backgroundColor: '#f5a623', borderColor: '#f5a623' },
 

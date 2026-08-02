@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet } from '../../src/utils/secureStorage'
+import { COR_RC, COR_RC_BG, COR_RC_BG_LT, COR_OFF, COR_OFF_BG, COR_OFF_BG_LT } from '../../src/constants/cores'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
@@ -38,8 +39,8 @@ const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: 
   DEC:   { label: 'Découché',    color: '#2980b9', bg: 'rgba(41,128,185,0.12)',  bgLight: 'rgba(41,128,185,0.15)', emoji: '🌙' },
   FER:   { label: 'Férié',       color: '#f39c12', bg: 'rgba(243,156,18,0.12)',  bgLight: 'rgba(243,156,18,0.15)', emoji: '🎉' },
   FERIE: { label: 'Congé',       color: '#9b59b6', bg: 'rgba(155,89,182,0.12)', bgLight: 'rgba(155,89,182,0.15)', emoji: '🏖️' },
-  RC:    { label: 'Repos Comp.', color: '#1abc9c', bg: 'rgba(26,188,156,0.12)', bgLight: 'rgba(26,188,156,0.15)', emoji: '🔄' },
-  OFF:   { label: 'Repos',       color: '#6b7394', bg: 'rgba(107,115,148,0.08)',bgLight: 'rgba(107,115,148,0.1)', emoji: '❌' },
+  RC:    { label: 'Repos Comp.', color: COR_RC,  bg: COR_RC_BG,  bgLight: COR_RC_BG_LT,  emoji: '🔄' },
+  OFF:   { label: 'Repos',       color: COR_OFF, bg: COR_OFF_BG, bgLight: COR_OFF_BG_LT, emoji: '❌' },
 }
 const fmtHM = (seg: number) => {
   const h = Math.floor(seg / 3600)
@@ -286,12 +287,12 @@ export default function HistoriqueScreen() {
     card: themeSombre ? '#181c27' : '#ffffff',
     cardBorder: themeSombre ? '#2a3045' : '#d0d5e8',
     text: themeSombre ? '#eef0f5' : '#1a1f35',
-    textSub: themeSombre ? '#6b7394' : '#555e80',
-    textLabel: themeSombre ? '#6b7394' : '#3a4060',
+    textSub: themeSombre ? COR_OFF : '#555e80',
+    textLabel: themeSombre ? COR_OFF : '#3a4060',
     navBtn: themeSombre ? '#1f2436' : '#e8eaf2',
     navBtnBorder: themeSombre ? '#2a3045' : '#c0c5d8',
     progressBg: themeSombre ? '#0f1117' : '#d8dce8',
-    emptyText: themeSombre ? '#6b7394' : '#555e80',
+    emptyText: themeSombre ? COR_OFF : '#555e80',
     emptySub: themeSombre ? '#2a3045' : '#9096b0',
     input: themeSombre ? '#1f2436' : '#f0f2f8',
   }
@@ -840,7 +841,7 @@ const getJoursMois = () => {
                       <Text style={{ fontSize: 11, fontWeight: '700', color: nReduit >= 3 ? '#e74c3c' : '#f39c12' }}>
                         🌙 {nReduit}× repos réduit cette semaine
                       </Text>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: nReduit >= 3 ? '#e74c3c' : '#6b7394' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: nReduit >= 3 ? '#e74c3c' : COR_OFF }}>
                         {showReposDetail ? '▲' : '▼'} max 3×
                       </Text>
                     </View>

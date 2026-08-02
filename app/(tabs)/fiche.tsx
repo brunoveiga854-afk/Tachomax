@@ -2233,6 +2233,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         {showPrevision && calcResult ? (
           (() => {
             const confPct = precisaoEstimativaMotor(padraoAprendido, mesesConfirmados)
+            if (confPct < 70) log.info('fiche', 'card confiance insuffisante', { confPct, mesesConfirmados })
             return (
           <Animated.View style={[st.previsionCard, { transform: [{ scale: calcResult.mesAberto ? pulseAnim : breathAnim }] }]}>
             <Text style={st.previsionLabel}>ESTIMÉ {calcResult.mesReceber.split(' ')[0].toUpperCase()} {calcResult.mesReceber.split(' ')[1]}</Text>

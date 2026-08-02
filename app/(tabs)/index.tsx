@@ -182,6 +182,7 @@ export default function AujourdhuiScreen() {
     })
   }, [showStats])
   const [fraisDetail, setFraisDetail] = useState(false)
+  const [fraisMesOffset, setFraisMesOffset] = useState(0)
   const [pausaDetail, setPausaDetail] = useState(false)
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
   const [folhasEnviadas, setFolhasEnviadas] = useState<boolean[]>([])
@@ -2481,6 +2482,38 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     return calcFraisMesPorHorarios(diasHistorique, thisYear, thisMonth, migrarPadrao(pr))
                   })()
 
+                  // ── FRAIS NAVEGAÇÃO (offset independente de moisDays) ──────
+                  const fraisNavDate = new Date(thisYear, thisMonth + fraisMesOffset, 1)
+                  const fraisNavMonth = fraisNavDate.getMonth()
+                  const fraisNavYear  = fraisNavDate.getFullYear()
+                  const fraisNavLastDate = new Date(fraisNavYear, fraisNavMonth - 1, 1)
+                  const fraisNavLastMonth = fraisNavLastDate.getMonth()
+                  const fraisNavLastYear  = fraisNavLastDate.getFullYear()
+                  const fraisNavMoisDays = diasHistorique.filter(j => {
+                    const d = parseDate(j.date)
+                    return d && d.getMonth() === fraisNavMonth && d.getFullYear() === fraisNavYear && ['TRAB','DEC'].includes(j.type)
+                  })
+                  const fraisNavLastDays = diasHistorique.filter(j => {
+                    const d = parseDate(j.date)
+                    return d && d.getMonth() === fraisNavLastMonth && d.getFullYear() === fraisNavLastYear && ['TRAB','DEC'].includes(j.type)
+                  })
+                  const fraisNavTotal = fraisNavMoisDays.reduce((a,j) => a + (j.frais||0), 0)
+                  const fraisNavLastTotal = fraisNavLastDays.reduce((a,j) => a + (j.frais||0), 0)
+                  const fraisNavAvgDay = fraisNavMoisDays.length > 0 ? fraisNavTotal / fraisNavMoisDays.length : 0
+                  const fraisNavDaysInMonth = new Date(fraisNavYear, fraisNavMonth + 1, 0).getDate()
+                  const fraisNavDecouches = fraisNavMoisDays.filter(j => j.decouche || j.type === 'DEC').length
+                  const fraisNavIsCurrentMonth = fraisMesOffset === 0
+                  const fraisNavProj = fraisNavIsCurrentMonth && fraisNavMoisDays.length > 0
+                    ? fraisNavAvgDay * Math.round(fraisNavMoisDays.length / new Date().getDate() * fraisNavDaysInMonth)
+                    : fraisNavTotal
+                  const fraisNavBreakdown = (() => {
+                    const pr = appState.padrao
+                    if (!pr) return null
+                    return calcFraisMesPorHorarios(diasHistorique, fraisNavYear, fraisNavMonth, migrarPadrao(pr))
+                  })()
+                  const MOIS_FR_NAV = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+                  const fraisNavLabel = `${MOIS_FR_NAV[fraisNavMonth]} ${fraisNavYear}`
+
                   // ── SECTION 8 — AMPLITUDE ─────────────────────────────────
                   const allTravDays = diasHistorique.filter(j => ['TRAB','DEC'].includes(j.type) && j.debut && j.fin)
                   const ampOf = (j: any) => { let a = parseHM(j.fin) - parseHM(j.debut); if (a < 0) a += 24*60; return a * 60 }
@@ -2684,53 +2717,81 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S7 FRAIS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <AccHeader label="💰 FRAIS" k="frais" c={c} sectionPositions={sectionPositions} />
+                        {/* Header personalizado com nav ‹/› */}
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setStatsOpen(v => ({ ...v, frais: !v.frais }))}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+                        >
+                          <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: c.text }}>💰 FRAIS</Text>
+                          {statsOpen.frais && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              <TouchableOpacity
+                                onPress={e => { e.stopPropagation(); setFraisMesOffset(v => v - 1) }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Text style={{ fontSize: 20, color: c.textSub, paddingHorizontal: 6 }}>‹</Text>
+                              </TouchableOpacity>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: fraisNavIsCurrentMonth ? '#27ae60' : c.textSub, minWidth: 58, textAlign: 'center' }}>
+                                {fraisNavLabel}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={e => { e.stopPropagation(); setFraisMesOffset(v => Math.min(v + 1, 0)) }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                disabled={fraisNavIsCurrentMonth}
+                              >
+                                <Text style={{ fontSize: 20, color: fraisNavIsCurrentMonth ? c.progressBg : c.textSub, paddingHorizontal: 6 }}>›</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <Text style={{ fontSize: 14, color: c.textSub, marginLeft: 6 }}>{statsOpen.frais ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
                         {statsOpen.frais && (
                           <SectionWrap c={c}>
                             <TouchableOpacity activeOpacity={0.7} onPress={() => setFraisDetail(v => !v)}>
                               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>CE MOIS</Text>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{totalFraisMois.toFixed(0)}€</Text>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>{fraisNavIsCurrentMonth ? 'CE MOIS' : fraisNavLabel.toUpperCase()}</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#27ae60', marginTop: 2 }}>{fraisNavTotal.toFixed(0)}€</Text>
                                 </View>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>PROJECTION</Text>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{projFrais.toFixed(0)}€</Text>
+                                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>{fraisNavIsCurrentMonth ? 'PROJECTION' : 'TOTAL'}</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#f5a623', marginTop: 2 }}>{fraisNavProj.toFixed(0)}€</Text>
                                 </View>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
                                   <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '700' }}>DÉCOUCHÉS</Text>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{decouchesMois}</Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#2980b9', marginTop: 2 }}>{fraisNavDecouches}</Text>
                                 </View>
                               </View>
                               <StatsDivider c={c} />
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
                                 <Text style={{ fontSize: 12, color: c.textSub }}>Moyenne / jour travaillé</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{avgFraisDay.toFixed(2)}€</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fraisNavAvgDay.toFixed(2)}€</Text>
                               </View>
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
                                 <Text style={{ fontSize: 12, color: c.textSub }}>Mois précédent</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: totalFraisMois >= totalFraisLastMois ? '#27ae60' : '#e74c3c' }}>
-                                  {totalFraisLastMois.toFixed(0)}€ {totalFraisMois > totalFraisLastMois ? '↑' : totalFraisMois < totalFraisLastMois ? '↓' : '='}
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: fraisNavTotal >= fraisNavLastTotal ? '#27ae60' : '#e74c3c' }}>
+                                  {fraisNavLastTotal.toFixed(0)}€ {fraisNavTotal > fraisNavLastTotal ? '↑' : fraisNavTotal < fraisNavLastTotal ? '↓' : '='}
                                 </Text>
                               </View>
                             </TouchableOpacity>
                             {fraisDetail && (
                               <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL CE MOIS</Text>
-                                {fraisBreakdown && fraisBreakdown.total > 0 && (() => {
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL {fraisNavLabel.toUpperCase()}</Text>
+                                {fraisNavBreakdown && fraisNavBreakdown.total > 0 && (() => {
                                   const pr = migrarPadrao(appState.padrao)
-                                  const nPtd = pr.ptd > 0 ? Math.round(fraisBreakdown.ptd / pr.ptd) : 0
-                                  const nDej = pr.dej > 0 ? Math.round(fraisBreakdown.dej / pr.dej) : 0
-                                  const nDin = pr.din > 0 ? Math.round(fraisBreakdown.din / pr.din) : 0
-                                  const nNui = pr.nui > 0 ? Math.round(fraisBreakdown.nui / pr.nui) : 0
+                                  const nPtd = pr.ptd > 0 ? Math.round(fraisNavBreakdown.ptd / pr.ptd) : 0
+                                  const nDej = pr.dej > 0 ? Math.round(fraisNavBreakdown.dej / pr.dej) : 0
+                                  const nDin = pr.din > 0 ? Math.round(fraisNavBreakdown.din / pr.din) : 0
+                                  const nNui = pr.nui > 0 ? Math.round(fraisNavBreakdown.nui / pr.nui) : 0
                                   const rows = [
-                                    { label: '☕ Pt-déj',   n: nPtd, val: fraisBreakdown.ptd },
-                                    { label: '🍽 Déjeuner', n: nDej, val: fraisBreakdown.dej },
-                                    { label: '🍴 Dîner',    n: nDin, val: fraisBreakdown.din },
-                                    { label: '🌙 Nuit',     n: nNui, val: fraisBreakdown.nui },
+                                    { label: '☕ Pt-déj',   n: nPtd, val: fraisNavBreakdown.ptd },
+                                    { label: '🍽 Déjeuner', n: nDej, val: fraisNavBreakdown.dej },
+                                    { label: '🍴 Dîner',    n: nDin, val: fraisNavBreakdown.din },
+                                    { label: '🌙 Nuit',     n: nNui, val: fraisNavBreakdown.nui },
                                   ].filter(r => r.val > 0)
                                   const moisHist = (appState.histSal as MoisData[] ?? []).find(m =>
-                                    m.moisIndex === thisMonth && (m.annee === thisYear || m.pagamentoSalAno === thisYear)
+                                    m.moisIndex === fraisNavMonth && (m.annee === fraisNavYear || m.pagamentoSalAno === fraisNavYear)
                                   )
                                   const totalReel = moisHist
                                     ? (moisHist.fraisRecuConfirme || moisHist.fraisBoletim || moisHist.remboursementFrais || 0)
@@ -2747,21 +2808,21 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                       ))}
                                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2, marginTop: 4, borderTopWidth: 1, borderTopColor: c.cardBorder }}>
                                         <Text style={{ fontSize: 12, color: c.textSub }}>Total calc.</Text>
-                                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fraisBreakdown.total.toFixed(2)}€</Text>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fraisNavBreakdown.total.toFixed(2)}€</Text>
                                       </View>
                                       {totalReel > 0 && (
                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
                                           <Text style={{ fontSize: 12, color: c.textSub }}>Total réel (fiche)</Text>
-                                          <Text style={{ fontSize: 12, fontWeight: '700', color: Math.abs(totalReel - fraisBreakdown.total) < 5 ? '#27ae60' : '#f5a623' }}>{totalReel.toFixed(2)}€</Text>
+                                          <Text style={{ fontSize: 12, fontWeight: '700', color: Math.abs(totalReel - fraisNavBreakdown.total) < 5 ? '#27ae60' : '#f5a623' }}>{totalReel.toFixed(2)}€</Text>
                                         </View>
                                       )}
                                       <View style={{ height: 1, backgroundColor: c.cardBorder, marginVertical: 8 }} />
                                     </View>
                                   )
                                 })()}
-                                {moisDays.length === 0 ? (
+                                {fraisNavMoisDays.length === 0 ? (
                                   <Text style={{ fontSize: 12, color: c.textSub }}>Pas de données ce mois</Text>
-                                ) : [...moisDays].sort((a: any, b: any) => {
+                                ) : [...fraisNavMoisDays].sort((a: any, b: any) => {
                                   const da = parseDate(a.date), db = parseDate(b.date)
                                   return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
                                 }).map((j: any, i: number) => (

@@ -2316,6 +2316,24 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{Math.round(padrao.liquidRate * 100)}% net</Text>
               </View>
             </View>
+            {calcResult.modoCalculo === 'estimado' && (
+              <View style={{ marginTop: 12, backgroundColor: 'rgba(243,156,18,0.15)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(243,156,18,0.45)', flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                <Text style={{ fontSize: 16 }}>⚠️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623', marginBottom: 3 }}>Estimation générique</Text>
+                  <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 16 }}>
+                    {'Charge des fiches ou confirme manuellement ton salaire net (bouton 💰) — 2 mois suffisent pour des estimations fiables.'}
+                  </Text>
+                </View>
+              </View>
+            )}
+            {calcResult.modoCalculo === 'calibrado' && calcResult.liquidRateUsado === 0.79 && (
+              <View style={{ marginTop: 12, backgroundColor: 'rgba(41,128,185,0.12)', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: 'rgba(41,128,185,0.3)' }}>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 15 }}>
+                  {'ℹ️ Taux brut→net : 79% par défaut. Charge une fiche ou entre le brut dans ✏️ Modifier pour affiner.'}
+                </Text>
+              </View>
+            )}
             <View style={{ marginTop: 12, alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 5, paddingHorizontal: 12, fontStyle: 'italic' }}>
                 Estimation indicative basée sur tes données. Les résultats réels varient selon ton contrat et ton employeur — même les entreprises se trompent parfois. TachoOffice n'assume aucune responsabilité pour les écarts avec ton bulletin de salaire.
@@ -2796,6 +2814,21 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </>
           )}
         </TouchableOpacity>
+
+        {historique.length === 0 && (
+          <View style={{ marginHorizontal: 20, marginTop: 12, backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(39,174,96,0.35)' }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: c.text, marginBottom: 4 }}>💰 Pas de fiches ? Confirme manuellement</Text>
+            <Text style={{ fontSize: 11, color: c.textSub, lineHeight: 17, marginBottom: 12 }}>
+              {'Clique sur "Calculer", puis touche le bloc Salaire Net pour entrer le montant réel reçu. 2 mois confirmés suffisent pour des estimations fiables.'}
+            </Text>
+            <TouchableOpacity
+              onPress={calcularSalario}
+              style={{ backgroundColor: 'rgba(39,174,96,0.15)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(39,174,96,0.4)' }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#27ae60' }}>💡 Calculer pour confirmer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {historique.length > 0 && (() => {
           // Calcula precisão global apenas para meses com valor real confirmado

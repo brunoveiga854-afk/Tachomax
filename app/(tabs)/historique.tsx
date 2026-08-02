@@ -10,6 +10,7 @@ import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { secureGet, secureSet } from '../../src/utils/secureStorage'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
@@ -520,12 +521,14 @@ const getJoursMois = () => {
       const numSemana = getNumeroSemaine(lundi)
       const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
       const fmtSec = (s: number) => { if (!s || s<=0) return ''; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h${String(m).padStart(2,'0')}` }
-      const [conducteurPrenom, conducteurNom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
-        AsyncStorage.getItem('conducteur_prenom'),
-        AsyncStorage.getItem('conducteur_nom'),
+      const [_prenom, _nom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
+        secureGet('conducteur_prenom').then(v => v ?? AsyncStorage.getItem('conducteur_prenom')),
+        secureGet('conducteur_nom').then(v => v ?? AsyncStorage.getItem('conducteur_nom')),
         AsyncStorage.getItem('tracteur_value'), AsyncStorage.getItem('remorque_value'),
         AsyncStorage.getItem('transport_adr'),
       ])
+      const conducteurPrenom = _prenom
+      const conducteurNom = _nom
       const prenom = conducteurPrenom || conducteurNom || ''
       const nom = conducteurPrenom ? (conducteurNom || '') : ''
       const JOURS_LABELS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']

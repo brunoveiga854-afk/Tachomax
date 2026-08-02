@@ -24,8 +24,8 @@ export default function OnboardingScreen() {
     if (params.mode === 'edit') {
       // Carregar TODOS os dados existentes e ir directo ao passo 2 (contrat)
       Promise.all([
-        AsyncStorage.getItem('conducteur_prenom'),
-        AsyncStorage.getItem('conducteur_nom'),
+        secureGet('conducteur_prenom').then(v => v ?? AsyncStorage.getItem('conducteur_prenom')),
+        secureGet('conducteur_nom').then(v => v ?? AsyncStorage.getItem('conducteur_nom')),
         AsyncStorage.getItem('profil'),
         AsyncStorage.getItem('anciennete'),
         AsyncStorage.getItem('coefficient'),
@@ -178,8 +178,8 @@ export default function OnboardingScreen() {
     await withRetry(() => AsyncStorage.setItem('equipement_hayon', String(equipHayon)))
     await withRetry(() => AsyncStorage.setItem('equipement_grue_aux', String(equipGrueAux)))
     await withRetry(() => AsyncStorage.setItem('profil', profil))
-    if (prenom) await withRetry(() => AsyncStorage.setItem('conducteur_prenom', prenom))
-    if (nom) await withRetry(() => AsyncStorage.setItem('conducteur_nom', nom))
+    if (prenom) await withRetry(() => secureSet('conducteur_prenom', prenom))
+    if (nom) await withRetry(() => secureSet('conducteur_nom', nom))
     // backward compat — keep 'nom' with prenom for the main screen greeting
     await withRetry(() => AsyncStorage.setItem('nom', prenom || nom))
     // Persister les valeurs de salaire pour restauration en mode edit

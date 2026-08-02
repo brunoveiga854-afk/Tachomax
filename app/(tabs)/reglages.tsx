@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { secureGet, secureDelete } from '../../src/utils/secureStorage'
+import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 import { useFocusEffect, router, useLocalSearchParams } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -102,8 +102,14 @@ export default function ReglagesScreen() {
     AsyncStorage.getItem('profil').then(p => {
       if (p === 'CD' || p === 'MIXTE' || p === 'LD') setProfil(p)
     })
-    AsyncStorage.getItem('conducteur_prenom').then(v => { if (v) setConducteurPrenom(v) })
-    AsyncStorage.getItem('conducteur_nom').then(v => { if (v) setConducteurNom(v) })
+    secureGet('conducteur_prenom').then(async v => {
+      const val = v ?? await AsyncStorage.getItem('conducteur_prenom')
+      if (val) setConducteurPrenom(val)
+    })
+    secureGet('conducteur_nom').then(async v => {
+      const val = v ?? await AsyncStorage.getItem('conducteur_nom')
+      if (val) setConducteurNom(val)
+    })
     getDiasRestantes().then(setDiasTrial)
     getDataExpiracao().then(setDataExpiracao)
     AsyncStorage.getItem('notificacoes_ativas').then(v => {
@@ -1200,8 +1206,8 @@ export default function ReglagesScreen() {
                 const n = editNom.trim()
                 setConducteurPrenom(p)
                 setConducteurNom(n)
-                await AsyncStorage.setItem('conducteur_prenom', p)
-                await AsyncStorage.setItem('conducteur_nom', n)
+                await secureSet('conducteur_prenom', p)
+                await secureSet('conducteur_nom', n)
                 await AsyncStorage.setItem('nom', p || n)
                 actualizarCampo('nom', p || n)
                 setShowNomModal(false)

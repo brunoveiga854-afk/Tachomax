@@ -2661,7 +2661,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 const bColor = h > 12 ? '#e74c3c' : h > 10 ? '#f39c12' : h > 0 ? '#27ae60' : c.progressBg
                                 const dow = (day.getDay()+6)%7
                                 return (
-                                  <TouchableOpacity key={i} style={{ flex: 1, alignItems: 'center' }} onPress={() => setBarDetail(barDetail?.date === dStr ? null : (entry || { date: dStr, noData: true }))}>
+                                  <TouchableOpacity key={day.toISOString().slice(0,10)} style={{ flex: 1, alignItems: 'center' }} onPress={() => setBarDetail(barDetail?.date === dStr ? null : (entry || { date: dStr, noData: true }))}>
                                     <View style={{ width: '100%', height: Math.max(barH, 3), backgroundColor: bColor, borderRadius: 4 }} />
                                     <Text style={{ fontSize: 9, color: c.textSub, marginTop: 3, fontWeight: '600' }}>{JABBR[dow]}</Text>
                                     <Text style={{ fontSize: 8, color: c.textSub }}>{String(day.getDate()).padStart(2,'0')}</Text>
@@ -2935,7 +2935,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 {Array.from({ length: nSem }, (_, i) => {
                                   const checked = folhasEnviadas[i] ?? false
                                   return (
-                                    <TouchableOpacity key={i} onPress={() => toggleFolha(i)}
+                                    <TouchableOpacity key={`${agora.getFullYear()}-${agora.getMonth()}-sem${i}`} onPress={() => toggleFolha(i)}
                                       style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < nSem - 1 ? 1 : 0, borderBottomColor: c.cardBorder }}>
                                       <View style={{
                                         width: 22, height: 22, borderRadius: 6, borderWidth: 2,

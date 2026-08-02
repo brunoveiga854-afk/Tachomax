@@ -14,6 +14,7 @@ import { secureGet, secureSet } from '../../src/utils/secureStorage'
 import { COR_RC, COR_RC_BG, COR_RC_BG_LT, COR_OFF, COR_OFF_BG, COR_OFF_BG_LT } from '../../src/constants/cores'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
+import { useToast } from '../../context/ToastContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
 import { log } from '../../src/utils/logger'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
@@ -199,6 +200,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
   const { state: appState, recarregarApp } = useApp()
+  const { showToast } = useToast()
   const [historique, setHistorique] = useState<Jour[]>([])
   const [semaine, setSemaine] = useState(0)
   const [vue, setVue] = useState<'semaine' | 'mois'>('semaine')
@@ -367,6 +369,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     log.info('historique', 'dia eliminado', { id })
   }
   const apagaSeleccionados = async () => {
@@ -375,6 +378,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     setSelecionados(new Set())
     setModoSelecao(false)
     log.info('historique', 'multi-select apagados', { count: ids.size })
@@ -910,6 +914,7 @@ const getJoursMois = () => {
                         setHistorique(nova)
                         await AsyncStorage.setItem('historique', JSON.stringify(nova))
                         await recarregarApp()
+                        showToast('✓ Alterações aplicadas')
                       }},
                     ]
                   )

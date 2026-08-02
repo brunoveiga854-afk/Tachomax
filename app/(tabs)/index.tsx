@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
+import { useToast } from '../../context/ToastContext'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { calcularFraisJour } from '../../src/frais'
 import { log } from '../../src/utils/logger'
@@ -89,6 +90,7 @@ export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
   const { t } = useLangue()
   const { state: appState, recarregarApp } = useApp()
+  const { showToast } = useToast()
   const [enService, setEnService] = useState(false)
   const [emPausa, setEmPausa] = useState(false)
   const [demarrando, setDemarrando] = useState(false)
@@ -2205,6 +2207,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))
                   setDiasHistorique(nova)
                   await recarregarApp()
+                  showToast('✓ Alterações aplicadas')
                   setEditandoDiaId(null)
                   setShowAddDia(false)
                   carregarStatsSemaine()

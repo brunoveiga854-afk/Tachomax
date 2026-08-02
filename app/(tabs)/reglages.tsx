@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing'
 import { useTheme } from '../../context/ThemeContext'
 import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
+import { useToast } from '../../context/ToastContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
@@ -28,6 +29,7 @@ export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
   const { state: appState, recarregarApp, actualizarCampo } = useApp()
+  const { showToast } = useToast()
   const [profil, setProfil] = useState<'CD' | 'MIXTE' | 'LD'>('MIXTE')
   const [conducteurPrenom, setConducteurPrenom] = useState('')
   const [conducteurNom, setConducteurNom] = useState('')
@@ -163,6 +165,7 @@ export default function ReglagesScreen() {
     log.warn('reglages', 'historique apagado pelo utilizador')
     await AsyncStorage.removeItem('historique')
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     setShowModalHistorique(false)
     setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
     setTimeout(() => setShowModalSucesso(true), 300)
@@ -280,6 +283,7 @@ export default function ReglagesScreen() {
       }
       log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()
+      showToast('✓ Alterações aplicadas')
       setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {

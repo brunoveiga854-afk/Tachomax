@@ -7,6 +7,7 @@ import { COR_OFF } from '../src/constants/cores'
 import { log } from '../src/utils/logger'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useApp } from '../context/AppContext'
+import { useToast } from '../context/ToastContext'
 import { TachoLogo } from '../src/TachoLogo'
 import { PADRAO_INICIAL } from '../src/engine/aprendizagem'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
@@ -17,6 +18,7 @@ type Profil = 'CD' | 'MIXTE' | 'LD'
 
 export default function OnboardingScreen() {
   const { recarregarApp } = useApp()
+  const { showToast } = useToast()
   const [etape, setEtape] = useState(0)
   const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ mode?: string }>()
@@ -248,6 +250,7 @@ export default function OnboardingScreen() {
     }
     await withRetry(() => secureSet('aprendizagem_padrao', JSON.stringify(padraoAprendizado)))
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     log.info('onboarding', 'terminerOnboarding concluído')
     setTerminando(false)
     router.replace('/(tabs)/fiche')

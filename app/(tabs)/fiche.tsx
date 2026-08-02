@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
+import { useToast } from '../../context/ToastContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import type { MoisData as _MoisData } from '../../src/types/moisdata'
 import {
@@ -981,6 +982,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 export default function MonSalaireScreen() {
   const { themeSombre } = useTheme()
   const { state: appState, recarregarApp } = useApp()
+  const { showToast } = useToast()
   const [historique, setHistorique] = useState<MoisData[]>([])
   const [padrao, setPadrao] = useState<Padrao>({
     descoberto: false, diaSalario: 5, diaFrais: 10, defasagemFrais: 3, confianca: 0,
@@ -1160,6 +1162,7 @@ export default function MonSalaireScreen() {
     const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
     await persistirPadrao(novoPadrao)
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     setSelMeses(new Set())
     setModoSelMeses(false)
   }
@@ -2216,6 +2219,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await persistirPadrao(novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
     await recarregarApp()
+    showToast('✓ Alterações aplicadas')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo')
@@ -3092,6 +3096,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
                                 await recarregarApp()
+                                showToast('✓ Alterações aplicadas')
                               }
                             }
                           ]
@@ -3718,6 +3723,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     await recarregarApp()
+                    showToast('✓ Alterações aplicadas')
                     log.info('fiche', 'frais reels guardados', { periode: calcResult.mesFraisLabel })
                   }
                   setShowModalFraisReel(false)
@@ -3839,6 +3845,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     await recarregarApp()
+                    showToast('✓ Alterações aplicadas')
                     log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
                   }
                   setShowModalSalNet(false)
@@ -3971,6 +3978,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
                   await recarregarApp()
+                  showToast('✓ Alterações aplicadas')
                   setModalDetail(updated)
                   log.info('fiche', 'fiche editada', { periode: updated.periode, netPaye: updated.netPaye, salairebrut: updated.salairebrut, moisAtipico: updated.moisAtipico })
                   setShowModalEdit(false)

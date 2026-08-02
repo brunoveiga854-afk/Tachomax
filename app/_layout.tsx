@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar'
 import { AppProvider } from '../context/AppContext'
 import { ThemeProvider } from '../context/ThemeContext'
 import { LangueProvider } from '../context/LangueContext'
+import { ToastProvider } from '../context/ToastContext'
 import { useEffect } from 'react'
 import { ErrorBoundary } from '../src/ErrorBoundary'
 import { inicializarTrial } from '../src/trial'
@@ -31,11 +32,13 @@ export default function RootLayout() {
         <ThemeProvider>
           <LangueProvider>
             <ErrorBoundary>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              </Stack>
-              <StatusBar style="auto" />
+              <ToastProvider>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                </Stack>
+                <StatusBar style="auto" />
+              </ToastProvider>
             </ErrorBoundary>
           </LangueProvider>
         </ThemeProvider>

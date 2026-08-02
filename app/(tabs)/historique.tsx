@@ -245,6 +245,16 @@ export default function HistoriqueScreen() {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [modoSelecao, setModoSelecao] = useState(false)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [tutorialFolhe, setTutorialFolhe] = useState(true)
+  useEffect(() => {
+    AsyncStorage.getItem('tutorial_visto_folhe').then(v => {
+      if (!v) setTutorialFolhe(false)
+    })
+  }, [])
+  const dispensarTutorialFolhe = () => {
+    setTutorialFolhe(true)
+    AsyncStorage.setItem('tutorial_visto_folhe', '1')
+  }
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
   useEffect(() => {
     if (!scrollToId) return
@@ -885,7 +895,16 @@ const getJoursMois = () => {
               <Text style={{ fontSize: 15 }}>📤</Text>
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9' }}>Rapport</Text>
             </TouchableOpacity>
-            {vue === 'semaine' && (
+            {vue === 'semaine' && !tutorialFolhe && (
+              <View style={{ flex: 1.3, backgroundColor: c.card, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.5)' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', marginBottom: 3 }}>📋 Fiche semaine PDF</Text>
+                <Text style={{ fontSize: 10, color: c.textSub, lineHeight: 15 }}>{'Génère et envoie ta fiche\nhebdomadaire en PDF.'}</Text>
+                <TouchableOpacity onPress={dispensarTutorialFolhe} style={{ marginTop: 5, alignSelf: 'flex-end' }}>
+                  <Text style={{ fontSize: 10, color: '#f5a623', fontWeight: '800' }}>OK ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {vue === 'semaine' && tutorialFolhe && (
               <TouchableOpacity
                 style={{ flex: 1.3, backgroundColor: ficheLoading ? 'rgba(245,166,35,0.08)' : 'rgba(245,166,35,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onPress={() => { setDiasSelecionados([...diasComDados]); setShowModalFicheDias(true) }}

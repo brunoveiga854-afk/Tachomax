@@ -1015,6 +1015,7 @@ export default function MonSalaireScreen() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
+  const [tutorialCharger, setTutorialCharger] = useState(true)
   const [rascunhoActual, setRascunhoActual] = useState<any>(null)
   const [perguntaAtual, setPerguntaAtual] = useState(0)
   const [respostas, setRespostas] = useState<any[]>([])
@@ -1165,6 +1166,16 @@ export default function MonSalaireScreen() {
     showToast('✓ Alterações aplicadas')
     setSelMeses(new Set())
     setModoSelMeses(false)
+  }
+
+  useEffect(() => {
+    AsyncStorage.getItem('tutorial_visto_charger').then(v => {
+      if (!v) setTutorialCharger(false)
+    })
+  }, [])
+  const dispensarTutorialCharger = () => {
+    setTutorialCharger(true)
+    AsyncStorage.setItem('tutorial_visto_charger', '1')
   }
 
   // Recarregar padrao + historique sempre que a aba ganha foco
@@ -2858,6 +2869,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </>
           )}
         </TouchableOpacity>
+
+        {/* ── TUTORIAL CHARGER (primeira visita) ── */}
+        {!tutorialCharger && historique.length === 0 && (
+          <View style={{ marginHorizontal: 20, marginTop: 8, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(245,166,35,0.5)' }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 4 }}>📁 Comment ça marche ?</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, lineHeight: 18 }}>
+              {'Appuie sur 📁 pour charger tes fiches de paye en PDF.\nL\'IA lit les montants et construit ton historique.\nTu confirmes ce que tu as réellement reçu — c\'est tout.'}
+            </Text>
+            <TouchableOpacity onPress={dispensarTutorialCharger} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+              <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {historique.length === 0 && (
           <View style={{ marginHorizontal: 20, marginTop: 12, backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(39,174,96,0.35)' }}>

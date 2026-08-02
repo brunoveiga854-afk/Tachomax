@@ -229,6 +229,24 @@ export default function AujourdhuiScreen() {
     tooltipTimerRef.current = setTimeout(() => setTooltipCard(null), 2000)
   }
   useEffect(() => { return () => { if (snackbarTimer.current) clearTimeout(snackbarTimer.current); if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current) } }, [])
+  // ── Tutoriais de primeira visita ─────────────────────────────────────────
+  const [tutorialDemarrer, setTutorialDemarrer] = useState(true)
+  const [tutorialStats, setTutorialStats] = useState(true)
+  useEffect(() => {
+    AsyncStorage.multiGet(['tutorial_visto_demarrer', 'tutorial_visto_stats']).then(pairs => {
+      if (!pairs[0][1]) setTutorialDemarrer(false)
+      if (!pairs[1][1]) setTutorialStats(false)
+    })
+  }, [])
+  const dispensarTutorialDemarrer = () => {
+    setTutorialDemarrer(true)
+    AsyncStorage.setItem('tutorial_visto_demarrer', '1')
+  }
+  const dispensarTutorialStats = () => {
+    setTutorialStats(true)
+    AsyncStorage.setItem('tutorial_visto_stats', '1')
+  }
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!enService || emPausa) { setBannerPause(null); return }
     if (pausaBloco2Feita) { setBannerPause(null); return }
@@ -1544,6 +1562,18 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               )
             })()}
 
+            {/* ── TUTORIAL DÉMARRER (primeira visita) ── */}
+            {!enService && !tutorialDemarrer && (
+              <View style={[st.tooltipBox, { borderColor: 'rgba(245,166,35,0.6)', marginHorizontal: 20, marginBottom: 8 }]}>
+                <Text style={[st.tooltipText, { color: '#f5a623' }]}>
+                  {'▶ Appuie ici pour démarrer ton service.\nL\'app chronomètre tes heures, calcule tes frais\net t\'alerte avant les limites légales.'}
+                </Text>
+                <TouchableOpacity onPress={dispensarTutorialDemarrer} style={{ marginTop: 6, alignSelf: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>
@@ -1753,6 +1783,18 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 </View>
               )
             })()}
+
+            {/* ── TUTORIAL STATS (primeira visita) ── */}
+            {!tutorialStats && (
+              <View style={[st.tooltipBox, { borderColor: 'rgba(41,128,185,0.5)', marginHorizontal: 20, marginBottom: 4 }]}>
+                <Text style={[st.tooltipText, { color: '#2980b9' }]}>
+                  {'📊 Stats Détaillées — touche ici pour voir\ntes frais mois par mois, tes records\net les projections de salaire.'}
+                </Text>
+                <TouchableOpacity onPress={dispensarTutorialStats} style={{ marginTop: 6, alignSelf: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: '#2980b9', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* ── STATS — always accessible ── */}
             <TouchableOpacity

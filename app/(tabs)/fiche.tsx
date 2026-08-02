@@ -3970,6 +3970,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const histCal = appState.histCal ?? []
                   const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
+                  await recarregarApp()
                   setModalDetail(updated)
                   log.info('fiche', 'fiche editada', { periode: updated.periode, netPaye: updated.netPaye, salairebrut: updated.salairebrut, moisAtipico: updated.moisAtipico })
                   setShowModalEdit(false)

@@ -18,7 +18,7 @@ import {
   mesPagamentoSalDe, joursOuvresMois, mesTrabalhoDe,
   type Medias,
 } from '../../src/utils/projecoes'
-import { calcFraisMesPorHorarios } from '../../src/utils/calculos'
+import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -139,13 +139,15 @@ export default function AujourdhuiScreen() {
     const padrao = migrarPadrao(padraoRaw)
     const anoActual = new Date().getFullYear()
     const mesActual = new Date().getMonth()
+    const diaRolloverPills = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
+    const [, mesBase] = shiftMois(anoActual, mesActual, new Date().getDate() > diaRolloverPills ? 1 : 0)
     const mesesComReal = new Set(
       histSal
         .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
         .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
     )
-    let mesActivo = mesActual
-    for (let i = mesActual; i < 12; i++) {
+    let mesActivo = mesBase
+    for (let i = mesBase; i < 12; i++) {
       if (!mesesComReal.has(i)) { mesActivo = i; break }
     }
     const mHist = histSal.find(m => {
@@ -2958,17 +2960,19 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         const padrao = migrarPadrao(padraoRaw)
                         const anoActual = new Date().getFullYear()
                         const mesActual = new Date().getMonth()
+                        const diaRolloverPills = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
+                        const [, mesBase] = shiftMois(anoActual, mesActual, new Date().getDate() > diaRolloverPills ? 1 : 0)
 
                         const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao)
 
-                        // Mês "activo" = menor mês sem real confirmado no ano actual, ≥ mês actual
+                        // Mês "activo" = menor mês sem real confirmado no ano actual, ≥ mesBase (alinhado com diaRollover de fiche.tsx)
                         const mesesComReal = new Set(
                           histSal
                             .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
                             .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
                         )
-                        let mesActivo = mesActual
-                        for (let i = mesActual; i < 12; i++) {
+                        let mesActivo = mesBase
+                        for (let i = mesBase; i < 12; i++) {
                           if (!mesesComReal.has(i)) { mesActivo = i; break }
                         }
 
@@ -3056,6 +3060,26 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   return (
                                     <View style={{ marginBottom: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: color + '55' }}>
                                       <Text style={{ fontSize: 11, fontWeight: '800', color, marginBottom: 6 }}>{ABBR[mesIdx]} {anoActual}</Text>
+                                      {isActive && (() => {
+                                        const diaRolloverCard = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
+                                        const mesHorasCard = ((mesIdx - padrao.hlag) % 12 + 12) % 12
+                                        const todayDay = new Date().getDate()
+                                        if (mesHorasCard === mesActual) {
+                                          return (
+                                            <Text style={{ fontSize: 11, color: '#f5a623', marginBottom: 6 }}>
+                                              🔄 Mois de travail en cours — estimation provisoire
+                                            </Text>
+                                          )
+                                        }
+                                        if (mesIdx === mesActual && todayDay <= diaRolloverCard) {
+                                          return (
+                                            <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 6 }}>
+                                              {'⏳ Paiement attendu vers le '}{diaRolloverCard} {ABBR[mesIdx]}
+                                            </Text>
+                                          )
+                                        }
+                                        return null
+                                      })()}
                                       {isConfirmed && real > 0 ? (
                                         <>
                                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>

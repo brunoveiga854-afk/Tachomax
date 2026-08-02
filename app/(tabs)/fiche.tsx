@@ -1552,11 +1552,17 @@ export default function MonSalaireScreen() {
   }
 
   // ── Thin wrappers — delegam para src/utils/projecoes.ts ──────────────────
-  const calcMediasDiasTrabalho = (): Medias | null =>
-    _calcMediasDiasTrabalho(historique, histCal, padrao)
+  // Memoizado: só recalcula quando historique/histCal/padrao mudam (evita N chamadas por render)
+  const mediasGlobais = useMemo(
+    () => _calcMediasDiasTrabalho(historique, histCal, padrao),
+    [historique, histCal, padrao]
+  )
 
-  const calcEstimativaMes = (m: MoisData, mediasPreComp?: Medias | null): number =>
-    _calcEstimativaMes(m, historique, histCal, padrao, mediasPreComp)
+  const calcEstimativaMes = useCallback(
+    (m: MoisData, mediasPreComp?: Medias | null): number =>
+      _calcEstimativaMes(m, historique, histCal, padrao, mediasPreComp ?? mediasGlobais),
+    [historique, histCal, padrao, mediasGlobais]
+  )
 
   const animarRespiracao = () => {
     Animated.loop(Animated.sequence([

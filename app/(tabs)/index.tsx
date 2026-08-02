@@ -2,7 +2,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, COR_FRAIS } from '../../src/constants/cores'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1361,6 +1361,53 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       Animated.timing(kmOpacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
     ]).start(() => setShowKmModal(false))
   }
+
+  const projecoesPills = useMemo(() => {
+    const histSal = (appState.histSal ?? []) as MoisData[]
+    const histCal = appState.histCal ?? []
+    const padraoRaw = appState.padrao
+    if (!padraoRaw || histSal.length === 0) return null
+    const padrao = migrarPadrao(padraoRaw)
+    const anoActual = new Date().getFullYear()
+    const mesActual = new Date().getMonth()
+    const diaRolloverPills = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
+    const [, mesBase] = shiftMois(anoActual, mesActual, new Date().getDate() > diaRolloverPills ? 1 : 0)
+    const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao)
+    const mesesComReal = new Set(
+      histSal
+        .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
+        .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
+    )
+    let mesActivo = mesBase
+    for (let i = mesBase; i < 12; i++) {
+      if (!mesesComReal.has(i)) { mesActivo = i; break }
+    }
+    type Pill = { mesIdx: number; estimativa: number; isConfirmed: boolean; isActive: boolean; isFuture: boolean; mHist: MoisData | undefined }
+    const pills: Pill[] = Array.from({ length: 12 }, (_, mesIdx) => {
+      const mHist = histSal.find(m => {
+        const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
+        const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
+        return mesRec === mesIdx && anoRec === anoActual
+      })
+      const syntheticM: MoisData = {
+        periode: '', moisIndex: mesIdx, annee: anoActual, fichePages: 0,
+        mesPagamentoIndex: mesIdx, anoPagamento: anoActual,
+        netPaye: 0, salairebrut: 0, totalCotisations: 0,
+        remboursementFrais: 0, fraisBoletim: 0, montantTotalRecu: 0,
+        jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
+        analysedAt: '', entreprise: '', conducteur: '',
+      }
+      const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
+      if (estimativa === 0 && !mHist) return null
+      const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
+      const isActive = mesIdx === mesActivo && !isConfirmed
+      const isFuture = !isConfirmed && mesIdx > mesActivo
+      return { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } satisfies Pill
+    }).filter((p): p is Pill => p !== null)
+    if (pills.length === 0) return null
+    const ABBR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+    return { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal }
+  }, [appState.histSal, appState.histCal, appState.padrao])
 
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
@@ -2962,57 +3009,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       })()}
 
                       {/* ── S10.5 PROJECTIONS ANNÉE ── */}
-                      {(() => {
-                        const histSal = (appState.histSal ?? []) as MoisData[]
-                        const histCal = appState.histCal ?? []
-                        const padraoRaw = appState.padrao
-                        if (!padraoRaw || histSal.length === 0) return null
-                        const padrao = migrarPadrao(padraoRaw)
-                        const anoActual = new Date().getFullYear()
-                        const mesActual = new Date().getMonth()
-                        const diaRolloverPills = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
-                        const [, mesBase] = shiftMois(anoActual, mesActual, new Date().getDate() > diaRolloverPills ? 1 : 0)
-
-                        const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao)
-
-                        // Mês "activo" = menor mês sem real confirmado no ano actual, ≥ mesBase (alinhado com diaRollover de fiche.tsx)
-                        const mesesComReal = new Set(
-                          histSal
-                            .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
-                            .map(m => m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex)
-                        )
-                        let mesActivo = mesBase
-                        for (let i = mesBase; i < 12; i++) {
-                          if (!mesesComReal.has(i)) { mesActivo = i; break }
-                        }
-
-                        type Pill = { mesIdx: number; estimativa: number; isConfirmed: boolean; isActive: boolean; isFuture: boolean; mHist: MoisData | undefined }
-                        const pills: Pill[] = Array.from({ length: 12 }, (_, mesIdx) => {
-                          const mHist = histSal.find(m => {
-                            const mesRec = m.pagamentoSalMesIndex ?? m.mesPagamentoIndex ?? m.moisIndex
-                            const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
-                            return mesRec === mesIdx && anoRec === anoActual
-                          })
-                          const syntheticM: MoisData = {
-                            periode: '', moisIndex: mesIdx, annee: anoActual, fichePages: 0,
-                            mesPagamentoIndex: mesIdx, anoPagamento: anoActual,
-                            netPaye: 0, salairebrut: 0, totalCotisations: 0,
-                            remboursementFrais: 0, fraisBoletim: 0, montantTotalRecu: 0,
-                            jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
-                            analysedAt: '', entreprise: '', conducteur: '',
-                          }
-                          const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
-                          if (estimativa === 0 && !mHist) return null
-                          const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
-                          const isActive = mesIdx === mesActivo && !isConfirmed
-                          const isFuture = !isConfirmed && mesIdx > mesActivo
-                          return { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } satisfies Pill
-                        }).filter((p): p is Pill => p !== null)
-
-                        if (pills.length === 0) return null
-
-                        const ABBR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
-
+                      {projecoesPills && (() => {
+                        const { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal } = projecoesPills
                         return (
                           <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
                             <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" c={c} sectionPositions={sectionPositions} />

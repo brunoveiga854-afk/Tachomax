@@ -2597,14 +2597,23 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             ) : (
                               <>
                                 <Text style={{ fontSize: 11, color: c.textSub, marginBottom: 4 }}>Depuis vendredi {lastFriday.date} fin {lastFriday.fin}</Text>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 13, color: c.textSub }}>Repos écoulé</Text>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: hebdoColor }}>{hebdoSec ? fmtHM(hebdoSec) : '—'}</Text>
-                                </View>
-                                <ProgBar pct={hebdoPct} color={hebdoColor} c={c} />
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: hebdoColor }}>
-                                  {hebdoSec && hebdoSec >= 45*3600 ? '✅ Repos hebdo normal (45h) respecté' : `⚠️ ${hebdoSec ? fmtHM(Math.max(0,45*3600-hebdoSec)) : '45h00'} restantes`}
-                                </Text>
+                                {hebdoSec && hebdoSec >= 45*3600 ? (
+                                  <>
+                                    <ProgBar pct={100} color="#27ae60" c={c} />
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60' }}>✅ Repos hebdo normal (45h+) respecté</Text>
+                                  </>
+                                ) : (
+                                  <>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <Text style={{ fontSize: 13, color: c.textSub }}>Repos écoulé</Text>
+                                      <Text style={{ fontSize: 16, fontWeight: '800', color: hebdoColor }}>{hebdoSec ? fmtHM(hebdoSec) : '—'}</Text>
+                                    </View>
+                                    <ProgBar pct={hebdoPct} color={hebdoColor} c={c} />
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: hebdoColor }}>
+                                      {`⚠️ ${hebdoSec ? fmtHM(Math.max(0, 45*3600 - hebdoSec)) : '45h00'} restantes`}
+                                    </Text>
+                                  </>
+                                )}
                               </>
                             )}
                           </SectionWrap>

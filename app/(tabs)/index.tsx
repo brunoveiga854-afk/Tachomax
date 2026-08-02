@@ -18,6 +18,7 @@ import {
   mesPagamentoSalDe, joursOuvresMois, mesTrabalhoDe,
   type Medias,
 } from '../../src/utils/projecoes'
+import { calcFraisMesPorHorarios } from '../../src/utils/calculos'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaPausa,
@@ -2476,6 +2477,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     : 0
                   const projFrais = avgFraisDay * workingDaysInMonth
                   const decouchesMois = moisDays.filter(j => j.decouche || j.type === 'DEC').length
+                  const fraisBreakdown = (() => {
+                    const pr = appState.padrao
+                    if (!pr) return null
+                    return calcFraisMesPorHorarios(diasHistorique, thisYear, thisMonth, migrarPadrao(pr))
+                  })()
 
                   // ── SECTION 8 — AMPLITUDE ─────────────────────────────────
                   const allTravDays = diasHistorique.filter(j => ['TRAB','DEC'].includes(j.type) && j.debut && j.fin)
@@ -2713,6 +2719,48 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             {fraisDetail && (
                               <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
                                 <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>DÉTAIL CE MOIS</Text>
+                                {fraisBreakdown && fraisBreakdown.total > 0 && (() => {
+                                  const pr = migrarPadrao(appState.padrao)
+                                  const nPtd = pr.ptd > 0 ? Math.round(fraisBreakdown.ptd / pr.ptd) : 0
+                                  const nDej = pr.dej > 0 ? Math.round(fraisBreakdown.dej / pr.dej) : 0
+                                  const nDin = pr.din > 0 ? Math.round(fraisBreakdown.din / pr.din) : 0
+                                  const nNui = pr.nui > 0 ? Math.round(fraisBreakdown.nui / pr.nui) : 0
+                                  const rows = [
+                                    { label: '☕ Pt-déj',   n: nPtd, val: fraisBreakdown.ptd },
+                                    { label: '🍽 Déjeuner', n: nDej, val: fraisBreakdown.dej },
+                                    { label: '🍴 Dîner',    n: nDin, val: fraisBreakdown.din },
+                                    { label: '🌙 Nuit',     n: nNui, val: fraisBreakdown.nui },
+                                  ].filter(r => r.val > 0)
+                                  const moisHist = (appState.histSal as MoisData[] ?? []).find(m =>
+                                    m.moisIndex === thisMonth && (m.annee === thisYear || m.pagamentoSalAno === thisYear)
+                                  )
+                                  const totalReel = moisHist
+                                    ? (moisHist.fraisRecuConfirme || moisHist.fraisBoletim || moisHist.remboursementFrais || 0)
+                                    : 0
+                                  return (
+                                    <View style={{ marginBottom: 10 }}>
+                                      {rows.map((r, i) => (
+                                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                          <Text style={{ fontSize: 12, color: c.textSub }}>{r.label}</Text>
+                                          <Text style={{ fontSize: 12, color: c.text }}>
+                                            {r.n > 0 ? `${r.n}× · ` : ''}<Text style={{ fontWeight: '700' }}>{r.val.toFixed(2)}€</Text>
+                                          </Text>
+                                        </View>
+                                      ))}
+                                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2, marginTop: 4, borderTopWidth: 1, borderTopColor: c.cardBorder }}>
+                                        <Text style={{ fontSize: 12, color: c.textSub }}>Total calc.</Text>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{fraisBreakdown.total.toFixed(2)}€</Text>
+                                      </View>
+                                      {totalReel > 0 && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                                          <Text style={{ fontSize: 12, color: c.textSub }}>Total réel (fiche)</Text>
+                                          <Text style={{ fontSize: 12, fontWeight: '700', color: Math.abs(totalReel - fraisBreakdown.total) < 5 ? '#27ae60' : '#f5a623' }}>{totalReel.toFixed(2)}€</Text>
+                                        </View>
+                                      )}
+                                      <View style={{ height: 1, backgroundColor: c.cardBorder, marginVertical: 8 }} />
+                                    </View>
+                                  )
+                                })()}
                                 {moisDays.length === 0 ? (
                                   <Text style={{ fontSize: 12, color: c.textSub }}>Pas de données ce mois</Text>
                                 ) : [...moisDays].sort((a: any, b: any) => {

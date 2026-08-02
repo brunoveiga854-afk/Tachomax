@@ -2,7 +2,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, COR_FRAIS } from '../../src/constants/cores'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1385,13 +1385,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     return { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal }
   }, [appState.histSal, appState.histCal, appState.padrao])
 
-  const fraisBreakdown = useMemo(() => {
-    const pr = appState.padrao
-    if (!pr) return null
-    const now = new Date()
-    return calcFraisMesPorHorarios(diasHistorique, now.getFullYear(), now.getMonth(), migrarPadrao(pr))
-  }, [diasHistorique, appState.padrao])
-
   const fraisNavBreakdown = useMemo(() => {
     const pr = appState.padrao
     if (!pr) return null
@@ -2436,13 +2429,13 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
       {/* PONTO 2 — MODAL DÉTAIL PAUSES CE 561/2006 */}
       {/* ── STATS MODAL ── */}
-      <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }}>
+      <Modal visible={showStats} transparent animationType="slide" onRequestClose={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null); setFraisMesOffset(0) }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', borderWidth: 1, borderColor: c.cardBorder }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: 1 }}>📊 STATS</Text>
-              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => { setShowStats(false); setStatsBarDetail(null); setProjDetail(null); setFraisDetail(false); setPausaDetail(false); setRecordDetail(null); setFraisMesOffset(0) }} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.progressBg, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, color: c.textSub, fontWeight: '700' }}>✕</Text>
               </TouchableOpacity>
             </View>

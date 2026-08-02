@@ -2797,12 +2797,13 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                   const nDej = detalhePorDia.filter(f => f.dej > 0).length
                                   const nDin = detalhePorDia.filter(f => f.din > 0).length
                                   const nNui = detalhePorDia.filter(f => f.nui > 0).length
+                                  const pr = migrarPadrao(appState.padrao)
                                   const rows = [
-                                    { label: '☕ Pt-déj',   n: nPtd, val: fraisNavBreakdown.ptd },
-                                    { label: '🍽 Déjeuner', n: nDej, val: fraisNavBreakdown.dej },
-                                    { label: '🍴 Dîner',    n: nDin, val: fraisNavBreakdown.din },
-                                    { label: '🌙 Nuit',     n: nNui, val: fraisNavBreakdown.nui },
-                                  ].filter(r => r.val > 0)
+                                    { label: '☕ Pt-déj',   n: nPtd, val: nPtd * (pr.ptd  || 4.42)  },
+                                    { label: '🍽 Déjeuner', n: nDej, val: nDej * (pr.dej  || 16.36) },
+                                    { label: '🍴 Dîner',    n: nDin, val: nDin * (pr.din  || 23.94) },
+                                    { label: '🌙 Nuit',     n: nNui, val: nNui * (pr.nui  || 23.94) },
+                                  ].filter(r => r.n > 0)
                                   const moisHist = (appState.histSal as MoisData[] ?? []).find(m =>
                                     m.moisIndex === fraisNavMonth && (m.annee === fraisNavYear || m.pagamentoSalAno === fraisNavYear)
                                   )

@@ -186,10 +186,7 @@ export default function AujourdhuiScreen() {
   const [recordDetail, setRecordDetail] = useState<number | null>(null)
   const [folhasEnviadas, setFolhasEnviadas] = useState<boolean[]>([])
   const [folhaChave, setFolhaChave] = useState('')
-  const [calcMontant, setCalcMontant] = useState('')
-  const [calcFrais, setCalcFrais] = useState('')
-  const [calcHeures, setCalcHeures] = useState('')
-  const [calcMode, setCalcMode] = useState<'€→h' | 'h→€'>('€→h')
+
   const pausaInicioRef = useRef<number>(0)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
@@ -3062,133 +3059,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 ) : (
                                   <Text style={{ fontSize: 10, color: c.textSub }}>Données insuffisantes pour projection</Text>
                                 )}
-                                {padrao.taxaHorariaNetaMedia > 0 && (() => {
-                                  const ABBR_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-                                  const moisLabel = projDetail != null ? ABBR_LONG[projDetail.mesIdx] + ' ' + anoActual : null
-                                  const txMes = (projDetail?.isConfirmed && (projDetail.mHist?.netPaye || 0) > 0 && (projDetail.mHist?.totalHeures || 0) > 0)
-                                    ? (projDetail.mHist.netPaye / projDetail.mHist.totalHeures)
-                                    : null
-                                  const taxa = txMes ?? padrao.taxaHorariaNetaMedia
-                                  const txLabel = txMes != null
-                                    ? `taux réel de ${ABBR_LONG[projDetail.mesIdx]}`
-                                    : mediasAnuais
-                                      ? `moyenne générale (${mediasAnuais.nMeses} mois confirmés)`
-                                      : 'moyenne générale'
-                                  return (
-                                  <View style={{ marginTop: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10 }}>
-                                    {/* Cabeçalho com toggle */}
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                                      <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, flex: 1 }}>
-                                        {moisLabel
-                                          ? (calcMode === '€→h' ? `💶 Combien d'heures pour ${moisLabel} ?` : `⏱ Combien pour ${moisLabel} ?`)
-                                          : (calcMode === '€→h' ? '💶 J\'ai reçu X€ — combien d\'heures ?' : '⏱ J\'ai fait Xh — combien je reçois ?')}
-                                      </Text>
-                                      <View style={{ flexDirection: 'row', gap: 4 }}>
-                                        {(['€→h', 'h→€'] as const).map(m => (
-                                          <TouchableOpacity key={m} onPress={() => { log.info('index', 'calculette mode', { de: calcMode, para: m }); setCalcMode(m); setCalcMontant(''); setCalcFrais(''); setCalcHeures('') }}
-                                            style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: calcMode === m ? '#f5a623' : c.card, borderWidth: 1, borderColor: calcMode === m ? '#f5a623' : c.cardBorder }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '700', color: calcMode === m ? '#fff' : c.textSub }}>{m}</Text>
-                                          </TouchableOpacity>
-                                        ))}
-                                      </View>
-                                    </View>
-                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 2 }}>
-                                      {calcMode === '€→h'
-                                        ? 'Convertit un montant reçu en heures estimées selon ton taux.'
-                                        : 'Estime le salaire net pour un nombre d\'heures. Frais non inclus (dépendent des jours).'}
-                                    </Text>
-                                    <Text style={{ fontSize: 10, color: c.textSub, marginBottom: 8 }}>
-                                      {`Basé sur le ${txLabel} — pas un mois spécifique.`}
-                                    </Text>
-
-                                    {calcMode === '€→h' ? (
-                                      <>
-                                        <TextInput
-                                          style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder }}
-                                          keyboardType="numeric"
-                                          placeholder="Salaire net reçu (€)"
-                                          placeholderTextColor={c.textSub as string}
-                                          value={calcMontant}
-                                          onChangeText={setCalcMontant}
-                                        />
-                                        <TextInput
-                                          style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder, marginTop: 6 }}
-                                          keyboardType="numeric"
-                                          placeholder="Frais reçus (€) — optionnel"
-                                          placeholderTextColor={c.textSub as string}
-                                          value={calcFrais}
-                                          onChangeText={setCalcFrais}
-                                        />
-                                        {(() => {
-                                          const val = parseFloat(calcMontant.replace(',', '.'))
-                                          if (!val || val <= 0) return null
-                                          const frais = parseFloat(calcFrais.replace(',', '.')) || 0
-                                          const net = val - frais
-                                          if (net <= 0) return null
-                                          const hCal = net / taxa
-                                          const hFiche = padrao.horasFactorReal !== 1 ? hCal * padrao.horasFactorReal : null
-                                          return (
-                                            <View style={{ marginTop: 8 }}>
-                                              {frais > 0 && (
-                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                  <Text style={{ fontSize: 12, color: c.textSub }}>Salaire net utilisé</Text>
-                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{net.toFixed(2)} €</Text>
-                                                </View>
-                                              )}
-                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                <Text style={{ fontSize: 12, color: c.textSub }}>Heures calendrier</Text>
-                                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#f5a623' }}>{hCal.toFixed(1)}h</Text>
-                                              </View>
-                                              {hFiche !== null && (
-                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                  <Text style={{ fontSize: 12, color: c.textSub }}>Heures fiche (×{padrao.horasFactorReal.toFixed(3)})</Text>
-                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{hFiche.toFixed(1)}h</Text>
-                                                </View>
-                                              )}
-                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                <Text style={{ fontSize: 12, color: c.textSub }}>Taux utilisé</Text>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>{taxa.toFixed(3)} €/h net · {txLabel}</Text>
-                                              </View>
-                                            </View>
-                                          )
-                                        })()}
-                                      </>
-                                    ) : (
-                                      <>
-                                        <TextInput
-                                          style={{ backgroundColor: c.card, borderRadius: 8, padding: 8, fontSize: 13, color: c.text, borderWidth: 1, borderColor: c.cardBorder }}
-                                          keyboardType="numeric"
-                                          placeholder="Heures travaillées"
-                                          placeholderTextColor={c.textSub as string}
-                                          value={calcHeures}
-                                          onChangeText={setCalcHeures}
-                                        />
-                                        {(() => {
-                                          const h = parseFloat(calcHeures.replace(',', '.'))
-                                          if (!h || h <= 0) return null
-                                          const net = h * taxa
-                                          return (
-                                            <View style={{ marginTop: 8 }}>
-                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                <Text style={{ fontSize: 12, color: c.textSub }}>Salaire net estimé</Text>
-                                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#27ae60' }}>{net.toFixed(2)} €</Text>
-                                              </View>
-                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>⚠️ Frais non inclus</Text>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>dépendent des jours</Text>
-                                              </View>
-                                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                                <Text style={{ fontSize: 12, color: c.textSub }}>Taux utilisé</Text>
-                                                <Text style={{ fontSize: 11, color: c.textSub }}>{taxa.toFixed(3)} €/h net · {txLabel}</Text>
-                                              </View>
-                                            </View>
-                                          )
-                                        })()}
-                                      </>
-                                    )}
-                                  </View>
-                                  )
-                                })()}
                               </SectionWrap>
                             )}
                           </View>

@@ -2880,10 +2880,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                     <View style={{ marginBottom: 10 }}>
                                       {rows.map((r, i) => (
                                         <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                                          <Text style={{ fontSize: 12, color: c.textSub }}>{r.label}</Text>
-                                          <Text style={{ fontSize: 12, color: c.text }}>
-                                            {r.n > 0 ? `${r.n}× · ` : ''}<Text style={{ fontWeight: '700' }}>{r.val.toFixed(2)}€</Text>
-                                          </Text>
+                                          <Text style={{ fontSize: 12, color: c.textSub }}>{r.label} · {r.n}</Text>
+                                          <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>{r.val.toFixed(2)}€</Text>
                                         </View>
                                       ))}
                                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2, marginTop: 4, borderTopWidth: 1, borderTopColor: c.cardBorder }}>

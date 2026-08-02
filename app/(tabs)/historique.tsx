@@ -62,8 +62,9 @@ const calcAmplitudeDe = (debut: string, fin: string) => {
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const MOIS_COURT = ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
 const MAX_SEMAINE = 56 * 3600
-function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onDeleteNota, index }: {
-  jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, onDeleteNota: () => void, index: number
+function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onDeleteNota, index, modoSelecao, selecionado, onToggle, onLongPress }: {
+  jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, onDeleteNota: () => void, index: number,
+  modoSelecao: boolean, selecionado: boolean, onToggle: () => void, onLongPress: () => void
 }) {
   const cfg = TYPE_CONFIG[jour.type] || TYPE_CONFIG.TRAB
   const temPausa = jour.segPausa > 0
@@ -99,77 +100,97 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
     </TouchableOpacity>
   )
 
-  return (
-    <SwipeableGH renderRightActions={renderRightActions} overshootRight={false}>
-      <View style={{ marginHorizontal: 12, marginBottom: 6 }}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onEdit}>
-          <View style={[st.jourCard, { backgroundColor: c.card, borderColor: cfg.color + '30', borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
-            <View style={st.jourHeader}>
-              <View style={st.jourDateBox}>
-                <Text style={[st.jourDayName, { color: c.textSub }]}>{jour.jour.toUpperCase()}</Text>
-                <Text style={[st.jourDayNum, { color: '#f5a623' }]}>{diaNum}</Text>
-                <Text style={[st.jourMonth, { color: c.textSub }]}>{mesNome}</Text>
-                <View style={[st.jourDurLine, { backgroundColor: cfg.color + '30' }]} />
+  const cardContent = (
+    <View style={{ marginHorizontal: 12, marginBottom: 6 }}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={modoSelecao ? onToggle : onEdit}
+        onLongPress={onLongPress}
+      >
+        <View style={[
+          st.jourCard,
+          { backgroundColor: c.card, borderColor: cfg.color + '30', borderLeftColor: cfg.color, borderLeftWidth: 4 },
+          modoSelecao && selecionado && { borderColor: '#27ae60', borderWidth: 1.5 },
+        ]}>
+          <View style={st.jourHeader}>
+            <View style={st.jourDateBox}>
+              <Text style={[st.jourDayName, { color: c.textSub }]}>{jour.jour.toUpperCase()}</Text>
+              <Text style={[st.jourDayNum, { color: '#f5a623' }]}>{diaNum}</Text>
+              <Text style={[st.jourMonth, { color: c.textSub }]}>{mesNome}</Text>
+              <View style={[st.jourDurLine, { backgroundColor: cfg.color + '30' }]} />
+            </View>
+            <View style={st.jourInfo}>
+              <View style={[st.jourTypeBadge, { backgroundColor: cfg.bg }]}>
+                <Text style={[st.jourTypeText, { color: cfg.color }]}>{cfg.emoji} {cfg.label.toUpperCase()}</Text>
               </View>
-              <View style={st.jourInfo}>
-                <View style={[st.jourTypeBadge, { backgroundColor: cfg.bg }]}>
-                  <Text style={[st.jourTypeText, { color: cfg.color }]}>{cfg.emoji} {cfg.label.toUpperCase()}</Text>
-                </View>
-                {temServico ? (
-                  <>
-                    <View style={st.jourTimesRow}>
-                      <View style={st.jourTimeBlock}>
-                        <Text style={[st.jourTimeLabel, { color: c.textSub }]}>DÉBUT</Text>
-                        <Text style={[st.jourTimeVal, { color: c.text }]}>{jour.debut}</Text>
-                      </View>
-                      <View style={st.jourTimeBlock}>
-                        <Text style={[st.jourTimeLabel, { color: c.textSub }]}>FIN</Text>
-                        <Text style={[st.jourTimeVal, { color: c.text }]}>{jour.fin}</Text>
-                      </View>
+              {temServico ? (
+                <>
+                  <View style={st.jourTimesRow}>
+                    <View style={st.jourTimeBlock}>
+                      <Text style={[st.jourTimeLabel, { color: c.textSub }]}>DÉBUT</Text>
+                      <Text style={[st.jourTimeVal, { color: c.text }]}>{jour.debut}</Text>
                     </View>
-                    <View style={st.jourAmpServiceRow}>
-                      <Text style={st.jourAmplitudeText}>amp. {fmtHM(amplitudeSeg)}</Text>
-                      <Text style={[st.jourAmpSep, { color: c.textSub }]}>|</Text>
-                      <Text style={st.jourServiceText}>{fmtHM(jour.segServico)}</Text>
+                    <View style={st.jourTimeBlock}>
+                      <Text style={[st.jourTimeLabel, { color: c.textSub }]}>FIN</Text>
+                      <Text style={[st.jourTimeVal, { color: c.text }]}>{jour.fin}</Text>
                     </View>
-                    {temPausa && (
-                      <Text style={[st.jourPauseText, { color: '#f39c12' }]}>⏸ pause {fmtHM(jour.segPausa)}</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={[st.jourReposText, { color: c.textSub }]}>Jour non travaillé</Text>
+                  </View>
+                  <View style={st.jourAmpServiceRow}>
+                    <Text style={st.jourAmplitudeText}>amp. {fmtHM(amplitudeSeg)}</Text>
+                    <Text style={[st.jourAmpSep, { color: c.textSub }]}>|</Text>
+                    <Text style={st.jourServiceText}>{fmtHM(jour.segServico)}</Text>
+                  </View>
+                  {temPausa && (
+                    <Text style={[st.jourPauseText, { color: '#f39c12' }]}>⏸ pause {fmtHM(jour.segPausa)}</Text>
+                  )}
+                </>
+              ) : (
+                <Text style={[st.jourReposText, { color: c.textSub }]}>Jour non travaillé</Text>
+              )}
+              {index === 0 && !modoSelecao && <Text style={[st.swipeHint, { color: c.textSub }]}>← glisse pour supprimer</Text>}
+            </View>
+            <View style={st.jourFrais}>
+              <View style={{ alignItems: 'flex-end' }}>
+                {['FERIE','FER','RC','OFF'].includes(jour.type)
+                  ? <Text style={[st.jourFraisLabel, { color: c.textSub }]}>—</Text>
+                  : <>
+                      <Text style={[st.jourFraisLabel, { color: c.textSub }]}>FRAIS</Text>
+                      {jour.frais > 0
+                        ? <Text style={[st.jourFraisVal, { color: '#27ae60' }]}>+{jour.frais.toFixed(2)}€</Text>
+                        : <Text style={[st.jourFraisVal, { color: c.textSub }]}>—</Text>
+                      }
+                    </>
+                }
+                {(jour.kmDiarios ?? 0) > 0 && (
+                  <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>📍 {jour.kmDiarios} km</Text>
                 )}
-                {index === 0 && <Text style={[st.swipeHint, { color: c.textSub }]}>← glisse pour supprimer</Text>}
               </View>
-              <View style={st.jourFrais}>
-                <View style={{ alignItems: 'flex-end' }}>
-                  {['FERIE','FER','RC','OFF'].includes(jour.type)
-                    ? <Text style={[st.jourFraisLabel, { color: c.textSub }]}>—</Text>
-                    : <>
-                        <Text style={[st.jourFraisLabel, { color: c.textSub }]}>FRAIS</Text>
-                        {jour.frais > 0
-                          ? <Text style={[st.jourFraisVal, { color: '#27ae60' }]}>+{jour.frais.toFixed(2)}€</Text>
-                          : <Text style={[st.jourFraisVal, { color: c.textSub }]}>—</Text>
-                        }
-                      </>
-                  }
-                  {(jour.kmDiarios ?? 0) > 0 && (
-                    <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>📍 {jour.kmDiarios} km</Text>
-                  )}
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  {jour.nota && (
-                    <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <Text style={[st.editHint, { color: c.textSub }]}>✏️ modifier</Text>
-                </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                {modoSelecao ? (
+                  <Text style={{ fontSize: 22, color: selecionado ? '#27ae60' : c.textSub }}>
+                    {selecionado ? '✓' : '○'}
+                  </Text>
+                ) : (
+                  <>
+                    {jour.nota && (
+                      <TouchableOpacity onPress={onNote} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: 14 }}>{jour.nota.emoji}</Text>
+                      </TouchableOpacity>
+                    )}
+                    <Text style={[st.editHint, { color: c.textSub }]}>✏️ modifier</Text>
+                  </>
+                )}
               </View>
             </View>
           </View>
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
+    </View>
+  )
+
+  return modoSelecao ? cardContent : (
+    <SwipeableGH renderRightActions={renderRightActions} overshootRight={false}>
+      {cardContent}
     </SwipeableGH>
   )
 }
@@ -218,6 +239,8 @@ export default function HistoriqueScreen() {
   const { scrollToId, calMes, calAno } = useLocalSearchParams<{ scrollToId?: string, calMes?: string, calAno?: string }>()
   const listRef = useRef<FlatList>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [modoSelecao, setModoSelecao] = useState(false)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
   useEffect(() => {
     if (!scrollToId) return
@@ -343,6 +366,16 @@ const getJoursMois = () => {
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     await recarregarApp()
     log.info('historique', 'dia eliminado', { id })
+  }
+  const apagaSeleccionados = async () => {
+    const ids = selecionados
+    const nova = historique.filter(j => !ids.has(j.id))
+    setHistorique(nova)
+    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    await recarregarApp()
+    setSelecionados(new Set())
+    setModoSelecao(false)
+    log.info('historique', 'multi-select apagados', { count: ids.size })
   }
   const eliminarNota = async (id: string) => {
     const nova = historique.map(j => j.id === id ? { ...j, nota: undefined } : j)
@@ -895,10 +928,60 @@ const getJoursMois = () => {
               onEdit={() => abrirEdicao(jour)}
               onNote={() => abrirNota(jour)}
               onDeleteNota={() => eliminarNota(jour.id)}
+              modoSelecao={modoSelecao}
+              selecionado={selecionados.has(jour.id)}
+              onToggle={() => setSelecionados(prev => {
+                const next = new Set(prev)
+                next.has(jour.id) ? next.delete(jour.id) : next.add(jour.id)
+                return next
+              })}
+              onLongPress={() => {
+                setSelecionados(new Set([jour.id]))
+                setModoSelecao(true)
+              }}
             />
           </View>
         )}
-        ListHeaderComponent={<Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>}
+        ListHeaderComponent={modoSelecao ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => {
+                const todosIds = new Set(validos.map((j: Jour) => j.id))
+                const todosSelec = validos.every((j: Jour) => selecionados.has(j.id))
+                setSelecionados(todosSelec ? new Set() : todosIds)
+              }}
+              style={{ flex: 1, backgroundColor: c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.navBtnBorder }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>✓ Tudo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setSelecionados(new Set()); setModoSelecao(false) }}
+              style={{ flex: 1, backgroundColor: c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.navBtnBorder }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: c.text }}>✕ Annuler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                if (selecionados.size === 0) return
+                Alert.alert(
+                  '🗑️ Supprimer la sélection?',
+                  `${selecionados.size} jour${selecionados.size > 1 ? 's' : ''} — action irréversible.`,
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Supprimer', style: 'destructive', onPress: apagaSeleccionados },
+                  ]
+                )
+              }}
+              style={{ flex: 1.2, backgroundColor: selecionados.size > 0 ? '#e74c3c' : c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: selecionados.size > 0 ? '#e74c3c' : c.navBtnBorder }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: selecionados.size > 0 ? 'white' : c.textSub }}>
+                🗑️ Apagar{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={[st.listeTitle, { color: c.textLabel }]}>DÉTAIL DES JOURS</Text>
+        )}
       />
 
       {/* MODAL EDIT */}

@@ -290,6 +290,7 @@ export default function AujourdhuiScreen() {
   const emPausaRef = useRef(false)
   const pulsarBtn = useRef(new Animated.Value(1)).current
   const fadeIn = useRef(new Animated.Value(1)).current
+  const fingerAnim = useRef(new Animated.Value(0)).current
   const estadoAtualRef = useRef<any>({})
   const statsScrollRef = useRef<any>(null)
   const mainScrollRef = useRef<any>(null)
@@ -611,6 +612,18 @@ export default function AujourdhuiScreen() {
     loop.start()
     return () => { loop.stop() }
   }, [enService])
+
+  useEffect(() => {
+    if (tutorialDemarrer) { fingerAnim.stopAnimation(); return }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fingerAnim, { toValue: 8, duration: 400, useNativeDriver: true }),
+        Animated.timing(fingerAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+      ])
+    )
+    loop.start()
+    return () => loop.stop()
+  }, [tutorialDemarrer])
 
   useEffect(() => {
     estadoAtualRef.current = {
@@ -1571,13 +1584,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
             {/* ── TUTORIAL DÉMARRER (primeira visita) ── */}
             {!enService && !tutorialDemarrer && (
-              <View style={[st.tooltipBox, { borderColor: 'rgba(245,166,35,0.6)', marginHorizontal: 20, marginBottom: 8 }]}>
+              <View style={[st.tooltipBox, { borderColor: 'rgba(245,166,35,0.6)', marginHorizontal: 20, marginBottom: 0 }]}>
                 <Text style={[st.tooltipText, { color: '#f5a623' }]}>
-                  {'▶ Appuie ici pour démarrer ton service.\nL\'app chronomètre tes heures, calcule tes frais\net t\'alerte avant les limites légales.'}
+                  {'👆 Touche ici pour démarrer ton service de travail.\nL\'app chronomètre tes heures, calcule tes frais\net t\'alerte avant les limites légales.'}
                 </Text>
                 <TouchableOpacity onPress={dispensarTutorialDemarrer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginTop: 6, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 }}>
                   <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
                 </TouchableOpacity>
+                <Animated.Text style={{ textAlign: 'center', fontSize: 20, marginTop: 4, transform: [{ translateY: fingerAnim }] }}>
+                  👇
+                </Animated.Text>
               </View>
             )}
 

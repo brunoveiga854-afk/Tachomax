@@ -899,7 +899,7 @@ const getJoursMois = () => {
               <View style={{ flex: 1.3, backgroundColor: c.card, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: 'rgba(245,166,35,0.5)' }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#f5a623', marginBottom: 3 }}>📋 Fiche semaine PDF</Text>
                 <Text style={{ fontSize: 10, color: c.textSub, lineHeight: 15 }}>{'Génère et envoie ta fiche\nhebdomadaire en PDF.'}</Text>
-                <TouchableOpacity onPress={dispensarTutorialFolhe} style={{ marginTop: 5, alignSelf: 'flex-end' }}>
+                <TouchableOpacity onPress={dispensarTutorialFolhe} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginTop: 5, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 }}>
                   <Text style={{ fontSize: 10, color: '#f5a623', fontWeight: '800' }}>OK ✓</Text>
                 </TouchableOpacity>
               </View>

@@ -1575,7 +1575,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 <Text style={[st.tooltipText, { color: '#f5a623' }]}>
                   {'▶ Appuie ici pour démarrer ton service.\nL\'app chronomètre tes heures, calcule tes frais\net t\'alerte avant les limites légales.'}
                 </Text>
-                <TouchableOpacity onPress={dispensarTutorialDemarrer} style={{ marginTop: 6, alignSelf: 'flex-end' }}>
+                <TouchableOpacity onPress={dispensarTutorialDemarrer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginTop: 6, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 }}>
                   <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
                 </TouchableOpacity>
               </View>
@@ -1797,7 +1797,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 <Text style={[st.tooltipText, { color: '#2980b9' }]}>
                   {'📊 Stats Détaillées — touche ici pour voir\ntes frais mois par mois, tes records\net les projections de salaire.'}
                 </Text>
-                <TouchableOpacity onPress={dispensarTutorialStats} style={{ marginTop: 6, alignSelf: 'flex-end' }}>
+                <TouchableOpacity onPress={dispensarTutorialStats} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginTop: 6, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 }}>
                   <Text style={{ fontSize: 11, color: '#2980b9', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
                 </TouchableOpacity>
               </View>

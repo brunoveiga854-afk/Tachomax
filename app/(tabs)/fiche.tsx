@@ -2877,7 +2877,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <Text style={{ fontSize: 12, color: c.textSub, lineHeight: 18 }}>
               {'Appuie sur 📁 pour charger tes fiches de paye en PDF.\nL\'IA lit les montants et construit ton historique.\nTu confirmes ce que tu as réellement reçu — c\'est tout.'}
             </Text>
-            <TouchableOpacity onPress={dispensarTutorialCharger} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+            <TouchableOpacity onPress={dispensarTutorialCharger} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginTop: 8, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 }}>
               <Text style={{ fontSize: 11, color: '#f5a623', fontWeight: '800' }}>OK, j'ai compris ✓</Text>
             </TouchableOpacity>
           </View>

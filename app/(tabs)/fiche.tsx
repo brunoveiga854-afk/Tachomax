@@ -266,6 +266,14 @@ const isLagValide = (lag: number) => lag >= 0 && lag <= 3
 
 const moisLabelToIndex = (label: string) => MOIS_NOMS.indexOf(label)
 
+const shiftModalMois = (sel: { mois: number; annee: number }, delta: number) => {
+  let m = sel.mois + delta
+  let a = sel.annee
+  if (m > 11) { m = 0; a++ }
+  if (m < 0)  { m = 11; a-- }
+  return { mois: m, annee: a }
+}
+
 const mesFicheDe = (d: MoisData): [number, number] => [
   d.anoFiche ?? d.annee,
   d.mesFicheIndex ?? d.moisIndex,
@@ -1042,6 +1050,8 @@ export default function MonSalaireScreen() {
   const [showModalCancelar, setShowModalCancelar] = useState(false)
   const [showModalFraisReel, setShowModalFraisReel] = useState(false)
   const [showModalSalNet, setShowModalSalNet] = useState(false)
+  const [modalSalMoisSel, setModalSalMoisSel] = useState({ mois: new Date().getMonth(), annee: new Date().getFullYear() })
+  const [modalFraisMoisSel, setModalFraisMoisSel] = useState({ mois: new Date().getMonth(), annee: new Date().getFullYear() })
   const [modoSelMeses, setModoSelMeses] = useState(false)
   const [selMeses, setSelMeses] = useState<Set<string>>(new Set())
   const [inputSalNet, setInputSalNet] = useState('')
@@ -2325,7 +2335,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               {/* Salário — clicável para confirmar valor real */}
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: 'rgba(39,174,96,0.18)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.salConfirmado ? '#27ae60' : 'rgba(39,174,96,0.35)' }}
-                onPress={() => { setInputSalNet(calcResult.salLiq.toFixed(2)); setShowModalSalNet(true) }}
+                onPress={() => {
+                  const [lbl, yr] = calcResult.mesReceber.split(' ')
+                  setModalSalMoisSel({ mois: Math.max(0, moisLabelToIndex(lbl)), annee: parseInt(yr) || new Date().getFullYear() })
+                  setInputSalNet(calcResult.salLiq.toFixed(2))
+                  setShowModalSalNet(true)
+                }}
               >
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   💰 SALAIRE NET <Text style={{ fontSize: 9, opacity: 0.6 }}>{calcResult.salConfirmado ? '✅' : '✏️'}</Text>
@@ -2336,7 +2351,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               {/* Frais */}
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: calcResult.fraisConfirmado ? 'rgba(41,128,185,0.22)' : 'rgba(41,128,185,0.12)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: calcResult.fraisConfirmado ? '#2980b9' : 'rgba(41,128,185,0.35)' }}
-                onPress={() => { setInputFraisReel(calcResult.totalFrais.toFixed(2)); setShowModalFraisReel(true) }}
+                onPress={() => {
+                  const [lbl, yr] = calcResult.mesFraisLabel.split(' ')
+                  setModalFraisMoisSel({ mois: Math.max(0, moisLabelToIndex(lbl)), annee: parseInt(yr) || new Date().getFullYear() })
+                  setInputFraisReel(calcResult.totalFrais.toFixed(2))
+                  setShowModalFraisReel(true)
+                }}
               >
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 }}>
                   🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.7 }}>{calcResult.fraisConfirmado ? '✅' : '✏️'}</Text>
@@ -3148,6 +3168,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 4, marginTop: 6, marginBottom: 4, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: c.cardBorder }}
                 onPress={async () => {
                   await calcularSalario()
+                  const agora = new Date()
+                  setModalSalMoisSel({ mois: agora.getMonth(), annee: agora.getFullYear() })
                   setInputSalNet('')
                   setShowModalSalNet(true)
                 }}
@@ -3706,10 +3728,16 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#2980b9' }}>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>🍽️ Corriger les frais</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
-              Estimé depuis <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesFraisLabel}</Text>
-            </Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 8 }}>🍽️ Corriger les frais</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 14 }}>
+              <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setModalFraisMoisSel(s => shiftModalMois(s, -1))}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#2980b9' }}>‹</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: c.text }}>{MOIS_NOMS[modalFraisMoisSel.mois]} {modalFraisMoisSel.annee}</Text>
+              <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setModalFraisMoisSel(s => shiftModalMois(s, 1))}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#2980b9' }}>›</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 18, lineHeight: 16 }}>
               Si le mois est incorrect, entre le montant réel reçu.{'\n'}La prochaine estimation utilisera cette valeur.
             </Text>
@@ -3737,15 +3765,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     setCountingVal(Math.round(novoTotal))
 
                     // Guardar frais confirmado no histórico para persistir entre cálculos
-                    const [mesFraisLabel] = calcResult.mesFraisLabel.split(' ')
-                    const anoFrais = parseInt(calcResult.mesFraisLabel.split(' ')[1])
-                    const mesFraisIdx = moisLabelToIndex(mesFraisLabel)
-                    const [mesPagamentoLabel] = calcResult.mesReceber.split(' ')
-                    const mesPagamentoCalc = moisLabelToIndex(mesPagamentoLabel)
-                    const anoPagamentoCalc = parseInt(calcResult.mesReceber.split(' ')[1])
-                    const agora = new Date()
-                    const mesPagamento = mesPagamentoCalc >= 0 ? mesPagamentoCalc : agora.getMonth()
-                    const anoPagamento = Number.isFinite(anoPagamentoCalc) ? anoPagamentoCalc : agora.getFullYear()
+                    const mesPagamento = modalFraisMoisSel.mois
+                    const anoPagamento = modalFraisMoisSel.annee
                     const novoHist = aplicarConfirmacaoFraisPorValor(
                       historique,
                       fraisReel,
@@ -3753,10 +3774,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       mesPagamento,
                       padrao,
                       {
-                        periode: calcResult.mesFraisLabel,
-                        moisIndex: mesFraisIdx >= 0 ? mesFraisIdx : mesPagamento,
-                        annee: Number.isFinite(anoFrais) ? anoFrais : anoPagamento,
-                        entreprise: calcResult.empresa || '',
+                        periode: `${MOIS_NOMS[mesPagamento]} ${anoPagamento}`,
+                        moisIndex: mesPagamento,
+                        annee: anoPagamento,
+                        entreprise: calcResult?.empresa || '',
                       }
                     )
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
@@ -3767,7 +3788,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     await persistirPadrao(novoPadrao)
                     await recarregarApp()
                     showToast('✓ Modifications appliquées')
-                    log.info('fiche', 'frais reels guardados', { periode: calcResult.mesFraisLabel })
+                    log.info('fiche', 'frais reels guardados', { periode: `${MOIS_NOMS[modalFraisMoisSel.mois]} ${modalFraisMoisSel.annee}` })
                   }
                   setShowModalFraisReel(false)
                 }}
@@ -3787,10 +3808,16 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#27ae60' }}>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>💰 Confirmer le salaire net</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 6 }}>
-              Estimé pour <Text style={{ color: '#f5a623', fontWeight: '700' }}>{calcResult?.mesReceber}</Text>
-            </Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 8 }}>💰 Confirmer le salaire net</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 14 }}>
+              <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setModalSalMoisSel(s => shiftModalMois(s, -1))}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#27ae60' }}>‹</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: c.text }}>{MOIS_NOMS[modalSalMoisSel.mois]} {modalSalMoisSel.annee}</Text>
+              <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setModalSalMoisSel(s => shiftModalMois(s, 1))}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#27ae60' }}>›</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={{ fontSize: 11, color: '#f39c12', textAlign: 'center', marginBottom: 14, lineHeight: 16 }}>
               Entre le net récurrent (sans primes). L'IA améliore les prochaines estimations.
             </Text>
@@ -3854,28 +3881,27 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const extraInteressement = parseFloat(inputInteressement.replace(',', '.')) || 0
                   const extraNonAcc = parseFloat(inputPrimeNonAcc.replace(',', '.')) || 0
                   const totalExtras = extraInteressement + extraNonAcc
-                  if (salReel > 0 && calcResult) {
-                    const novoTotal = salReel + calcResult.totalFrais + totalExtras
-                    setCalcResult({ ...calcResult, salLiq: salReel, totalLiq: novoTotal, salConfirmado: true })
+                  if (salReel > 0) {
+                    const novoTotal = salReel + (calcResult?.totalFrais || 0) + totalExtras
+                    if (calcResult) setCalcResult({ ...calcResult, salLiq: salReel, totalLiq: novoTotal, salConfirmado: true })
                     setCountingVal(Math.round(novoTotal))
 
-                    const [mesReceberLabel] = calcResult.mesReceber.split(' ')
-                    const mesIdx = moisLabelToIndex(mesReceberLabel)
-                    const ano = parseInt(calcResult.mesReceber.split(' ')[1]) || new Date().getFullYear()
+                    const mesIdx = modalSalMoisSel.mois
+                    const ano = modalSalMoisSel.annee
                     let novoHist = aplicarConfirmacaoSalarioPorValor(
                       historique,
                       salReel,
                       ano,
-                      mesIdx >= 0 ? mesIdx : new Date().getMonth(),
+                      mesIdx,
                       novoTotal,
                       padrao,
-                      { entreprise: calcResult.empresa || '', frais: calcResult.totalFrais },
+                      { entreprise: calcResult?.empresa || '', frais: calcResult?.totalFrais || 0 },
                     )
                     // Add extras to the confirmed entry
                     if (totalExtras > 0) {
-                      const targetPeriode = `${MOIS_NOMS[mesIdx >= 0 ? mesIdx : new Date().getMonth()]} ${ano}`
+                      const targetPeriode = `${MOIS_NOMS[mesIdx]} ${ano}`
                       novoHist = novoHist.map(h =>
-                        (h.periode === targetPeriode || (h.moisIndex === (mesIdx >= 0 ? mesIdx : new Date().getMonth()) && h.annee === ano))
+                        (h.periode === targetPeriode || (h.moisIndex === mesIdx && h.annee === ano))
                           ? { ...h, interessement: extraInteressement || h.interessement, primeNonAccident: extraNonAcc || h.primeNonAccident, montantTotalRecu: novoTotal }
                           : h
                       )

@@ -462,7 +462,7 @@ const montantTotalRecuFiche = (d: any) =>
   netPayeRecurrent(d) + totalPrimesExceptionnelles(d) + (d?.remboursementFrais || 0)
 
 const contaParaFraisAprendizagem = (d: MoisData) =>
-  d.fraisConfirmado || fraisRealConfirme(d) > 0 || (d.fraisBoletim || 0) > 0 || (d.remboursementFrais || 0) > 0
+  !!d.fraisConfirmado && fraisRealConfirme(d) > 0
 
 
 function diasCalendarioMes(hist: any[], ano: number, mes: number) {
@@ -937,7 +937,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     for (const m of mesesComFraisBoletim) {
       const [aF, mF] = mesFraisTrabalhoDe(m, base)
       const fraisCalc = calcFraisMesPorHorarios(hist, aF, mF, base)
-      const fraisReal = fraisRealConfirme(m) || m.fraisBoletim || 0
+      const fraisReal = fraisRealConfirme(m)
       const diff = Math.abs(fraisReal - fraisCalc.total)
       if (fraisCalc.total > 50 && fraisReal > 50 && diff > Math.max(20, fraisReal * 0.08)) {
         ratios.push(fraisReal / fraisCalc.total)

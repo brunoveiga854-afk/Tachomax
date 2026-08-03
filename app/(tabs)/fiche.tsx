@@ -3030,6 +3030,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
               {historique.slice().reverse().map((m, i) => {
                 const estimativa = calcEstimativaMes(m)
+                const rateCard = (m.salairebrut || 0) > 0 && (m.netPaye || 0) > 0
+                  ? (m.netPaye || 0) / (m.salairebrut || 0)
+                  : null
+                const rateAnormal = rateCard !== null && (rateCard < 0.60 || rateCard > 0.90) && !m.moisAtipico
                 const temReal = m.montantTotalRecu > 0
                 const delta = temReal && estimativa > 0 ? m.montantTotalRecu - estimativa : null
                 const pctAcerto = delta !== null && estimativa > 0
@@ -3058,6 +3062,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         {(m.fichePages || 0) === 0 && m.salarioConfirmado && (
                           <View style={{ backgroundColor: 'rgba(149,165,166,0.15)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
                             <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700' }}>✍️ Manuel</Text>
+                          </View>
+                        )}
+                        {rateAnormal && (
+                          <View style={{ backgroundColor: 'rgba(231,76,60,0.12)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 9, color: '#e74c3c', fontWeight: '700' }}>
+                              ⚠️ {Math.round((rateCard ?? 0) * 100)}% — vérifier
+                            </Text>
                           </View>
                         )}
                       </View>

@@ -1450,10 +1450,11 @@ export default function MonSalaireScreen() {
       const fichesFrais = histSal.filter(f => {
         const fMes = (f.mesFraisTrabalhoIndex != null) ? f.mesFraisTrabalhoIndex : f.moisIndex
         const fAno = (f.anoFraisTrabalho != null) ? f.anoFraisTrabalho : f.annee
-        return fMes === mesFrais && fAno === anoFrais && ((f.fraisRecuConfirme || 0) > 0 || f.fraisBoletim > 0)
+        return fMes === mesFrais && fAno === anoFrais && !!f.fraisConfirmado && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
       })
-      // Frais confirmado pelo utilizador tem prioridade sobre o cálculo automático
-      const factorFrais = (p.fraisFactorReal || 0) > 0.1 ? p.fraisFactorReal : 1
+      // Só aplica factorFrais se o mês de frais ainda está em curso (calendário potencialmente incompleto)
+      const mesFraisPassado = anoFrais < anoActual || (anoFrais === anoActual && mesFrais < mesActual)
+      const factorFrais = (!mesFraisPassado && (p.fraisFactorReal || 0) > 0.1) ? p.fraisFactorReal : 1
       const totalFrais = fichesFrais.length > 0
         ? (fichesFrais[0].fraisRecuConfirme || fichesFrais[0].fraisBoletim)
         : fraisHorario.total > 0 ? Math.round(fraisHorario.total * factorFrais) : 0

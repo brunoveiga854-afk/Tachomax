@@ -3032,7 +3032,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     onLongPress={() => { setSelMeses(new Set([m.periode])); setModoSelMeses(true) }}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[st.histPeriode, { color: c.text }]}>{m.periode}</Text>
+                        {(m.fichePages || 0) === 0 && m.salarioConfirmado && (
+                          <View style={{ backgroundColor: 'rgba(149,165,166,0.15)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '700' }}>✍️ Manuel</Text>
+                          </View>
+                        )}
+                      </View>
                       {/* Linha comparação */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                         {estimativa > 0 && (
@@ -3135,6 +3142,18 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   </Swipeable>
                 )
               })}
+
+              {/* ── AJOUTER MANUELLEMENT ── */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 4, marginTop: 6, marginBottom: 4, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: c.cardBorder }}
+                onPress={async () => {
+                  await calcularSalario()
+                  setInputSalNet('')
+                  setShowModalSalNet(true)
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '800', color: c.textSub }}>➕ Ajouter manuellement</Text>
+              </TouchableOpacity>
             </View>
           )
         })()}

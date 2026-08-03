@@ -1191,7 +1191,7 @@ export default function ReglagesScreen() {
               style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#f5a623', fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 16 }}
               value={editPrenom}
               onChangeText={setEditPrenom}
-              placeholder="Ex: Bruno"
+              placeholder="Ex: Jean"
               placeholderTextColor={c.textSub}
               autoCapitalize="words"
             />

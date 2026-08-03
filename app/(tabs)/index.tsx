@@ -108,7 +108,7 @@ export default function AujourdhuiScreen() {
   const [dateInicio, setDateInicio] = useState<Date | null>(null)
   const [modoTacho, setModoTacho] = useState<'crescente' | 'decrescente'>('crescente')
   const [profil, setProfil] = useState<Profil>('MIXTE')
-  const [nomeConducteur, setNomeConducteur] = useState('Bruno')
+  const [nomeConducteur, setNomeConducteur] = useState('')
   const [showProfil, setShowProfil] = useState(false)
   const [statsSemaine, setStatsSemaine] = useState({ heures: 0, decouche: 0, frais: 0, jours: 0 })
   const [modeNuit, setModeNuit] = useState(false)
@@ -1490,7 +1490,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           <Animated.View style={{ opacity: fadeIn }}>
             <View style={st.greeting}>
               <Text style={[st.dateText, { color: c.textSub }]}>{getNomDia()}</Text>
-              <Text style={[st.greetingName, { color: c.text }]}>{t.bonjour} {nomeConducteur}</Text>
+              <Text style={[st.greetingName, { color: c.text }]}>{t.bonjour}{nomeConducteur ? ` ${nomeConducteur}` : ' !'}</Text>
             </View>
 
             {/* ── WEEK SUMMARY CARD ── */}
@@ -2427,7 +2427,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
             <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 4 }}>🏁</Text>
             <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>{t.serviceTermineModal}</Text>
-            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>{t.bonneJournee} {nomeConducteur} 👋</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20 }}>{t.bonneJournee}{nomeConducteur ? ` ${nomeConducteur}` : ''} 👋</Text>
 
             {/* Stats grid */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>

@@ -336,7 +336,7 @@ export default function OnboardingScreen() {
               style={st.nomInput}
               value={prenom}
               onChangeText={setPrenom}
-              placeholder="Ex: Bruno"
+              placeholder="Ex: Jean"
               placeholderTextColor={COR_OFF}
               autoCapitalize="words"
               returnKeyType="next"

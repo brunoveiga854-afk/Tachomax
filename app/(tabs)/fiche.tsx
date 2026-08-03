@@ -368,6 +368,7 @@ function aplicarConfirmacaoSalarioPorValor(
     }
   }
 
+  const [anoFraisTrabalhoNew, mesFraisTrabalhoNew] = shiftMois(anoPagamento, mesPagamento, -padraoAtual.flag)
   next.push({
     periode: `${MOIS_NOMS[mesPagamento]} ${anoPagamento}`,
     moisIndex: mesPagamento,
@@ -387,6 +388,8 @@ function aplicarConfirmacaoSalarioPorValor(
     salarioConfirmado: true,
     pagamentoSalMesIndex: mesPagamento,
     pagamentoSalAno: anoPagamento,
+    mesFraisTrabalhoIndex: mesFraisTrabalhoNew,
+    anoFraisTrabalho: anoFraisTrabalhoNew,
   })
   return next
 }
@@ -424,6 +427,7 @@ function aplicarConfirmacaoFraisPorValor(
     }
   }
 
+  const [anoFraisTrabalhoNew, mesFraisTrabalhoNew] = shiftMois(anoPagamento, mesPagamento, -padraoAtual.flag)
   next.push({
     periode: fallback.periode,
     moisIndex: fallback.moisIndex,
@@ -444,6 +448,8 @@ function aplicarConfirmacaoFraisPorValor(
     fraisConfirmado: true,
     pagamentoFraisMesIndex: mesPagamento,
     pagamentoFraisAno: anoPagamento,
+    mesFraisTrabalhoIndex: mesFraisTrabalhoNew,
+    anoFraisTrabalho: anoFraisTrabalhoNew,
   })
   return next
 }

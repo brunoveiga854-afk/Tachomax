@@ -737,6 +737,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       .filter(v => v > 0 && v < limiteCongeFerie)
     if (vals.length > 0)
       base.valorDiaConges = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    else
+      base.valorDiaConges = 0
   } else if (comBrutoOuNet.length >= 3 && hist.length > 0) {
     // Fallback: aprende por diferença entre meses — precisa de variação
     const aprendizagens: number[] = []
@@ -773,6 +775,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       .filter(v => v > 0 && v < limiteCongeFerie)
     if (vals.length > 0)
       base.valorDiaFerie = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    else
+      base.valorDiaFerie = 0
   }
 
   if (comRC.length > 0) {
@@ -782,6 +786,8 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       .filter(v => v > 0 && v < limiteRC)
     if (vals.length > 0)
       base.valorDiaRC = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    else
+      base.valorDiaRC = 0
   }
 
   // E. Detectar hlag automaticamente (com ≥2 fiches + horários)

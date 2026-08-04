@@ -2846,10 +2846,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
                         {/* Header personalizado com nav ‹/› — sempre aberto */}
                         <View style={{ paddingTop: 14, paddingBottom: 6 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 2 }}>
-                            <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>💰 FRAIS</Text>
-                            <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fraisNavTotal.toFixed(0)}€</Text>
-                          </View>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text, paddingHorizontal: 2 }}>💰 FRAIS</Text>
                           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>
                             <TouchableOpacity
                               onPress={() => setFraisMesOffset(v => v - 1)}

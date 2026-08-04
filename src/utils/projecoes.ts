@@ -101,7 +101,7 @@ export function calcMediasDiasTrabalho(
     } else if (totalHFiche >= 10 && diasTrab.length > 0) {
       // Fallback: calendário incompleto mas há dias reais + totalHeures da fiche
       totalH = totalHFiche
-      nDias = diasTrab.length
+      nDias = Math.max(1, diasTrab.length)
     } else if (totalHFiche >= 10) {
       // Último recurso: só fiche, estima nDias por jours ouvrés
       totalH = totalHFiche
@@ -195,7 +195,7 @@ export function calcEstimativaMes(
   // 1ª prioridade: fraisBoletim confirmado para este mês de frais
   const ficheComFrais = historique.find(f => {
     const [anoFrais, mesFrais] = mesFraisTrabalhoDe(f, p)
-    return mesFrais === mF && anoFrais === aF && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
+    return mesFrais === mF && anoFrais === aF && !!f.fraisConfirmado && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
   })
   let totalFrais: number
   if (ficheComFrais) {

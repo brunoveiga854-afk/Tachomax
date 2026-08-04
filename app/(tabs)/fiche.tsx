@@ -731,8 +731,12 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   const comRC = dados.filter(d => (d.joursRC || 0) > 0 && (d.montantRC || 0) > 0)
 
   if (comConges.length > 0) {
-    const vals = comConges.map(d => (d.montantConges || 0) / (d.joursConges || 1))
-    base.valorDiaConges = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    const limiteCongeFerie = Math.max(200, (base.hbase / 22) * base.hval * 2)
+    const vals = comConges
+      .map(d => (d.montantConges || 0) / (d.joursConges || 1))
+      .filter(v => v > 0 && v < limiteCongeFerie)
+    if (vals.length > 0)
+      base.valorDiaConges = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
   } else if (comBrutoOuNet.length >= 3 && hist.length > 0) {
     // Fallback: aprende por diferença entre meses — precisa de variação
     const aprendizagens: number[] = []
@@ -763,8 +767,12 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   if (comFeries.length > 0) {
-    const vals = comFeries.map(d => (d.montantFeries || 0) / (d.joursFeries || 1))
-    base.valorDiaFerie = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    const limiteCongeFerie = Math.max(200, (base.hbase / 22) * base.hval * 2)
+    const vals = comFeries
+      .map(d => (d.montantFeries || 0) / (d.joursFeries || 1))
+      .filter(v => v > 0 && v < limiteCongeFerie)
+    if (vals.length > 0)
+      base.valorDiaFerie = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
   }
 
   if (comRC.length > 0) {

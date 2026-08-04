@@ -768,9 +768,10 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   if (comRC.length > 0) {
+    const limiteRC = Math.max(200, (base.hbase / 22) * base.hval * 2)
     const vals = comRC
       .map(d => (d.montantRC || 0) / (d.joursRC || 1))
-      .filter(v => v > 0 && v < 300)
+      .filter(v => v > 0 && v < limiteRC)
     if (vals.length > 0)
       base.valorDiaRC = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
   }

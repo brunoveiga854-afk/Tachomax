@@ -1619,9 +1619,23 @@ export default function MonSalaireScreen() {
       mediasGlobais,
       estimativa: calcEstimativaMes(maio),
     })
-    log.info('DEBUG_MAIO_DIAS', 'primeiros 3 diasTrab', diasTrab.slice(0, 3).map((j: any) => ({
+    log.info('DEBUG_MAIO_DIAS', 'todos diasTrab', diasTrab.map((j: any) => ({
       date: j.date, type: j.type, segServico: j.segServico, segH: (j.segServico || 0) / 3600,
     })))
+    const _totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
+    const _totalH = _totalSeg / 3600
+    const [_aF, _mF] = mesFraisTrabalhoDe(maio, padrao)
+    const _fraisCalc = calcFraisMesPorHorarios(histCal, _aF, _mF, padrao)
+    const _factor = (padrao.fraisFactorReal || 0) > 0.1 ? padrao.fraisFactorReal : 1
+    log.info('DEBUG_MAIO_CALC', 'decomposição', {
+      totalSeg: _totalSeg, totalH: _totalH,
+      salLiq: Math.round(_totalH * padrao.taxaHorariaNetaMedia),
+      aF: _aF, mF: _mF,
+      fraisCalcTotal: _fraisCalc.total,
+      fraisFactorReal: padrao.fraisFactorReal,
+      factor: _factor,
+      totalFrais: _fraisCalc.total > 0 ? Math.round(_fraisCalc.total * _factor) : (maio.fraisBoletim || 0),
+    })
   }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
 
   const animarRespiracao = () => {

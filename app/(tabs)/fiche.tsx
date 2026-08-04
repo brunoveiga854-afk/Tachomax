@@ -768,8 +768,11 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   }
 
   if (comRC.length > 0) {
-    const vals = comRC.map(d => (d.montantRC || 0) / (d.joursRC || 1))
-    base.valorDiaRC = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
+    const vals = comRC
+      .map(d => (d.montantRC || 0) / (d.joursRC || 1))
+      .filter(v => v > 0 && v < 300)
+    if (vals.length > 0)
+      base.valorDiaRC = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100
   }
 
   // E. Detectar hlag automaticamente (com ≥2 fiches + horários)

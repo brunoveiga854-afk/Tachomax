@@ -995,7 +995,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
 export default function MonSalaireScreen() {
   const { themeSombre } = useTheme()
-  const { state: appState, recarregarApp } = useApp()
+  const { state: appState, recarregarApp, actualizarCampo } = useApp()
   const { showToast } = useToast()
   const [historique, setHistorique] = useState<MoisData[]>([])
   const [padrao, setPadrao] = useState<Padrao>({
@@ -1178,6 +1178,7 @@ export default function MonSalaireScreen() {
     log.warn('fiche', 'meses eliminados (multi-select)', { count: periodes.size })
     const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
     await persistirPadrao(novoPadrao)
+    actualizarCampo('histSal', nova)
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     setSelMeses(new Set())
@@ -2246,6 +2247,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     perfLog.time('fiche', 'guardarTudo:persistirPadrao')
     await persistirPadrao(novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
+    actualizarCampo('histSal', novoHist)
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
@@ -3164,6 +3166,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                 log.warn('fiche', 'mês eliminado', { periode: m.periode })
                                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
+                                actualizarCampo('histSal', nova)
                                 await recarregarApp()
                                 showToast('✓ Modifications appliquées')
                               }
@@ -3804,6 +3807,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    actualizarCampo('histSal', novoHist)
                     await recarregarApp()
                     showToast('✓ Modifications appliquées')
                     log.info('fiche', 'frais reels guardados', { periode: `${MOIS_NOMS[modalFraisMoisSel.mois]} ${modalFraisMoisSel.annee}` })
@@ -3931,6 +3935,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const histCal = appState.histCal ?? []
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
+                    actualizarCampo('histSal', novoHist)
                     await recarregarApp()
                     showToast('✓ Modifications appliquées')
                     log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
@@ -4064,6 +4069,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const histCal = appState.histCal ?? []
                   const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
+                  actualizarCampo('histSal', nova)
                   await recarregarApp()
                   showToast('✓ Modifications appliquées')
                   setModalDetail(updated)

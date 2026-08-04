@@ -6,6 +6,7 @@
 import type { MoisData } from '../types/moisdata'
 import type { PadraoSalario } from '../engine/migracoes'
 import { shiftMois, calcFraisMesPorHorarios } from './calculos'
+import { log } from './logger'
 
 // ── Tipo público das médias ───────────────────────────────────────────────────
 
@@ -225,7 +226,7 @@ export function calcEstimativaMes(
     const _valFeries = nFeries * valFerieNet
     const _valRC = nRC * valRCNet
     const _raw = salLiq + totalFrais
-    console.info('[DEBUG_CALC_INTERNO]', JSON.stringify({
+    log.info('DEBUG_CALC_INTERNO', 'decomposição Mai 2026', {
       totalH, taxaHorariaNetaMedia: p.taxaHorariaNetaMedia,
       salBase: _salBase,
       nConges, valCongeNet, valCongesTotal: _valConges,
@@ -236,7 +237,7 @@ export function calcEstimativaMes(
       fraisCalcTotal: fraisCalc.total, factor, totalFrais,
       rawAvantRound: _raw,
       resultatFinal: Math.round(_raw),
-    }))
+    })
   }
   return Math.round(salLiq + totalFrais)
 }

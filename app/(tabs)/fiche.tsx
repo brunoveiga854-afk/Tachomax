@@ -1636,6 +1636,21 @@ export default function MonSalaireScreen() {
       factor: _factor,
       totalFrais: _fraisCalc.total > 0 ? Math.round(_fraisCalc.total * _factor) : (maio.fraisBoletim || 0),
     })
+    const _ficheDebug = historique.find((f: MoisData) => {
+      const [aF2, mF2] = mesFraisTrabalhoDe(f, padrao)
+      return mF2 === _mF && aF2 === _aF && !!f.fraisConfirmado
+        && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
+    })
+    log.info('DEBUG_FICHE_FRAIS_ABRIL', 'fiche encontrada', {
+      found: !!_ficheDebug,
+      moisIndex: _ficheDebug?.moisIndex,
+      annee: _ficheDebug?.annee,
+      fraisConfirmado: _ficheDebug?.fraisConfirmado,
+      fraisBoletim: _ficheDebug?.fraisBoletim,
+      fraisRecuConfirme: _ficheDebug?.fraisRecuConfirme,
+      mesFraisTrabalhoIndex: _ficheDebug?.mesFraisTrabalhoIndex,
+      anoFraisTrabalho: _ficheDebug?.anoFraisTrabalho,
+    })
   }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
 
   const animarRespiracao = () => {

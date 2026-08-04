@@ -193,16 +193,26 @@ export function calcEstimativaMes(
   const [aF, mF] = mesFraisTrabalhoDe(m, p)
 
   // 1ª prioridade: fraisBoletim confirmado para este mês de frais
+  const FRAIS_SANIDADE_MAX = 3000  // acima disto = valor corrompido (AI scan / bug)
+
   const ficheComFrais = historique.find(f => {
     const [anoFrais, mesFrais] = mesFraisTrabalhoDe(f, p)
     return mesFrais === mF && anoFrais === aF && !!f.fraisConfirmado && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
   })
+  const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, p)
+  const factor    = (p.fraisFactorReal || 0) > 0.1 && p.fraisFactorReal < 3.0 ? p.fraisFactorReal : 1
   let totalFrais: number
   if (ficheComFrais) {
-    totalFrais = ficheComFrais.fraisRecuConfirme || ficheComFrais.fraisBoletim
+    const valorFiche = ficheComFrais.fraisRecuConfirme || ficheComFrais.fraisBoletim || 0
+    if (valorFiche <= FRAIS_SANIDADE_MAX) {
+      totalFrais = valorFiche
+    } else {
+      // valor corrompido — cai no cálculo por horários
+      totalFrais = fraisCalc.total > 0
+        ? Math.round(fraisCalc.total * factor)
+        : (m.fraisBoletim || 0)
+    }
   } else {
-    const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, p)
-    const factor    = (p.fraisFactorReal || 0) > 0.1 ? p.fraisFactorReal : 1
     totalFrais = fraisCalc.total > 0
       ? Math.round(fraisCalc.total * factor)
       : (m.fraisBoletim || 0)

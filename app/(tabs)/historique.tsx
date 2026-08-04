@@ -6,7 +6,7 @@ import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { useFocusEffect, useLocalSearchParams } from 'expo-router'
-import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet, Share, Alert, Modal, TextInput, RefreshControl, KeyboardAvoidingView, Platform, BackHandler } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Swipeable as SwipeableGH } from 'react-native-gesture-handler'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -256,6 +256,17 @@ export default function HistoriqueScreen() {
     AsyncStorage.setItem('tutorial_visto_folhe', '1')
   }
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
+
+  // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showEdit)           { setShowEdit(false);           return true }
+      if (showNoteModal)      { setShowNoteModal(false);      return true }
+      if (showModalFicheDias) { setShowModalFicheDias(false); return true }
+      return false
+    })
+    return () => sub.remove()
+  }, [showEdit, showNoteModal, showModalFicheDias])
   const chargerHistorique = async () => {
     setRefreshing(true)
     try {

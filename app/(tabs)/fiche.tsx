@@ -4037,6 +4037,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
                 const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
                 const interessEdit = parseFloat(editInteressement) || 0
+                const [anoFraisTrabalhoEdit, mesFraisTrabalhoEdit] = shiftMois(editAnnee, editMoisIndex, -padrao.flag)
                 const updated = {
                   ...modalDetail,
                   periode: novePeriode,
@@ -4058,6 +4059,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   pagamentoSalAno: modalDetail.pagamentoSalAno ?? editAnnee,
                   pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? editMoisIndex,
                   pagamentoFraisAno: modalDetail.pagamentoFraisAno ?? editAnnee,
+                  mesFraisTrabalhoIndex: mesFraisTrabalhoEdit,
+                  anoFraisTrabalho: anoFraisTrabalhoEdit,
                 }
                 try {
                   // Remove old entry (old periode), insert updated, re-sort

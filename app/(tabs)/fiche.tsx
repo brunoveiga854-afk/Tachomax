@@ -1619,6 +1619,9 @@ export default function MonSalaireScreen() {
       mediasGlobais,
       estimativa: calcEstimativaMes(maio),
     })
+    log.info('DEBUG_MAIO_DIAS', 'primeiros 3 diasTrab', diasTrab.slice(0, 3).map((j: any) => ({
+      date: j.date, type: j.type, segServico: j.segServico, segH: (j.segServico || 0) / 3600,
+    })))
   }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
 
   const animarRespiracao = () => {

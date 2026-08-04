@@ -256,23 +256,6 @@ export default function HistoriqueScreen() {
     AsyncStorage.setItem('tutorial_visto_folhe', '1')
   }
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
-  useEffect(() => {
-    if (!scrollToId) return
-    setVue('mois')
-    const t = setTimeout(() => {
-      if (calMes !== undefined && calAno !== undefined) {
-        const agora = new Date()
-        const mesAlvo = parseInt(calMes as string)
-        const anoAlvo = parseInt(calAno as string)
-        const diffMeses = (anoAlvo - agora.getFullYear()) * 12 + (mesAlvo - agora.getMonth())
-        setMoisOffset(diffMeses)
-      } else {
-        setMoisOffset(0)
-      }
-      setHighlightId(scrollToId as string)
-    }, 100)
-    return () => clearTimeout(t)
-  }, [scrollToId, calMes, calAno])
   const chargerHistorique = async () => {
     setRefreshing(true)
     try {
@@ -290,6 +273,19 @@ export default function HistoriqueScreen() {
       const mudou = migrada.some((j: any, i: number) => j.date !== lista[i].date)
       if (mudou) await AsyncStorage.setItem('historique', JSON.stringify(migrada))
       setHistorique(migrada)
+      if (scrollToId) {
+        setVue('mois')
+        if (calMes !== undefined && calAno !== undefined) {
+          const agora = new Date()
+          const mesAlvo = parseInt(calMes as string)
+          const anoAlvo = parseInt(calAno as string)
+          const diffMeses = (anoAlvo - agora.getFullYear()) * 12 + (mesAlvo - agora.getMonth())
+          setMoisOffset(diffMeses)
+        } else {
+          setMoisOffset(0)
+        }
+        setHighlightId(scrollToId as string)
+      }
       log.info('historique', 'histórico carregado', { count: migrada.length })
     } catch (e) { log.error('historique', 'carregarHistorique falhou', e) }
     finally { setRefreshing(false) }

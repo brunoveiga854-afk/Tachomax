@@ -5,7 +5,7 @@ import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
+import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1671,6 +1671,16 @@ export default function MonSalaireScreen() {
       anoFraisTrabalho: _ficheDebug?.anoFraisTrabalho,
     })
   }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
+
+  // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showModalEdit) { setShowModalEdit(false); return true }
+      if (modalDetail)   { setModalDetail(null);    return true }
+      return false
+    })
+    return () => sub.remove()
+  }, [showModalEdit, modalDetail])
 
   const animarRespiracao = () => {
     Animated.loop(Animated.sequence([

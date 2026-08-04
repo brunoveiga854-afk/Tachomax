@@ -3203,7 +3203,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                     ) : pctAcerto !== null ? (
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#2ecc71' : pctAcerto >= 75 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
+                        <Text style={{ fontSize: 18, fontWeight: '900', color: pctAcerto >= 95 ? '#27ae60' : pctAcerto >= 85 ? '#1abc9c' : pctAcerto >= 70 ? '#f5a623' : '#e74c3c' }}>{pctAcerto}%</Text>
                         <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>précision</Text>
                       </View>
                     ) : estimativa > 0 ? (

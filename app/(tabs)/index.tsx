@@ -2844,41 +2844,34 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                       {/* ── S7 FRAIS ── */}
                       <View style={{ backgroundColor: c.card, borderRadius: 16, marginBottom: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: c.cardBorder }}>
-                        {/* Header personalizado com nav ‹/› */}
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => setStatsOpen(v => ({ ...v, frais: !v.frais }))}
-                          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
-                        >
-                          <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: c.text }}>💰 FRAIS</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            {statsOpen.frais && (
-                              <>
-                                <TouchableOpacity
-                                  onPress={e => { e.stopPropagation(); setFraisMesOffset(v => v - 1) }}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                  <Text style={{ fontSize: 22, color: c.textSub, paddingHorizontal: 8 }}>‹</Text>
-                                </TouchableOpacity>
-                                <View style={{ width: 62, alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 11, fontWeight: '700', color: fraisNavIsCurrentMonth ? '#27ae60' : c.textSub, textAlign: 'center' }}>
-                                    {fraisNavLabel}
-                                  </Text>
-                                </View>
-                                <TouchableOpacity
-                                  onPress={e => { e.stopPropagation(); setFraisMesOffset(v => Math.min(v + 1, 0)) }}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                  disabled={fraisNavIsCurrentMonth}
-                                >
-                                  <Text style={{ fontSize: 22, color: fraisNavIsCurrentMonth ? c.progressBg : c.textSub, paddingHorizontal: 8 }}>›</Text>
-                                </TouchableOpacity>
-                              </>
-                            )}
-                            <Text style={{ fontSize: 14, color: c.textSub, marginLeft: 6 }}>{statsOpen.frais ? '▲' : '▼'}</Text>
+                        {/* Header personalizado com nav ‹/› — sempre aberto */}
+                        <View style={{ paddingTop: 14, paddingBottom: 6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 2 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>💰 FRAIS</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '900', color: '#27ae60' }}>{fraisNavTotal.toFixed(0)}€</Text>
                           </View>
-                        </TouchableOpacity>
-                        {statsOpen.frais && (
-                          <SectionWrap c={c}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>
+                            <TouchableOpacity
+                              onPress={() => setFraisMesOffset(v => v - 1)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Text style={{ fontSize: 22, color: c.textSub, paddingHorizontal: 8 }}>‹</Text>
+                            </TouchableOpacity>
+                            <View style={{ width: 80, alignItems: 'center' }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: fraisNavIsCurrentMonth ? '#27ae60' : c.textSub, textAlign: 'center' }}>
+                                {fraisNavLabel}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => setFraisMesOffset(v => Math.min(v + 1, 0))}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              disabled={fraisNavIsCurrentMonth}
+                            >
+                              <Text style={{ fontSize: 22, color: fraisNavIsCurrentMonth ? c.progressBg : c.textSub, paddingHorizontal: 8 }}>›</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        <SectionWrap c={c}>
                             <TouchableOpacity activeOpacity={0.7} onPress={() => setFraisDetail(v => !v)}>
                               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                                 <View style={{ flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -2977,7 +2970,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                               </View>
                             )}
                           </SectionWrap>
-                        )}
                       </View>
 
                       {/* ── S8 AMPLITUDE ── */}

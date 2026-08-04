@@ -1596,6 +1596,31 @@ export default function MonSalaireScreen() {
     [historique, histCal, padrao, mediasGlobais]
   )
 
+  // DEBUG_MAIO — remover após leitura dos valores reais no device
+  useEffect(() => {
+    const maio = historique.find((m: MoisData) => m.moisIndex === 4 && m.annee === 2026)
+    if (!maio) return
+    const [aH, mH] = mesTrabalhoDe(maio, padrao)
+    const diasTrab = histCal.filter((j: any) => {
+      const parts = j.date?.split('/')
+      if (!parts || parts.length < 2) return false
+      const mes = parseInt(parts[1]) - 1
+      const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+      return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
+    })
+    log.info('DEBUG_MAIO', 'valores', {
+      mesTrabalhoIndex: maio.mesTrabalhoIndex,
+      anoTrabalho: maio.anoTrabalho,
+      aH, mH,
+      diasTrabLength: diasTrab.length,
+      taxaHorariaNetaMedia: padrao.taxaHorariaNetaMedia,
+      hval: padrao.hval,
+      liquidRate: padrao.liquidRate,
+      mediasGlobais,
+      estimativa: calcEstimativaMes(maio),
+    })
+  }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
+
   const animarRespiracao = () => {
     Animated.loop(Animated.sequence([
       Animated.timing(breathAnim, { toValue: 1.03, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),

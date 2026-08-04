@@ -218,5 +218,25 @@ export function calcEstimativaMes(
       : (m.fraisBoletim || 0)
   }
 
+  // DEBUG_CALC_INTERNO — remover após diagnóstico
+  if (m.moisIndex === 4 && m.annee === 2026) {
+    const _salBase = totalH * p.taxaHorariaNetaMedia
+    const _valConges = nConges * valCongeNet
+    const _valFeries = nFeries * valFerieNet
+    const _valRC = nRC * valRCNet
+    const _raw = salLiq + totalFrais
+    console.info('[DEBUG_CALC_INTERNO]', JSON.stringify({
+      totalH, taxaHorariaNetaMedia: p.taxaHorariaNetaMedia,
+      salBase: _salBase,
+      nConges, valCongeNet, valCongesTotal: _valConges,
+      nFeries, valFerieNet, valFeriesTotal: _valFeries,
+      nRC, valRCNet, valRCTotal: _valRC,
+      salLiq,
+      ficheComFraisFound: !!ficheComFrais,
+      fraisCalcTotal: fraisCalc.total, factor, totalFrais,
+      rawAvantRound: _raw,
+      resultatFinal: Math.round(_raw),
+    }))
+  }
   return Math.round(salLiq + totalFrais)
 }

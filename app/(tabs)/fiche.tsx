@@ -2242,6 +2242,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         autresPrimes: fiche.autresPrimes || 0,
         fraisRecuConfirme: fraisRecebido,
         montantTotalRecu: resp.montantTotal,
+        estimativaSnapshot: (() => {
+          const ex = novoHist[existenteIdx]
+          if (ex?.estimativaSnapshot) return ex.estimativaSnapshot
+          const alvo = ex ?? { moisIndex: resp.fiche.moisIndex || 0, annee: resp.fiche.annee || new Date().getFullYear() } as MoisData
+          const snap = calcEstimativaMes(alvo)
+          return snap > 0 ? snap : undefined
+        })(),
         jourPaiement1: resp.diaSalario, jourPaiement2: resp.diaFrais,
         analysedAt: new Date().toISOString(), entreprise: fiche.entreprise || '', conducteur: fiche.conducteur || '',
         salarioConfirmado: !resp.autoDetectado && resp.montantSalReel > 0,
@@ -3123,7 +3130,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               )}
 
               {historique.slice().reverse().map((m, i) => {
-                const estimativa = calcEstimativaMes(m)
+                const estimativa = m.estimativaSnapshot ?? calcEstimativaMes(m)
                 const rateCard = (m.salairebrut || 0) > 0 && (m.netPaye || 0) > 0
                   ? (m.netPaye || 0) / (m.salairebrut || 0)
                   : null
@@ -3875,7 +3882,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     // Guardar frais confirmado no histórico para persistir entre cálculos
                     const mesPagamento = modalFraisMoisSel.mois
                     const anoPagamento = modalFraisMoisSel.annee
-                    const novoHist = aplicarConfirmacaoFraisPorValor(
+                    const ficheAlvoF = historique.find(h => h.moisIndex === mesPagamento && h.annee === anoPagamento)
+                    const snapshotF = ficheAlvoF && !ficheAlvoF.estimativaSnapshot ? calcEstimativaMes(ficheAlvoF) : 0
+                    let novoHist = aplicarConfirmacaoFraisPorValor(
                       historique,
                       fraisReel,
                       anoPagamento,
@@ -3888,6 +3897,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         entreprise: calcResult?.empresa || '',
                       }
                     )
+                    if (snapshotF > 0)
+                      novoHist = novoHist.map(h =>
+                        h.moisIndex === mesPagamento && h.annee === anoPagamento && !h.estimativaSnapshot
+                          ? { ...h, estimativaSnapshot: snapshotF }
+                          : h
+                      )
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
@@ -3997,6 +4012,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
 
                     const mesIdx = modalSalMoisSel.mois
                     const ano = modalSalMoisSel.annee
+                    const ficheAlvoS = historique.find(h => h.moisIndex === mesIdx && h.annee === ano)
+                    const snapshotS = ficheAlvoS && !ficheAlvoS.estimativaSnapshot ? calcEstimativaMes(ficheAlvoS) : 0
                     let novoHist = aplicarConfirmacaoSalarioPorValor(
                       historique,
                       salReel,
@@ -4006,15 +4023,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       padrao,
                       { entreprise: calcResult?.empresa || '', frais: calcResult?.totalFrais || 0 },
                     )
-                    // Add extras to the confirmed entry
-                    if (totalExtras > 0) {
-                      const targetPeriode = `${MOIS_NOMS[mesIdx]} ${ano}`
-                      novoHist = novoHist.map(h =>
-                        (h.periode === targetPeriode || (h.moisIndex === mesIdx && h.annee === ano))
-                          ? { ...h, interessement: extraInteressement || h.interessement, primeNonAccident: extraNonAcc || h.primeNonAccident, montantTotalRecu: novoTotal }
-                          : h
-                      )
-                    }
+                    // Add extras + snapshot to the confirmed entry
+                    novoHist = novoHist.map(h => {
+                      if (!(h.moisIndex === mesIdx && h.annee === ano)) return h
+                      return {
+                        ...h,
+                        ...(totalExtras > 0 ? { interessement: extraInteressement || h.interessement, primeNonAccident: extraNonAcc || h.primeNonAccident, montantTotalRecu: novoTotal } : {}),
+                        ...(!h.estimativaSnapshot && snapshotS > 0 ? { estimativaSnapshot: snapshotS } : {}),
+                      }
+                    })
                     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
@@ -4132,6 +4149,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const updated = {
                   ...modalDetail,
                   totalHeures: parseFloat(editTotalHeures) || modalDetail?.totalHeures || 0,
+                  estimativaSnapshot: modalDetail?.estimativaSnapshot || 0,
                   periode: novePeriode,
                   moisIndex: editMoisIndex,
                   annee: editAnnee,

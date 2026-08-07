@@ -1491,6 +1491,16 @@ export default function MonSalaireScreen() {
         ? (fichesFrais[0].fraisRecuConfirme || fichesFrais[0].fraisBoletim)
         : fraisCalDireto > 0 ? fraisCalDireto : 0
 
+      // DEBUG_FRAIS_CARD — remover após diagnóstico
+      log.info('DEBUG_FRAIS_CARD', `frais card ${mesReceber}/${anoReceber}`, {
+        anoFrais, mesFrais,
+        nDiasFrais: diasFrais.length,
+        fraisCalDireto,
+        fraisHorarioTotal: fraisHorario.total,
+        fichesFraisFound: fichesFrais.length,
+        totalFrais,
+      })
+
       // Salário
       let salLiq = 0, salBrut = 0, hExtra25 = 0, hExtra50 = 0
 

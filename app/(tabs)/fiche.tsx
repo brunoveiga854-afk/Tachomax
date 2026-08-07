@@ -1471,19 +1471,23 @@ export default function MonSalaireScreen() {
         return m === mesHoras && a === anoHoras && j.type === 'RC'
       })
 
-      // Frais: pelos horários reais primeiro, fallback boletim
-      const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
+      // Frais: soma j.frais dos dias do mês de trabalho (mesma fonte que index.tsx L2623)
+      const diasFrais = hist.filter((j: any) => {
+        const parts = j.date?.split('/')
+        if (!parts || parts.length < 2) return false
+        const m = parseInt(parts[1]) - 1
+        const a = parts.length >= 3 ? parseInt(parts[2]) : (j.id ? new Date(parseInt(j.id)).getFullYear() : anoFrais)
+        return m === mesFrais && a === anoFrais && ['TRAB', 'DEC'].includes(j.type || '')
+      })
+      const fraisCalDireto = diasFrais.reduce((a: number, j: any) => a + (j.frais || 0), 0)
       const fichesFrais = histSal.filter(f => {
         const fMes = (f.mesFraisTrabalhoIndex != null) ? f.mesFraisTrabalhoIndex : f.moisIndex
         const fAno = (f.anoFraisTrabalho != null) ? f.anoFraisTrabalho : f.annee
         return fMes === mesFrais && fAno === anoFrais && !!f.fraisConfirmado && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
       })
-      // Só aplica factorFrais se o mês de frais ainda está em curso (calendário potencialmente incompleto)
-      const mesFraisPassado = anoFrais < anoActual || (anoFrais === anoActual && mesFrais < mesActual)
-      const factorFrais = (!mesFraisPassado && (p.fraisFactorReal || 0) > 0.1) ? p.fraisFactorReal : 1
       const totalFrais = fichesFrais.length > 0
         ? (fichesFrais[0].fraisRecuConfirme || fichesFrais[0].fraisBoletim)
-        : fraisHorario.total > 0 ? Math.round(fraisHorario.total * factorFrais) : 0
+        : fraisCalDireto > 0 ? fraisCalDireto : 0
 
       // Salário
       let salLiq = 0, salBrut = 0, hExtra25 = 0, hExtra50 = 0

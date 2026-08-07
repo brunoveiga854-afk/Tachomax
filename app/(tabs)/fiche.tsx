@@ -1480,6 +1480,8 @@ export default function MonSalaireScreen() {
         return m === mesFrais && a === anoFrais && ['TRAB', 'DEC'].includes(j.type || '')
       })
       const fraisCalDireto = diasFrais.reduce((a: number, j: any) => a + (j.frais || 0), 0)
+      // Só para o breakdown ptd/dej/din/nui usado em fraisDetail — o total não é usado
+      const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
       const fichesFrais = histSal.filter(f => {
         const fMes = (f.mesFraisTrabalhoIndex != null) ? f.mesFraisTrabalhoIndex : f.moisIndex
         const fAno = (f.anoFraisTrabalho != null) ? f.anoFraisTrabalho : f.annee

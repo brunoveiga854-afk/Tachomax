@@ -3420,7 +3420,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const color = (isValid15 || isValid30 || min >= 45) ? '#27ae60' : '#f39c12'
                   return (
                     <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: `${color}18`, borderRadius: 8, padding: 10, borderLeftWidth: 3, borderLeftColor: color }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color }}>Pause {i + 1}{i === pausas.length && segPausa > 0 ? ' (en cours)' : ''}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color }}>Pause {i + 1}{p.inicio ? ` · ${new Date(p.inicio).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}{i === pausas.length && segPausa > 0 ? ' (en cours)' : ''}</Text>
                       <Text style={{ fontSize: 13, fontWeight: '800', color }}>{min}min</Text>
                     </View>
                   )

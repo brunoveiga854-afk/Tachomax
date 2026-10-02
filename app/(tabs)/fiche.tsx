@@ -1852,6 +1852,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
+      log.info('fiche', 'usage API fiches', { inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens, nFicheiros: result.assets.length })
       processarDocumentos(docs)
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : ''
@@ -1889,6 +1890,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
       if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
+      log.info('fiche', 'usage API frais', { inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens, nFicheiros: result.assets.length })
       if (docs.length > 0) {
         const d = docs[0] as any
         if (d.ptDejValeur > 0 || d.dejValeur > 0) {

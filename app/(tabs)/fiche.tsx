@@ -1048,6 +1048,7 @@ export default function MonSalaireScreen() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
   const calcResultRef = useRef<CalcResult | null>(null)
   useEffect(() => { calcResultRef.current = calcResult }, [calcResult])
+  const calcularSalarioRef = useRef<() => Promise<void>>(async () => {})
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
   const [tutorialCharger, setTutorialCharger] = useState(true)
@@ -1249,7 +1250,7 @@ export default function MonSalaireScreen() {
       if (appState.histCal) setHistCal(appState.histCal)
       // Recalcule discrètement si une estimation était déjà affichée, pour éviter
       // qu'elle reste figée sur le mois où "Calculer" a été pressé pour la dernière fois.
-      if (calcResultRef.current) calcularSalario()
+      if (calcResultRef.current) calcularSalarioRef.current()
     }
     sincronizar()
   }, []))
@@ -1624,6 +1625,7 @@ export default function MonSalaireScreen() {
       mostrarErro('Erreur: ' + String(e))
     }
   }
+  useEffect(() => { calcularSalarioRef.current = calcularSalario })
 
   // ── Thin wrappers — delegam para src/utils/projecoes.ts ──────────────────
   // Memoizado: só recalcula quando historique/histCal/padrao mudam (evita N chamadas por render)

@@ -49,6 +49,7 @@ export default function ReglagesScreen() {
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
   const [kmTracteurActuel, setKmTracteurActuel] = useState('')
@@ -1115,6 +1116,14 @@ export default function ReglagesScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+          <View style={{ height: 1, backgroundColor: c.cardBorder }} />
+          <TouchableOpacity
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 }}
+            onPress={() => setShowAbout(true)}
+          >
+            <Text style={[st.settingLabel, { color: c.text }]}>ℹ️ À propos</Text>
+            <Text style={{ color: c.textSub, fontSize: 16 }}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── 10. SECTION ESCONDIDA — 5 toques na versão ── */}
@@ -1254,6 +1263,26 @@ export default function ReglagesScreen() {
               <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginTop: 8 }}>Dernière mise à jour : Mai 2025</Text>
               <View style={{ height: 20 }} />
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL À PROPOS */}
+      <Modal visible={showAbout} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text }}>ℹ️ À propos</Text>
+              <TouchableOpacity onPress={() => setShowAbout(false)}>
+                <Text style={{ fontSize: 22, color: c.textSub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>TachoOffice</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 16 }}>v1.0.7 · build 13/06/2026</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', lineHeight: 18 }}>
+              © 2026 Bruno Veiga — TachoOffice{'\n'}Tous droits réservés.
+            </Text>
+            <View style={{ height: 12 }} />
           </View>
         </View>
       </Modal>

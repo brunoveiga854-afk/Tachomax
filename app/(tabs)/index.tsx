@@ -881,7 +881,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(listaValida)
       setEditandoDiaId(null)
       setShowAddDia(false)
-      log.info('index', 'dia manual guardado', { date: addData, type: addTipo, editando: !!editandoDiaId })
+      log.info('index', 'dia manual guardado', { date: diaDados.date, type: diaDados.type, editando: !!editandoDiaId })
     } catch (e) { log.error('index', 'guardarDia (addEdit) falhou', e) }
   }
 

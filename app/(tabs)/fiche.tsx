@@ -1046,6 +1046,8 @@ export default function MonSalaireScreen() {
   const [countingVal, setCountingVal] = useState(0)
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
+  const calcResultRef = useRef<CalcResult | null>(null)
+  useEffect(() => { calcResultRef.current = calcResult }, [calcResult])
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
   const [tutorialCharger, setTutorialCharger] = useState(true)
@@ -1141,6 +1143,8 @@ export default function MonSalaireScreen() {
     textSub: themeSombre ? COR_OFF : '#555e80',
     textLabel: themeSombre ? COR_OFF : '#3a4060',
     input: themeSombre ? '#1f2436' : '#f0f2f8',
+    navBtn: themeSombre ? '#1f2436' : '#f0f2f8',
+    navBtnBorder: themeSombre ? '#2a3045' : '#d0d5e8',
   }), [themeSombre])
 
   const [histCal, setHistCal] = useState<any[]>([])
@@ -1243,6 +1247,9 @@ export default function MonSalaireScreen() {
       // campos_obrigatorios_ok via AppContext
       setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
       if (appState.histCal) setHistCal(appState.histCal)
+      // Recalcule discrètement si une estimation était déjà affichée, pour éviter
+      // qu'elle reste figée sur le mois où "Calculer" a été pressé pour la dernière fois.
+      if (calcResultRef.current) calcularSalario()
     }
     sincronizar()
   }, []))

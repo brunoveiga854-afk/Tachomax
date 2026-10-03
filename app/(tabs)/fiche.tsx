@@ -1838,7 +1838,9 @@ export default function MonSalaireScreen() {
           throw new Error(msg)
         }
         if (!res.ok) {
-          const msg = "Erreur de l'API: " + res.status
+          const msg = (res.status === 401 || res.status === 403)
+            ? "Service indisponible (accès refusé). Mets l'app à jour ou contacte le support."
+            : "Erreur de l'API: " + res.status
           log.error('fiche', 'chamarProxy erro', { tipo: 'api', url: PROXY_URL, tentativa: tentativaNum, status: res.status })
           throw new Error(msg)
         }
@@ -1938,7 +1940,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       processarDocumentos(docs)
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : ''
-      if (msg.includes('Timeout') || msg.includes('réseau')) {
+      if (msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
@@ -2013,7 +2015,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       processarDocumentos(docs)
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : ''
-      if (msg.includes('Timeout') || msg.includes('réseau')) {
+      if (msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")

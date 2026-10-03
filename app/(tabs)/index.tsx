@@ -199,6 +199,7 @@ export default function AujourdhuiScreen() {
   const tsInicioServico = useRef<number | null>(null)    // âncora timestamp para segServico
   const segServicoBaseRef = useRef<number>(0)            // segServico acumulado antes da pausa actual
   const segPausaTotalBaseRef = useRef<number>(0)         // segPausaTotal acumulado antes da pausa actual
+  const fimPausaOverrideRef = useRef<number | null>(null) // fim retroactivo da pausa (correcção manual)
   const [servicoContinuo, setServicoContinuo] = useState(0)
   const [bannerPause, setBannerPause] = useState<null | '15min' | '30min'>(null)
 
@@ -1077,7 +1078,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   const handlePause = async () => {
     if (emPausaRef.current) {
       // Reprendre — finaliser la pause courante (durée figée avant reset)
-      const duracaoPausa = computeSegPausa()   // timestamp-based, sem drift de ticks
+      const fimReal = fimPausaOverrideRef.current ?? Date.now()
+      const duracaoPausa = fimPausaOverrideRef.current
+        ? Math.max(0, Math.floor((fimReal - pausaInicioRef.current) / 1000))
+        : computeSegPausa()   // timestamp-based, sem drift de ticks
       const pausaAtual = { dur: duracaoPausa, inicio: pausaInicioRef.current }
       const novaListaPausas = [...pausas, pausaAtual]
 
@@ -1093,7 +1097,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
       // Rastrear blocos CE 561/2006 para banner
       const duracaoPausaReal = tsInicioUltimaPausa.current
-        ? Math.floor((Date.now() - tsInicioUltimaPausa.current) / 1000)
+        ? Math.floor((fimReal - tsInicioUltimaPausa.current) / 1000)
         : duracaoPausa
       if (!pausaBloco1Feita && duracaoPausaReal >= 900) {
         setPausaBloco1Feita(true)
@@ -1101,10 +1105,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         setPausaBloco2Feita(true)
       }
       tsInicioUltimaPausa.current = null
-      tsRetomouServico.current = Date.now()
+      tsRetomouServico.current = fimReal
       setServicoContinuo(0)
 
       segPausaTotalBaseRef.current += duracaoPausa  // acumular base antes de resetar âncora
+      setSegPausaTotal(segPausaTotalBaseRef.current)
       pausaInicioRef.current = 0                    // desactivar âncora para computeSegPausa()
       segPausaRef.current = 0
       setSegPausa(0)
@@ -1113,14 +1118,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       // Ancorar tsInicioServico no fim programado da pausa (ou agora) e calcular segServico
       const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
       const fim = fimRaw ? parseInt(fimRaw) : null
-      tsInicioServico.current = (fim && fim <= Date.now()) ? fim : Date.now()
+      tsInicioServico.current = fimPausaOverrideRef.current ?? ((fim && fim <= Date.now()) ? fim : Date.now())
       const segServicoAjustado = computeSegServico()
       setSegServico(segServicoAjustado)
       setPausaFimTimestamp(null)
       await AsyncStorage.removeItem('pausaFimTimestamp')
       await guardarEstado({
         enService, emPausa: false, decouche, modeNuit,
-        segServico: segServicoAjustado, segAmplitude, segPausa: 0, segPausaTotal, kmDiarios, kmInicioTacho,
+        segServico: segServicoAjustado, segAmplitude, segPausa: 0, segPausaTotal: segPausaTotalBaseRef.current, kmDiarios, kmInicioTacho,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
         lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
@@ -1135,6 +1140,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setPausaDuracaoInput('')
       setShowPausaDuracaoModal(true)
     }
+  }
+
+  // Correcção manual: terminar a pausa "há X minutos" (fim retroactivo, mesma contabilidade do handlePause)
+  const corrigirFimPausa = async (minutosAtras: number) => {
+    if (!emPausaRef.current) return
+    const maxMin = Math.floor(computeSegPausa() / 60)
+    if (!Number.isInteger(minutosAtras) || minutosAtras < 1 || minutosAtras > maxMin) return
+    log.info('index', 'pausa corrigida', { minutosAtras })
+    fimPausaOverrideRef.current = Date.now() - minutosAtras * 60 * 1000
+    try { await handlePause() } finally { fimPausaOverrideRef.current = null }
   }
 
   const confirmarIniciarPausa = async () => {

@@ -369,6 +369,25 @@ function aplicarConfirmacaoSalarioPorValor(
   }
 
   const [anoFraisTrabalhoNew, mesFraisTrabalhoNew] = shiftMois(anoPagamento, mesPagamento, -padraoAtual.flag)
+
+  // Mesmo mês, sem PDF → actualiza o registo manual em vez de duplicar
+  const idxMesmoMes = next.findIndex(h =>
+    h.moisIndex === mesPagamento && h.annee === anoPagamento && h.fichePages === 0)
+  if (idxMesmoMes >= 0) {
+    next[idxMesmoMes] = {
+      ...next[idxMesmoMes],
+      netPaye: valor,
+      salairebrut: Math.round(valor / padraoAtual.liquidRate),
+      montantTotalRecu: totalRecu,
+      salarioConfirmado: true,
+      pagamentoSalMesIndex: mesPagamento,
+      pagamentoSalAno: anoPagamento,
+      mesFraisTrabalhoIndex: next[idxMesmoMes].mesFraisTrabalhoIndex ?? mesFraisTrabalhoNew,
+      anoFraisTrabalho: next[idxMesmoMes].anoFraisTrabalho ?? anoFraisTrabalhoNew,
+    }
+    return next
+  }
+
   next.push({
     periode: `${MOIS_NOMS[mesPagamento]} ${anoPagamento}`,
     moisIndex: mesPagamento,
@@ -428,6 +447,25 @@ function aplicarConfirmacaoFraisPorValor(
   }
 
   const [anoFraisTrabalhoNew, mesFraisTrabalhoNew] = shiftMois(anoPagamento, mesPagamento, -padraoAtual.flag)
+
+  // Mesmo mês, sem PDF → actualiza o registo manual em vez de duplicar
+  const idxMesmoMes = next.findIndex(h =>
+    h.moisIndex === fallback.moisIndex && h.annee === fallback.annee && h.fichePages === 0)
+  if (idxMesmoMes >= 0) {
+    const netPayeExistente = next[idxMesmoMes].netPaye || 0
+    next[idxMesmoMes] = {
+      ...next[idxMesmoMes],
+      fraisRecuConfirme: valor,
+      fraisConfirmado: true,
+      montantTotalRecu: netPayeExistente > 0 ? netPayeExistente + valor : next[idxMesmoMes].montantTotalRecu,
+      pagamentoFraisMesIndex: mesPagamento,
+      pagamentoFraisAno: anoPagamento,
+      mesFraisTrabalhoIndex: mesFraisTrabalhoNew,
+      anoFraisTrabalho: anoFraisTrabalhoNew,
+    }
+    return next
+  }
+
   next.push({
     periode: fallback.periode,
     moisIndex: fallback.moisIndex,

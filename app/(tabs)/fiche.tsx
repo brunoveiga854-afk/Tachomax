@@ -3220,7 +3220,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               )}
 
               {historique.slice().reverse().map((m, i) => {
-                const estimativa = m.estimativaSnapshot ?? calcEstimativaMes(m)
+                const estimativa = m.estimativaSnapshot || calcEstimativaMes(m)
                 const rateCard = (m.salairebrut || 0) > 0 && (m.netPaye || 0) > 0
                   ? (m.netPaye || 0) / (m.salairebrut || 0)
                   : null
@@ -4239,7 +4239,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const updated = {
                   ...modalDetail,
                   totalHeures: parseFloat(editTotalHeures) || modalDetail?.totalHeures || 0,
-                  estimativaSnapshot: modalDetail?.estimativaSnapshot || 0,
+                  estimativaSnapshot: modalDetail?.estimativaSnapshot || undefined,
                   periode: novePeriode,
                   moisIndex: editMoisIndex,
                   annee: editAnnee,

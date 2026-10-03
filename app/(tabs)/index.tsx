@@ -124,6 +124,9 @@ export default function AujourdhuiScreen() {
   const [showPausasModal, setShowPausasModal] = useState(false)
   const [showPausaDuracaoModal, setShowPausaDuracaoModal] = useState(false)
   const [pausaDuracaoInput, setPausaDuracaoInput] = useState('')
+  const [showCorrigirPausaModal, setShowCorrigirPausaModal] = useState(false)
+  const [corrigirPausaInput, setCorrigirPausaInput] = useState('')
+  const [corrigindoPausa, setCorrigindoPausa] = useState(false)
   const [pausaFimTimestamp, setPausaFimTimestamp] = useState<number | null>(null)
   const [showStats, setShowStats] = useState(false)
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, folha: true, projections: true, records: true })
@@ -1152,6 +1155,18 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     try { await handlePause() } finally { fimPausaOverrideRef.current = null }
   }
 
+  const confirmarCorrigirPausa = async () => {
+    if (corrigindoPausa) return
+    const n = parseInt(corrigirPausaInput, 10)
+    if (!/^\d+$/.test(corrigirPausaInput) || n < 1 || n > Math.floor(computeSegPausa() / 60)) return
+    setCorrigindoPausa(true)
+    try { await corrigirFimPausa(n) } finally {
+      setCorrigindoPausa(false)
+      setShowCorrigirPausaModal(false)
+      setCorrigirPausaInput('')
+    }
+  }
+
   const confirmarIniciarPausa = async () => {
     setShowPausaDuracaoModal(false)
     pausaAutoRetomadaRef.current = false  // repor guard para a próxima auto-retoma
@@ -1930,6 +1945,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                       const ss = String(restS % 60).padStart(2, '0')
                       return <Text style={{ fontSize: 13, color: '#f39c12', fontWeight: '700', marginTop: 4 }}>{restS > 0 ? `${mm}:${ss}` : '00:00'} restant</Text>
                     })()}
+                    {segPausa >= 60 && (
+                      <TouchableOpacity
+                        onPress={() => { setCorrigirPausaInput(''); setShowCorrigirPausaModal(true) }}
+                        hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+                        style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 11, color: c.textSub, textDecorationLine: 'underline' }}>J'ai oublié de reprendre ? Corriger</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                     <View style={{ flex: 1, backgroundColor: c.servicoBox, borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -3414,6 +3437,69 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* MODAL — Corriger la fin de pause */}
+      {(() => {
+        const maxMin = Math.floor(segPausa / 60)
+        const n = /^\d+$/.test(corrigirPausaInput) ? parseInt(corrigirPausaInput, 10) : 0
+        const valido = n >= 1 && n <= maxMin
+        const fimCorrigido = new Date(Date.now() - n * 60 * 1000)
+        const hhmm = `${String(fimCorrigido.getHours()).padStart(2, '0')}h${String(fimCorrigido.getMinutes()).padStart(2, '0')}`
+        const durMin = Math.floor((segPausa - n * 60) / 60)
+        return (
+          <Modal visible={showCorrigirPausaModal} transparent animationType="slide"
+            onRequestClose={() => { if (!corrigindoPausa) setShowCorrigirPausaModal(false) }}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'flex-end', padding: 16, paddingBottom: 32 }}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
+              <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f39c12' }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>Corriger la fin de pause</Text>
+                <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 20, lineHeight: 18 }}>
+                  {'La pause s\'est terminée il y a combien de minutes ?'}
+                </Text>
+                <TextInput
+                  value={corrigirPausaInput}
+                  onChangeText={v => setCorrigirPausaInput(v.replace(/[^0-9]/g, ''))}
+                  placeholder="min"
+                  placeholderTextColor={COR_OFF}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  style={{ borderWidth: 1.5, borderColor: corrigirPausaInput ? '#f39c12' : '#2a3045', borderRadius: 14, padding: 14, fontSize: 28, fontWeight: '900', color: c.text, backgroundColor: c.bg, textAlign: 'center', marginBottom: 16, letterSpacing: 2 }}
+                />
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
+                  {[5, 10, 15].filter(v => v <= maxMin).map(v => (
+                    <TouchableOpacity key={v} onPress={() => setCorrigirPausaInput(String(v))}
+                      style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, backgroundColor: n === v ? 'rgba(243,156,18,0.18)' : c.bg, borderWidth: n === v ? 1.5 : 1, borderColor: n === v ? '#f39c12' : '#2a3045' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: n === v ? '#f39c12' : c.textSub }}>{v} min</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {valido ? (
+                  <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: 16, lineHeight: 18 }}>
+                    {`La pause sera de ${durMin} min et le service reprendra à ${hhmm}.`}
+                  </Text>
+                ) : corrigirPausaInput !== '' ? (
+                  <Text style={{ fontSize: 12, color: '#e74c3c', textAlign: 'center', marginBottom: 16 }}>
+                    {`Entre 1 et ${maxMin} min.`}
+                  </Text>
+                ) : null}
+                <TouchableOpacity
+                  disabled={corrigindoPausa || !valido}
+                  style={{ backgroundColor: '#f39c12', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10, opacity: (corrigindoPausa || !valido) ? 0.4 : 1 }}
+                  onPress={confirmarCorrigirPausa}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>{corrigindoPausa ? '…' : 'Corriger'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity disabled={corrigindoPausa} style={{ padding: 10, alignItems: 'center' }}
+                  onPress={() => setShowCorrigirPausaModal(false)}>
+                  <Text style={{ fontSize: 13, color: c.textSub }}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+              </ScrollView>
+              </KeyboardAvoidingView>
+            </View>
+          </Modal>
+        )
+      })()}
 
       <Modal visible={showPausasModal} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>

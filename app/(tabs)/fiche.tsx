@@ -5,7 +5,7 @@ import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler } from 'react-native'
+import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1107,6 +1107,8 @@ export default function MonSalaireScreen() {
   const [inputDiaSal, setInputDiaSal] = useState('')
   const [inputDiaFrais, setInputDiaFrais] = useState('')
   const [showEscolhaModal, setShowEscolhaModal] = useState(false)
+  const [showConsentIA, setShowConsentIA] = useState(false)
+  const consentTipoRef = useRef<'fiches' | 'frais' | null>(null)
   const [showModalErro, setShowModalErro] = useState(false)
   const [modalErroMsg, setModalErroMsg] = useState('')
   const [showModalDocs, setShowModalDocs] = useState(false)
@@ -1853,6 +1855,23 @@ export default function MonSalaireScreen() {
       return await tentativa(2)
     }
   }
+
+  const CONSENT_IA_KEY = 'consentement_ia_v1'
+  const iniciarImportacao = async (tipo: 'fiches' | 'frais') => {
+    let ok = false
+    try { ok = (await AsyncStorage.getItem(CONSENT_IA_KEY)) === '1' } catch {}
+    if (ok) { tipo === 'fiches' ? importerImagens() : importerPdfs(); return }
+    consentTipoRef.current = tipo
+    setShowConsentIA(true)
+  }
+  const aceitarConsentIA = async () => {
+    try { await AsyncStorage.setItem(CONSENT_IA_KEY, '1') } catch {}
+    const tipo = consentTipoRef.current
+    consentTipoRef.current = null
+    setShowConsentIA(false)
+    setTimeout(() => { tipo === 'fiches' ? importerImagens() : importerPdfs() }, 300)
+  }
+  const recusarConsentIA = () => { consentTipoRef.current = null; setShowConsentIA(false) }
 
   const importerImagens = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -3905,14 +3924,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             <View style={{ width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>📁 Charger les documents</Text>
             <Text style={{ fontSize: 13, color: c.textSub, textAlign: 'center', marginBottom: 24 }}>Quel type de documents veux-tu charger?</Text>
-            <TouchableOpacity style={{ backgroundColor: 'rgba(245,166,35,0.1)', borderWidth: 1.5, borderColor: '#f5a623', borderRadius: 16, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }} onPress={() => { setShowEscolhaModal(false); setTimeout(() => importerImagens(), 300) }}>
+            <TouchableOpacity style={{ backgroundColor: 'rgba(245,166,35,0.1)', borderWidth: 1.5, borderColor: '#f5a623', borderRadius: 16, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }} onPress={() => { setShowEscolhaModal(false); setTimeout(() => iniciarImportacao('fiches'), 300) }}>
               <Text style={{ fontSize: 28 }}>📄</Text>
               <View>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: '#f5a623' }}>Fiches de paye</Text>
                 <Text style={{ fontSize: 14, color: c.textSub, marginTop: 2 }}>JPG · PNG · PDF · jusqu'à 10 fichiers</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={{ backgroundColor: 'rgba(41,128,185,0.1)', borderWidth: 1.5, borderColor: '#2980b9', borderRadius: 16, padding: 18, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }} onPress={() => { setShowEscolhaModal(false); setTimeout(() => importerPdfs(), 300) }}>
+            <TouchableOpacity style={{ backgroundColor: 'rgba(41,128,185,0.1)', borderWidth: 1.5, borderColor: '#2980b9', borderRadius: 16, padding: 18, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }} onPress={() => { setShowEscolhaModal(false); setTimeout(() => iniciarImportacao('frais'), 300) }}>
               <Text style={{ fontSize: 28 }}>🧾</Text>
               <View>
                 <Text style={{ fontSize: 15, fontWeight: '800', color: '#2980b9' }}>Boletins de frais</Text>
@@ -3924,6 +3943,29 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showConsentIA} transparent animationType="fade" onRequestClose={recusarConsentIA}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+            <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 8 }}>🔒</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 }}>Envoi vers un service externe</Text>
+            <Text style={{ fontSize: 13, color: c.textSub, lineHeight: 20, textAlign: 'center', marginBottom: 12 }}>
+              {"Pour lire tes documents, TachoOffice les envoie à un service d'intelligence artificielle externe (Anthropic Claude), via un serveur intermédiaire. Le document complet est transmis, avec toutes les informations qu'il contient (nom, employeur, montants). Tu peux aussi saisir tes montants à la main. Cet avis ne s'affiche qu'une seule fois."}
+            </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://super-salamander-252e93.netlify.app/privacy-policy')} style={{ alignSelf: 'center', paddingVertical: 6, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: '#f5a623', fontWeight: '700', textDecorationLine: 'underline' }}>Politique de confidentialité</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={recusarConsentIA}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center' }} onPress={aceitarConsentIA}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>J'ai compris, continuer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
 

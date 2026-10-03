@@ -48,7 +48,6 @@ export default function ReglagesScreen() {
   const [diasTrial, setDiasTrial] = useState<number | null>(null)
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
-  const [showPrivacy, setShowPrivacy] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
@@ -1233,38 +1232,6 @@ export default function ReglagesScreen() {
           </TouchableOpacity>
           </KeyboardAvoidingView>
         </TouchableOpacity>
-      </Modal>
-
-      {/* MODAL PRIVACY POLICY */}
-      <Modal visible={showPrivacy} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder, maxHeight: '85%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text }}>🔒 Politique de confidentialité</Text>
-              <TouchableOpacity onPress={() => setShowPrivacy(false)}>
-                <Text style={{ fontSize: 22, color: c.textSub }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {[
-                { titre: 'Données collectées', texte: "TachoOffice stocke uniquement les données que tu saisis toi-même : heures de service, types de journée, frais professionnels et paramètres de l'app. Aucune donnée n'est envoyée vers des serveurs externes." },
-                { titre: 'Stockage local', texte: "Toutes tes données sont conservées localement sur ton appareil via AsyncStorage. Elles ne quittent jamais ton téléphone sauf si tu utilises la fonction d'export manuel." },
-                { titre: 'Localisation GPS', texte: "L'accès à la localisation est utilisé uniquement pour calculer les kilomètres parcourus pendant ton service. Les coordonnées GPS ne sont jamais enregistrées ni transmises." },
-                { titre: 'Intelligence artificielle', texte: "La fonctionnalité de lecture de fiche de paie utilise l'API Anthropic Claude. Les images que tu envoies sont traitées par Anthropic conformément à leur politique de confidentialité (anthropic.com/privacy). Aucune image n'est conservée par TachoOffice." },
-                { titre: 'Notifications', texte: "Les alertes (pause obligatoire, amplitude, rappel de saisie) sont gérées localement par ton appareil. Aucune notification n'est envoyée depuis un serveur externe." },
-                { titre: 'Pas de publicité', texte: "TachoOffice ne contient aucune publicité et ne partage aucune donnée avec des tiers à des fins commerciales." },
-                { titre: 'Contact', texte: 'Pour toute question concernant tes données : brunoveiga854@gmail.com' },
-              ].map(item => (
-                <View key={item.titre} style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#f5a623', marginBottom: 4, letterSpacing: 0.5 }}>{item.titre.toUpperCase()}</Text>
-                  <Text style={{ fontSize: 13, color: c.textSub, lineHeight: 20 }}>{item.texte}</Text>
-                </View>
-              ))}
-              <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginTop: 8 }}>Dernière mise à jour : Mai 2025</Text>
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </View>
-        </View>
       </Modal>
 
       {/* MODAL À PROPOS */}

@@ -994,39 +994,6 @@ export default function ReglagesScreen() {
         </View>
 
 
-        {/* ── 6. ABONNEMENT ── */}
-        <SecSep label="⭐ ABONNEMENT" />
-
-        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
-          <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.abonnement}</Text>
-          {diasTrial !== null && diasTrial > 0 ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-              <Text style={{ fontSize: 40, fontWeight: '800', color: '#f5a623', lineHeight: 46 }}>{diasTrial}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: c.text }}>{t.joursEssai}</Text>
-                {dataExpiracao && (
-                  <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>
-                    Expire le {dataExpiracao.getDate()}/{String(dataExpiracao.getMonth() + 1).padStart(2, '0')}/{dataExpiracao.getFullYear()}
-                  </Text>
-                )}
-              </View>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <Text style={{ fontSize: 28 }}>⏰</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#e74c3c' }}>Essai terminé</Text>
-                <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>Abonne-toi pour continuer</Text>
-              </View>
-            </View>
-          )}
-          <TouchableOpacity style={[st.subscribeBtn, diasTrial !== null && diasTrial <= 0 ? { backgroundColor: '#e74c3c' } : {}]}>
-            <Text style={st.subscribeBtnText}>
-              {diasTrial !== null && diasTrial <= 0 ? "🔓 S'abonner — 2,99€/mois" : t.sabonner}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* ── 7. SAUVEGARDE ── */}
         <SecSep label="🔒 SAUVEGARDE" />
 

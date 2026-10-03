@@ -2729,10 +2729,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>TOTAL ESTIMÉ</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#2ecc71' }}>{fmtInt(calcResult.totalLiq)} €</Text>
                   </View>
-                  {(calcResult.impactoConges || 0) > 0 && (
+                  {calcResult.nFeries > 0 && (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>🏖️ Congés/fériés inclus</Text>
-                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>~{fmtInt(calcResult.impactoConges || 0)} €</Text>
+                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>🎉 Fériés</Text>
+                      <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{calcResult.nFeries} j</Text>
                     </View>
                   )}
                 </View>

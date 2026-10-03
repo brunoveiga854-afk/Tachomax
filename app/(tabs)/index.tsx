@@ -556,7 +556,7 @@ export default function AujourdhuiScreen() {
       const kmContexto = appState.kmUltimoFim
       const kmHistorico = appState.histCal?.find((d: any) => (d.kmFim || 0) > 0)?.kmFim ?? null
       const v = kmContexto > 0 ? kmContexto : kmHistorico
-      if (v && v > 0 && !kmInicioInput) {
+      if (v && v > 0 && (!kmInicioInput || kmInicioAuto)) {
         setKmInicioInput(String(v))
         setKmInicioAuto(true)
       }

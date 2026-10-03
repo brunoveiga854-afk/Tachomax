@@ -199,7 +199,7 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
 }
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
-  const { state: appState, recarregarApp } = useApp()
+  const { state: appState, recarregarApp, actualizarCampo } = useApp()
   const { showToast } = useToast()
   const [historique, setHistorique] = useState<Jour[]>([])
   const [semaine, setSemaine] = useState(0)
@@ -525,6 +525,21 @@ const getJoursMois = () => {
     const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+
+    // Se o dia editado é o mais recente (por data) com kmFim>0 → sincroniza km_ultimo_fim
+    const tsDia = (j: Jour) => {
+      const p = j.date.split('/')
+      const ano = p[2] ? parseInt(p[2]) : new Date(parseInt(j.id)).getFullYear()
+      return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
+    }
+    const maisRecenteComKm = nova
+      .filter(j => (j.kmFim || 0) > 0)
+      .reduce<Jour | null>((m, j) => (!m || tsDia(j) > tsDia(m) ? j : m), null)
+    if (maisRecenteComKm?.id === jourEdit.id && (jourAtualizado.kmFim || 0) > 0) {
+      const kmNovo = Math.round(jourAtualizado.kmFim as number)
+      await AsyncStorage.setItem('km_ultimo_fim', String(kmNovo))
+      actualizarCampo('kmUltimoFim', kmNovo)
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     log.info('historique', 'dia editado', { id: jourEdit.id })
     setShowEdit(false)

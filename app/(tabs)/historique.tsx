@@ -634,6 +634,44 @@ const getJoursMois = () => {
         })
         return s + (entry?.segServico || 0)
       }, 0)
+      // Resumo + aviso antes de gerar o PDF (só dias seleccionados)
+      const entriesSel = joursFinal
+        .filter(j => j.date)
+        .map(j => {
+          const [dd2, mm2, yy2] = j.date.split('/')
+          return historique.find(h => {
+            const p = h.date.split('/'); const m2 = parseInt(p[1]) - 1; const d2 = parseInt(p[0])
+            const a2 = p[2] ? parseInt(p[2]) : new Date(parseInt(h.id)).getFullYear()
+            return d2 === parseInt(dd2) && m2 === parseInt(mm2) - 1 && a2 === parseInt(yy2)
+          })
+        })
+        .filter((e): e is Jour => !!e)
+      const nTrab = entriesSel.filter(e => e.type === 'TRAB' || e.type === 'DEC').length
+      const nNuits = entriesSel.filter(e => e.decouche).length
+      const nOutros = entriesSel.length - nTrab
+      const problemas: string[] = []
+      for (const e of entriesSel) {
+        const lbl = `${e.jour} ${e.date.slice(0, 5)}`
+        if (invalidos.some(x => x.id === e.id)) problemas.push(`• ${lbl} — service < 2 min`)
+        const kmI = e.kmInicio || 0; const kmF = e.kmFim || 0
+        if (kmI > 0 && kmF > 0 && kmF < kmI) problemas.push(`• ${lbl} — km fin < km début`)
+      }
+      const resumo = `${nTrab} jour${nTrab !== 1 ? 's' : ''} · ${fmtSec(totalSec) || '0h00'} · ${totalKms || 0} km · ${nNuits} nuit${nNuits !== 1 ? 's' : ''}`
+      const msg = [
+        resumo,
+        nOutros > 0 ? `ℹ️ ${nOutros} jour${nOutros > 1 ? 's' : ''} sans horaires (repos/congé/férié/RC)` : '',
+        problemas.length ? `\n⚠️ À vérifier :\n${problemas.join('\n')}` : '',
+      ].filter(Boolean).join('\n')
+      setFicheLoading(false)
+      const confirmado = await new Promise<boolean>(resolve => {
+        Alert.alert(`📋 Fiche semaine ${numSemana}`, msg, [
+          { text: problemas.length ? 'Corriger' : 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+          { text: problemas.length ? 'Générer quand même' : 'Générer', onPress: () => resolve(true) },
+        ], { cancelable: true, onDismiss: () => resolve(false) })
+      })
+      if (!confirmado) return
+      setFicheLoading(true)
+
       const firstJour = joursFinal.find(j => j.date)
       const lastJour = [...joursFinal].reverse().find(j => j.date)
       const html = gerarHtmlFiche({

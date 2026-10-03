@@ -1842,9 +1842,15 @@ export default function MonSalaireScreen() {
         if (!res.ok) {
           const msg = (res.status === 401 || res.status === 403)
             ? "Service indisponible (accès refusé). Mets l'app à jour ou contacte le support."
-            : "Erreur de l'API: " + res.status
+            : res.status === 400
+              ? "Le service IA a refusé la demande (fichier non pris en charge ou service indisponible). Réessaie plus tard ou saisis tes montants à la main."
+              : res.status === 413
+                ? "Fichiers trop lourds pour un seul envoi. Importe-les en plusieurs fois (3 ou 4 à la fois), ou utilise un PDF plutôt qu'une photo."
+                : "Service IA indisponible pour le moment. Réessaie plus tard ou saisis tes montants à la main."
           log.error('fiche', 'chamarProxy erro', { tipo: 'api', url: PROXY_URL, tentativa: tentativaNum, status: res.status })
-          throw new Error(msg)
+          const err: any = new Error(msg)
+          err.amigavel = true
+          throw err
         }
         return await res.json()
       } finally {
@@ -1948,7 +1954,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       processarDocumentos(docs)
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : ''
-      if (msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
+      if (e?.amigavel || msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
@@ -2029,7 +2035,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       processarDocumentos(docs)
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : ''
-      if (msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
+      if (e?.amigavel || msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")

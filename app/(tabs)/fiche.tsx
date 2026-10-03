@@ -745,6 +745,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
 
   // C. Coeficientes salariais reais extraídos das fiches
   // Se a IA extraiu directamente da fiche — confiança máxima, substitui defaults
+  let mediaHvalFiches = 0
   const comCoef = dados.filter(d => (d.hval || 0) > 0)
   if (comCoef.length > 0) {
     // Média dos coeficientes (devem ser iguais entre fiches da mesma empresa)
@@ -752,6 +753,7 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
     const ARMADILHAS_HBASE = [157.67, 151.67, 133.92]
     const hbases = comCoef.map(d => d.hbase || 0).filter(v => v > 0 && !ARMADILHAS_HBASE.some(a => Math.abs(v - a) < 0.1))
     const hvals  = comCoef.map(d => d.hval  || 0).filter(v => v > 0)
+    if (hvals.length > 0) mediaHvalFiches = avg(hvals)
     const h25s   = comCoef.map(d => d.h25   || 0).filter(v => v > 0)
     const lim25s = comCoef.map(d => d.lim25 || 0).filter(v => v > 0)
     const h50s   = comCoef.map(d => d.h50   || 0).filter(v => v > 0)
@@ -985,9 +987,11 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
       taxas.push(netNormalizado / totalH)
     }
     if (taxas.length >= 2) {
-      base.taxaHorariaNetaMedia = Math.round(
-        taxas.reduce((a, b) => a + b, 0) / taxas.length * 100
-      ) / 100
+      const taxaMedia = taxas.reduce((a, b) => a + b, 0) / taxas.length
+      const fatorHval = base._hvalManual && mediaHvalFiches > 0 && base.hval > 0
+        ? Math.min(1.15, Math.max(0.85, base.hval / mediaHvalFiches))
+        : 1
+      base.taxaHorariaNetaMedia = Math.round(taxaMedia * fatorHval * 100) / 100
     }
   }
 

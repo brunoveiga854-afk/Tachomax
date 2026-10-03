@@ -1095,7 +1095,7 @@ export default function ReglagesScreen() {
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>LÉGAL</Text>
           <TouchableOpacity
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 }}
-            onPress={() => Linking.openURL('https://super-salamander-252e93.netlify.app')}
+            onPress={() => Linking.openURL('https://super-salamander-252e93.netlify.app/privacy-policy')}
           >
             <Text style={[st.settingLabel, { color: c.text }]}>🔒 Politique de confidentialité</Text>
             <Text style={{ color: c.textSub, fontSize: 16 }}>›</Text>

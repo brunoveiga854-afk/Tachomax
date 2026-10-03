@@ -232,6 +232,7 @@ export default function OnboardingScreen() {
           valorDiaConges,
           taxaHorariaNetaMedia: hval * (existing.liquidRate ?? liquidRate),
           _hvalManual: salBrut > 0,
+          ...(params.mode === 'edit' ? { flag: obFraisMemeJour ? obHlag : obFlag } : {}),
         }
         await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(updated)))
         log.debug('onboarding', 'padrao actualizado (existente preservado)', { hbase, hval })

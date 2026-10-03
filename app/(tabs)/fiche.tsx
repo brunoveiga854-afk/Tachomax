@@ -1166,6 +1166,10 @@ export default function MonSalaireScreen() {
   const [editMoisAtipico, setEditMoisAtipico] = useState(false)
   const [camposOk, setCamposOk] = useState('')
   const [padraoAprendido, setPadraoAprendido] = useState<PadraoAprendido>(PADRAO_INICIAL)
+  // Flag efectivo: o confirmado no motor de aprendizagem ganha ao do monSalaire_padrao
+  const flagEfectivo = padraoAprendido.flagConfirmado && padraoAprendido.flag != null
+    ? padraoAprendido.flag
+    : padrao.flag
   const [mesesConfirmados, setMesesConfirmados] = useState(0)
   const [showCadeado, setShowCadeado] = useState(false)
   const router = useRouter()
@@ -2184,7 +2188,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const mesFicheIndex = fichaActual.moisIndex
     const anoFiche = fichaActual.annee
     const [anoTrabalho, mesTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
-    const [anoFraisTrabalho, mesFraisTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -padrao.flag)
+    const [anoFraisTrabalho, mesFraisTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -flagEfectivo)
     const novaResposta = {
       fiche: fichaActual,
       frais: fraisDoc.find(f => f.moisIndex === fichaActual.moisIndex && f.annee === fichaActual.annee) || null,
@@ -2297,7 +2301,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const mesFicheIndex = resp.mesFicheIndex ?? resp.fiche.moisIndex ?? 0
       const anoFiche = resp.anoFiche ?? resp.fiche.annee ?? new Date().getFullYear()
       const [anoTrabalhoCalc, mesTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
-      const [anoFraisTrabalhoCalc, mesFraisTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -padrao.flag)
+      const [anoFraisTrabalhoCalc, mesFraisTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -flagEfectivo)
       const fonte = resp.autoDetectado ? 'ia' : 'confirmado'
       const novoDado: MoisData = {
         periode: periodeLabel, moisIndex: resp.fiche.moisIndex || 0,
@@ -3971,7 +3975,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       fraisReel,
                       anoPagamento,
                       mesPagamento,
-                      padrao,
+                      { ...padrao, flag: flagEfectivo },
                       {
                         periode: `${MOIS_NOMS[mesPagamento]} ${anoPagamento}`,
                         moisIndex: mesPagamento,
@@ -4102,7 +4106,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       ano,
                       mesIdx,
                       novoTotal,
-                      padrao,
+                      { ...padrao, flag: flagEfectivo },
                       { entreprise: calcResult?.empresa || '', frais: calcResult?.totalFrais || 0 },
                     )
                     // Add extras + snapshot to the confirmed entry
@@ -4227,7 +4231,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
                 const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
                 const interessEdit = parseFloat(editInteressement) || 0
-                const [anoFraisTrabalhoEdit, mesFraisTrabalhoEdit] = shiftMois(editAnnee, editMoisIndex, -padrao.flag)
+                const [anoFraisTrabalhoEdit, mesFraisTrabalhoEdit] = shiftMois(editAnnee, editMoisIndex, -flagEfectivo)
                 const updated = {
                   ...modalDetail,
                   totalHeures: parseFloat(editTotalHeures) || modalDetail?.totalHeures || 0,

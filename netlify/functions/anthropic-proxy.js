@@ -11,6 +11,13 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body)
 
+    if (body.model !== 'claude-sonnet-4-6') {
+      return { statusCode: 400, body: 'Model not allowed' }
+    }
+    if (!Number.isInteger(body.max_tokens) || body.max_tokens < 1 || body.max_tokens > 4000) {
+      return { statusCode: 400, body: 'max_tokens not allowed' }
+    }
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {

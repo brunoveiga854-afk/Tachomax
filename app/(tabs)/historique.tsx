@@ -582,6 +582,16 @@ const getJoursMois = () => {
       const numSemana = getNumeroSemaine(lundi)
       const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
       const fmtSec = (s: number) => { if (!s || s<=0) return ''; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h${String(m).padStart(2,'0')}` }
+      const parseFicheHM = (t: string) => { const [h,m]=(t||'0h0').replace('h',':').split(':').map(Number); return (isNaN(h)?0:h)*60+(isNaN(m)?0:m) }
+      // Minutos inteiros por dia, coerentes entre si: Amplitude − Pause = Travail
+      const minutosDia = (e: Jour) => {
+        let ampMin = parseFicheHM(e.fin) - parseFicheHM(e.debut)
+        if (ampMin < 0) ampMin += 1440
+        const pausaMin = Math.round((e.segPausa || 0) / 60)
+        const travMin = ampMin > 0 ? Math.max(0, ampMin - pausaMin) : Math.round((e.segServico || 0) / 60)
+        return { ampMin, pausaMin, travMin }
+      }
+      const fmtMin = (m: number) => m > 0 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2,'0')}` : ''
       const [_prenom, _nom, tracteurVal, remorqueVal, adrVal] = await Promise.all([
         secureGet('conducteur_prenom').then(v => v ?? AsyncStorage.getItem('conducteur_prenom')),
         secureGet('conducteur_nom').then(v => v ?? AsyncStorage.getItem('conducteur_nom')),
@@ -623,15 +633,15 @@ const getJoursMois = () => {
           } catch { return { ptDej: false, repas: false, nuit: false } }
         })() : { ptDej: false, repas: false, nuit: false }
         const kmI = entry?.kmInicio || 0; const kmF = entry?.kmFim || 0
-        const parseFicheHM = (t: string) => { const [h,m]=(t||'0h0').replace('h',':').split(':').map(Number); return (isNaN(h)?0:h)*60+(isNaN(m)?0:m) }
-        const amp = entry ? (() => { const dMin=parseFicheHM(entry.debut); const fMin=parseFicheHM(entry.fin); let diff=fMin-dMin; if(diff<0)diff+=1440; return fmtSec(diff*60) })() : ''
+        const mn = entry ? minutosDia(entry) : null
         return {
           date: entry ? ddmmyyyy : '',
           jourLabel: label, jourCourt: JOURS_COURTS[i],
           debut: entry?.debut || '', fin: entry?.fin || '',
-          amplitude: amp,
-          pauseTotal: entry ? fmtSec(entry.segPausa) : '',
-          travailTotal: entry ? fmtSec(entry.segServico) : '',
+          amplitude: mn ? fmtMin(mn.ampMin) : '',
+          pauseTotal: mn ? fmtMin(mn.pausaMin) : '',
+          travailTotal: mn ? fmtMin(mn.travMin) : '',
+          travMin: mn ? mn.travMin : 0,
           kmDepart: kmI > 0 ? String(kmI) : '',
           kmArrivee: kmF > 0 ? String(kmF) : '',
           kmTotal: (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
@@ -648,16 +658,7 @@ const getJoursMois = () => {
         ? jours.filter((_, i) => indicesSelecionados.includes(i))
         : jours
       const totalKms = joursFinal.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
-      const totalSec = joursFinal.reduce((s, j) => {
-        if (!j.date) return s
-        const [dd2, mm2, yy2] = j.date.split('/')
-        const entry = historique.find(h => {
-          const p = h.date.split('/'); const m2=parseInt(p[1])-1; const d2=parseInt(p[0])
-          const a2 = p[2] ? parseInt(p[2]) : new Date(parseInt(h.id)).getFullYear()
-          return d2 === parseInt(dd2) && m2 === parseInt(mm2)-1 && a2 === parseInt(yy2)
-        })
-        return s + (entry?.segServico || 0)
-      }, 0)
+      const totalMin = joursFinal.reduce((s, j) => s + j.travMin, 0)
       // Resumo + aviso antes de gerar o PDF (só dias seleccionados)
       const entriesSel = joursFinal
         .filter(j => j.date)
@@ -682,7 +683,7 @@ const getJoursMois = () => {
         else if (kmI > 0 && kmF > 0 && kmF < kmI) problema = 'km fin < km début'
         return {
           entry: e, label: `${e.jour} ${e.date.slice(0, 5)}`,
-          horas: ehTrab ? (fmtSec(e.segServico) || '0h00') : (TIPO_LABEL[e.type] || '—'),
+          horas: ehTrab ? (fmtMin(minutosDia(e).travMin) || '0h00') : (TIPO_LABEL[e.type] || '—'),
           km: ehTrab && kmDia > 0 ? `${kmDia} km` : '',
           problema, nota: e.nota?.texto || '',
         }
@@ -692,7 +693,7 @@ const getJoursMois = () => {
         resumoResolveRef.current = resolve
         setResumoFiche({
           numSemana, indices: indicesSelecionados ?? [], linhas,
-          totais: `${nTrab} jour${nTrab !== 1 ? 's' : ''} · ${fmtSec(totalSec) || '0h00'} · ${totalKms || 0} km · ${nNuits} nuit${nNuits !== 1 ? 's' : ''}`,
+          totais: `${nTrab} jour${nTrab !== 1 ? 's' : ''} · ${fmtMin(totalMin) || '0h00'} · ${totalKms || 0} km · ${nNuits} nuit${nNuits !== 1 ? 's' : ''}`,
           nProblemas: linhas.filter(l => l.problema).length,
         })
       })
@@ -707,7 +708,7 @@ const getJoursMois = () => {
         dateDebut: firstJour?.date || fmt(lundi), dateFin: lastJour?.date || fmt(sabado),
         jours: joursFinal,
         totalKms: totalKms > 0 ? String(totalKms) : '',
-        totalHeures: fmtSec(totalSec),
+        totalHeures: fmtMin(totalMin),
       })
       const { uri } = await Print.printToFileAsync({ html, base64: false })
       // Nome fixo Fiche_semaine_N_Prenom_Nom.pdf — se falhar, partilha com o nome original

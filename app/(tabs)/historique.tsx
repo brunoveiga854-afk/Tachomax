@@ -35,6 +35,7 @@ type Jour = {
   kmFim?: number
   nota?: { categoria: string; emoji: string; texto?: string }
 }
+type LinhaFiche = { entry: Jour; label: string; horas: string; km: string; problema: string | null; nota: string }
 const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }>> = {
   TRAB:  { label: 'Travail',     color: '#27ae60', bg: 'rgba(39,174,96,0.12)',   bgLight: 'rgba(39,174,96,0.15)',  emoji: '💼' },
   DEC:   { label: 'Découché',    color: '#2980b9', bg: 'rgba(41,128,185,0.12)',  bgLight: 'rgba(41,128,185,0.15)', emoji: '🌙' },
@@ -234,6 +235,9 @@ export default function HistoriqueScreen() {
   const [showFraisDetalhe, setShowFraisDetalhe] = useState(false)
   const [showModalFicheDias, setShowModalFicheDias] = useState(false)
   const [diasSelecionados, setDiasSelecionados] = useState<boolean[]>([true,true,true,true,true,true])
+  const [resumoFiche, setResumoFiche] = useState<{ numSemana: number; indices: number[]; totais: string; linhas: LinhaFiche[]; nProblemas: number } | null>(null)
+  const resumoResolveRef = useRef<((v: boolean) => void) | null>(null)
+  const fichePendenteRef = useRef<number[] | null>(null)
   const [editKmFim, setEditKmFim] = useState('')
   const [editKmInicioAuto, setEditKmInicioAuto] = useState(false)
   const [fraisReglesResumo, setFraisReglesResumo] = useState(DEFAULT_FRAIS_REGLES)
@@ -257,16 +261,35 @@ export default function HistoriqueScreen() {
   }
   useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
 
+  // Fecha o resumo da fiche e resolve a promessa de gerarFicheHebdo. Limpa sempre o pendente.
+  const fecharResumo = (ok: boolean) => {
+    const r = resumoResolveRef.current; resumoResolveRef.current = null
+    fichePendenteRef.current = null
+    setResumoFiche(null)
+    r?.(ok)
+  }
+
   // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (resumoFiche)        { fecharResumo(false);          return true }
       if (showEdit)           { setShowEdit(false);           return true }
       if (showNoteModal)      { setShowNoteModal(false);      return true }
       if (showModalFicheDias) { setShowModalFicheDias(false); return true }
       return false
     })
     return () => sub.remove()
-  }, [showEdit, showNoteModal, showModalFicheDias])
+  }, [showEdit, showNoteModal, showModalFicheDias, resumoFiche])
+
+  // Reabre o resumo da fiche quando a edição aberta a partir dele fecha (guardar ou cancelar).
+  // O pendente é limpo ANTES de reabrir, por isso só dispara uma vez por edição.
+  useEffect(() => {
+    if (!showEdit && fichePendenteRef.current) {
+      const idx = fichePendenteRef.current
+      fichePendenteRef.current = null
+      gerarFicheHebdo(idx)
+    }
+  }, [showEdit])
   const chargerHistorique = async () => {
     setRefreshing(true)
     try {
@@ -648,26 +671,29 @@ const getJoursMois = () => {
         .filter((e): e is Jour => !!e)
       const nTrab = entriesSel.filter(e => e.type === 'TRAB' || e.type === 'DEC').length
       const nNuits = entriesSel.filter(e => e.decouche).length
-      const nOutros = entriesSel.length - nTrab
-      const problemas: string[] = []
-      for (const e of entriesSel) {
-        const lbl = `${e.jour} ${e.date.slice(0, 5)}`
-        if (invalidos.some(x => x.id === e.id)) problemas.push(`• ${lbl} — service < 2 min`)
+      const TIPO_LABEL: Record<string, string> = { OFF: 'Repos', FERIE: 'Congé', FER: 'Férié', RC: 'R.C.' }
+      const linhas: LinhaFiche[] = entriesSel.map(e => {
         const kmI = e.kmInicio || 0; const kmF = e.kmFim || 0
-        if (kmI > 0 && kmF > 0 && kmF < kmI) problemas.push(`• ${lbl} — km fin < km début`)
-      }
-      const resumo = `${nTrab} jour${nTrab !== 1 ? 's' : ''} · ${fmtSec(totalSec) || '0h00'} · ${totalKms || 0} km · ${nNuits} nuit${nNuits !== 1 ? 's' : ''}`
-      const msg = [
-        resumo,
-        nOutros > 0 ? `ℹ️ ${nOutros} jour${nOutros > 1 ? 's' : ''} sans horaires (repos/congé/férié/RC)` : '',
-        problemas.length ? `\n⚠️ À vérifier :\n${problemas.join('\n')}` : '',
-      ].filter(Boolean).join('\n')
+        const ehTrab = e.type === 'TRAB' || e.type === 'DEC'
+        const kmDia = (kmI > 0 && kmF > 0) ? Math.abs(kmF - kmI) : (e.kmDiarios || 0)
+        let problema: string | null = null
+        if (invalidos.some(x => x.id === e.id)) problema = 'service < 2 min'
+        else if (kmI > 0 && kmF > 0 && kmF < kmI) problema = 'km fin < km début'
+        return {
+          entry: e, label: `${e.jour} ${e.date.slice(0, 5)}`,
+          horas: ehTrab ? (fmtSec(e.segServico) || '0h00') : (TIPO_LABEL[e.type] || '—'),
+          km: ehTrab && kmDia > 0 ? `${kmDia} km` : '',
+          problema, nota: e.nota?.texto || '',
+        }
+      })
       setFicheLoading(false)
       const confirmado = await new Promise<boolean>(resolve => {
-        Alert.alert(`📋 Fiche semaine ${numSemana}`, msg, [
-          { text: problemas.length ? 'Corriger' : 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-          { text: problemas.length ? 'Générer quand même' : 'Générer', onPress: () => resolve(true) },
-        ], { cancelable: true, onDismiss: () => resolve(false) })
+        resumoResolveRef.current = resolve
+        setResumoFiche({
+          numSemana, indices: indicesSelecionados ?? [], linhas,
+          totais: `${nTrab} jour${nTrab !== 1 ? 's' : ''} · ${fmtSec(totalSec) || '0h00'} · ${totalKms || 0} km · ${nNuits} nuit${nNuits !== 1 ? 's' : ''}`,
+          nProblemas: linhas.filter(l => l.problema).length,
+        })
       })
       if (!confirmado) return
       setFicheLoading(true)
@@ -1427,6 +1453,43 @@ const getJoursMois = () => {
                 {'📋 Générer PDF ('}{diasSelecionados.filter(Boolean).length}{' jour'}{diasSelecionados.filter(Boolean).length !== 1 ? 's' : ''}{')'}
               </Text>
             </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+      <Modal visible={!!resumoFiche} transparent animationType="slide">
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }} onPress={() => fecharResumo(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }} onPress={() => {}}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 4 }}>📋 Fiche semaine {resumoFiche?.numSemana}</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, textAlign: 'center', marginBottom: resumoFiche?.nProblemas ? 4 : 16 }}>{resumoFiche?.totais}</Text>
+            {!!resumoFiche?.nProblemas && (
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#e74c3c', textAlign: 'center', marginBottom: 16 }}>⚠️ {resumoFiche.nProblemas} à vérifier — touche le jour pour corriger</Text>
+            )}
+            <ScrollView style={{ maxHeight: 360 }}>
+              {resumoFiche?.linhas.map(l => (
+                <TouchableOpacity key={l.entry.id} disabled={!l.problema}
+                  onPress={() => {
+                    const idx = resumoFiche.indices
+                    fecharResumo(false)
+                    setTimeout(() => { fichePendenteRef.current = idx; abrirEdicao(l.entry) }, 250)
+                  }}
+                  style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder, backgroundColor: l.problema ? 'rgba(231,76,60,0.07)' : 'transparent' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: l.problema ? '#e74c3c' : c.text }}>{l.label}</Text>
+                    <Text style={{ fontSize: 13, color: l.problema ? '#e74c3c' : c.text }}>{l.horas}{l.km ? ` · ${l.km}` : ''}</Text>
+                  </View>
+                  {!!l.problema && <Text style={{ fontSize: 11, color: '#e74c3c', marginTop: 2 }}>⚠️ {l.problema}</Text>}
+                  {!!l.nota && <Text numberOfLines={2} style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>💬 {l.nota}</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => fecharResumo(false)}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={() => fecharResumo(true)}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>📋 Générer PDF</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

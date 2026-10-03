@@ -1090,6 +1090,8 @@ export default function MonSalaireScreen() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
   const calcResultRef = useRef<CalcResult | null>(null)
   useEffect(() => { calcResultRef.current = calcResult }, [calcResult])
+  const showPrevisionRef = useRef(false)
+  useEffect(() => { showPrevisionRef.current = showPrevision }, [showPrevision])
   const calcularSalarioRef = useRef<() => Promise<void>>(async () => {})
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
@@ -1296,9 +1298,9 @@ export default function MonSalaireScreen() {
       // campos_obrigatorios_ok via AppContext
       setCamposOk(appState.camposObrigatoriosOk ? 'true' : 'false')
       if (appState.histCal) setHistCal(appState.histCal)
-      // Recalcule discrètement si une estimation était déjà affichée, pour éviter
+      // Recalcule discrètement seulement si la carte d'estimation est ouverte, pour éviter
       // qu'elle reste figée sur le mois où "Calculer" a été pressé pour la dernière fois.
-      if (calcResultRef.current) calcularSalarioRef.current()
+      if (calcResultRef.current && showPrevisionRef.current) calcularSalarioRef.current()
     }
     sincronizar()
   }, []))

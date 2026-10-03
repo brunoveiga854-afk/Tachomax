@@ -23,7 +23,6 @@ import {
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import {
   pedirPermissaoNotificacoes,
-  agendarAlertaPausa,
   agendarAlertaAmplitude,
   cancelarTodosAlertas,
   cancelarRappelSaisie,
@@ -47,7 +46,6 @@ type Jour = {
   kmInicio?: number
   kmFim?: number
 }
-const PAUSA_MAX = 4.5 * 3600
 const STORAGE_KEY = 'TACHOOFFICE_estado'
 
 // ─── Stats sub-components — defined at module level so React never remounts ──
@@ -1060,7 +1058,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     // 5. Agendar notificações
     if (notifOk) {
       const maxAmplitude = isNuit ? 13 * 3600 : 15 * 3600
-      await agendarAlertaPausa(PAUSA_MAX)
       await agendarAlertaAmplitude(maxAmplitude)
     }
     if (isNuit) showSnackbar(`🌙 ${t.modeNuitActive} — ${t.modeNuitMsg}`)
@@ -1129,7 +1126,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
       log.info('index', 'pausa terminada')
-      await agendarAlertaPausa(PAUSA_MAX)
       const tempoRestanteAmplitude = Math.max(0, (modeNuit ? 13*3600 : 15*3600) - segAmplitude)
       if (tempoRestanteAmplitude > 0) agendarAlertaAmplitude(tempoRestanteAmplitude)
     } else {
@@ -1170,7 +1166,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       const fim = Date.now() + duracaoS * 1000
       setPausaFimTimestamp(fim)
       await AsyncStorage.setItem('pausaFimTimestamp', String(fim))
-      await agendarAlertaPausa(duracaoS)
       log.info('index', 'pausa iniciada', { duracaoS, pausaFimTimestamp: fim })
     } else {
       setPausaFimTimestamp(null)

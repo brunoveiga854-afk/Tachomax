@@ -18,6 +18,7 @@ import { useApp } from '../../context/AppContext'
 import { useToast } from '../../context/ToastContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
 import { log } from '../../src/utils/logger'
+import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -409,18 +410,22 @@ const getJoursMois = () => {
     await Share.share({ message: texte, title: `Rapport TachoOffice ${label}` })
   }
   const eliminarJour = async (id: string) => {
+    const km = kmUltimoFimAposApagar(historique, [id], await AsyncStorage.getItem('km_ultimo_fim'))
     const nova = historique.filter(j => j.id !== id)
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     log.info('historique', 'dia eliminado', { id })
   }
   const apagaSeleccionados = async () => {
     const ids = selecionados
+    const km = kmUltimoFimAposApagar(historique, [...ids], await AsyncStorage.getItem('km_ultimo_fim'))
     const nova = historique.filter(j => !ids.has(j.id))
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     setSelecionados(new Set())
@@ -1035,9 +1040,12 @@ const getJoursMois = () => {
                     [
                       { text: 'Annuler', style: 'cancel' },
                       { text: 'Supprimer', style: 'destructive', onPress: async () => {
+                        const idsInvalidos = historique.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')).map(j => j.id)
+                        const km = kmUltimoFimAposApagar(historique, idsInvalidos, await AsyncStorage.getItem('km_ultimo_fim'))
                         const nova = historique.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
                         setHistorique(nova)
                         await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                        if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
                         await recarregarApp()
                         showToast('✓ Modifications appliquées')
                       }},

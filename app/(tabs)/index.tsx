@@ -21,6 +21,7 @@ import {
   type Medias,
 } from '../../src/utils/projecoes'
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
+import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -2304,8 +2305,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 onPress={async () => {
                   const existente = await AsyncStorage.getItem('historique')
                   const lista = existente ? JSON.parse(existente) : []
+                  const km = kmUltimoFimAposApagar(lista, [editandoDiaId], await AsyncStorage.getItem('km_ultimo_fim'))
                   const nova = lista.filter((j: any) => j.id !== editandoDiaId)
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                  if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
                   setDiasHistorique(nova)
                   await recarregarApp()
                   showToast('✓ Modifications appliquées')

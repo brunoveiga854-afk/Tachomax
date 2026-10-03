@@ -1902,6 +1902,12 @@ export default function MonSalaireScreen() {
         }
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
       }
+      const totalB64 = content.reduce((soma: number, c: any) => soma + (c.source?.data?.length || 0), 0)
+      if (totalB64 > 4_500_000) {
+        mostrarErro("Fichiers trop lourds pour un seul envoi. Importe-les en plusieurs fois (3 ou 4 à la fois), ou utilise un PDF plutôt qu'une photo.")
+        setLoading(false)
+        return
+      }
       content.push({ type: 'text', text: `Tu es un expert en bulletins de salaire français transport routier.
 
 RÈGLE ABSOLUE: lis TOUTES les lignes de chaque fiche de paye, sans exception. Ne te limite jamais aux totaux. Inspecte chaque ligne individuelle: salaire de base, heures normales, heures supplémentaires, primes, avantages en nature, intéressement, participation, remboursements, retenues, cotisations et net à payer.
@@ -1968,6 +1974,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         if (file.mimeType === 'application/pdf') content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } })
         else content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } })
         content.push({ type: 'text', text: `Document ${i + 1} de ${result.assets.length}.` })
+      }
+      const totalB64 = content.reduce((soma: number, c: any) => soma + (c.source?.data?.length || 0), 0)
+      if (totalB64 > 4_500_000) {
+        mostrarErro("Fichiers trop lourds pour un seul envoi. Importe-les en plusieurs fois (3 ou 4 à la fois), ou utilise un PDF plutôt qu'une photo.")
+        setLoading(false)
+        return
       }
       content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0,"regles":{"ptDejAte":null,"dejMinAmp":null,"dinerDe":null}},...]\n\nPour le champ "regles", extrait les critères d'attribution si explicitement mentionnés dans le document (sinon laisse null):\n- ptDejAte: heure limite de début de service pour avoir droit au petit déjeuner (nombre décimal, ex: 6.5 pour 06h30)\n- dejMinAmp: amplitude minimale en heures pour avoir droit au déjeuner (ex: 6.017 pour 6h01)\n- dinerDe: heure minimale de fin de service pour avoir droit au dîner (ex: 21.25 pour 21h15)` })
       const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })

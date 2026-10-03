@@ -66,6 +66,13 @@ const calcAmplitudeDe = (debut: string, fin: string) => {
 }
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const MOIS_COURT = ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
+// Segunda-feira (00:00) da semana de `ref` deslocada `offset` semanas. Domingo conta como último dia da semana.
+const lundiDaSemana = (offset: number, ref: Date = new Date()): Date => {
+  const l = new Date(ref)
+  l.setDate(ref.getDate() - ((ref.getDay() + 6) % 7) + offset * 7)
+  l.setHours(0, 0, 0, 0)
+  return l
+}
 const MAX_SEMAINE = 56 * 3600
 function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onDeleteNota, index, modoSelecao, selecionado, onToggle, onLongPress }: {
   jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, onDeleteNota: () => void, index: number,
@@ -340,17 +347,13 @@ export default function HistoriqueScreen() {
     input: themeSombre ? '#1f2436' : '#f0f2f8',
   }
   const getSemaineLabel = () => {
-    const maintenant = new Date()
-    const debut = new Date(maintenant)
-    debut.setDate(maintenant.getDate() - maintenant.getDay() + 1 + (semaine * 7))
+    const debut = lundiDaSemana(semaine)
     const fin = new Date(debut)
     fin.setDate(debut.getDate() + 6)
     return `${debut.getDate()} ${MOIS[debut.getMonth()].slice(0,3)} — ${fin.getDate()} ${MOIS[fin.getMonth()].slice(0,3)} ${fin.getFullYear()}`
   }
   const getJoursSemaine = () => {
-    const maintenant = new Date()
-    const lundiBase = new Date(maintenant)
-    lundiBase.setDate(maintenant.getDate() - maintenant.getDay() + 1 + (semaine * 7))
+    const lundiBase = lundiDaSemana(semaine)
     return historique.filter(jour => {
       const parts = jour.date.split('/')
       const d = parseInt(parts[0])
@@ -574,10 +577,7 @@ const getJoursMois = () => {
   const gerarFicheHebdo = async (indicesSelecionados?: number[]) => {
     setFicheLoading(true)
     try {
-      const maintenant = new Date()
-      const lundi = new Date(maintenant)
-      lundi.setDate(maintenant.getDate() - maintenant.getDay() + 1 + (semaine * 7))
-      lundi.setHours(0, 0, 0, 0)
+      const lundi = lundiDaSemana(semaine)
       const sabado = new Date(lundi); sabado.setDate(lundi.getDate() + 5)
       const numSemana = getNumeroSemaine(lundi)
       const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
@@ -784,7 +784,7 @@ const getJoursMois = () => {
   }
 
   const joursActuels = vue === 'semaine' ? jousSemaine : joursMois
-  const lundiFiche = (() => { const m = new Date(); const l = new Date(m); l.setDate(m.getDate() - m.getDay() + 1 + (semaine * 7)); l.setHours(0, 0, 0, 0); return l })()
+  const lundiFiche = lundiDaSemana(semaine)
   const sabadoFiche = (() => { const s = new Date(lundiFiche); s.setDate(lundiFiche.getDate() + 5); return s })()
   const diasComDados = [0,1,2,3,4,5].map(i => {
     const d = new Date(lundiFiche); d.setDate(lundiFiche.getDate() + i)
@@ -825,9 +825,7 @@ const getJoursMois = () => {
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [highlightId, validos])
   const getJoursSemanaOffset = (offset: number) => {
-    const maintenant = new Date()
-    const lundiBase = new Date(maintenant)
-    lundiBase.setDate(maintenant.getDate() - maintenant.getDay() + 1 + (offset * 7))
+    const lundiBase = lundiDaSemana(offset)
     return historique.filter(jour => {
       const parts = jour.date.split('/')
       const d = parseInt(parts[0]), m = parseInt(parts[1])

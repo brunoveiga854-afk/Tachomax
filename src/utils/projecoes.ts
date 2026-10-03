@@ -124,6 +124,9 @@ export function calcMediasDiasTrabalho(
 
 // ── calcEstimativaMes ─────────────────────────────────────────────────────────
 
+// DEBUG_CALC_INTERNO — remover após diagnóstico
+let _ultimoDebugCalcInterno = ''
+
 export function calcEstimativaMes(
   m: MoisData,
   historique: MoisData[],
@@ -226,7 +229,7 @@ export function calcEstimativaMes(
     const _valFeries = nFeries * valFerieNet
     const _valRC = nRC * valRCNet
     const _raw = salLiq + totalFrais
-    log.info('DEBUG_CALC_INTERNO', 'decomposição Mai 2026', {
+    const _payload = {
       totalH, taxaHorariaNetaMedia: p.taxaHorariaNetaMedia,
       salBase: _salBase,
       nConges, valCongeNet, valCongesTotal: _valConges,
@@ -237,7 +240,12 @@ export function calcEstimativaMes(
       fraisCalcTotal: fraisCalc.total, factor, totalFrais,
       rawAvantRound: _raw,
       resultatFinal: Math.round(_raw),
-    })
+    }
+    const _assinatura = JSON.stringify(_payload)
+    if (_assinatura !== _ultimoDebugCalcInterno) {
+      _ultimoDebugCalcInterno = _assinatura
+      log.info('DEBUG_CALC_INTERNO', 'decomposição Mai 2026', _payload)
+    }
   }
   return Math.round(salLiq + totalFrais)
 }

@@ -1538,12 +1538,29 @@ export default function MonSalaireScreen() {
         : fraisCalDireto > 0 ? fraisCalDireto : 0
 
       // DEBUG_FRAIS_CARD — remover após diagnóstico
+      const _ultimos6 = [...histSal]
+        .sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
+        .slice(-6)
+        .map(h => ({
+          moisIndex: h.moisIndex, annee: h.annee,
+          mesFraisTrabalhoIndex: h.mesFraisTrabalhoIndex ?? null,
+          anoFraisTrabalho: h.anoFraisTrabalho ?? null,
+          fraisRecuConfirme: h.fraisRecuConfirme ?? null,
+          fraisConfirmado: h.fraisConfirmado ?? null,
+          fichePages: h.fichePages ?? null,
+          escolhido: h === fichesFrais[0],
+        }))
       log.info('DEBUG_FRAIS_CARD', `frais card ${mesReceber}/${anoReceber}`, {
+        flag: p.flag,
         anoFrais, mesFrais,
         nDiasFrais: diasFrais.length,
         fraisCalDireto,
         fraisHorarioTotal: fraisHorario.total,
         fichesFraisFound: fichesFrais.length,
+        escolhido: fichesFrais[0]
+          ? { moisIndex: fichesFrais[0].moisIndex, annee: fichesFrais[0].annee }
+          : null,
+        ultimos6: _ultimos6,
         totalFrais,
       })
 

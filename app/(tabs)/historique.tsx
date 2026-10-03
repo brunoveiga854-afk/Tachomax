@@ -2,6 +2,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import * as Haptics from 'expo-haptics'
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
+import * as FileSystem from 'expo-file-system'
 import { gerarHtmlFiche, getNumeroSemaine } from '../../src/ficheHebdo'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import React, { useCallback, useState, useRef, useEffect } from 'react'
@@ -709,8 +710,28 @@ const getJoursMois = () => {
         totalHeures: fmtSec(totalSec),
       })
       const { uri } = await Print.printToFileAsync({ html, base64: false })
+      // Nome fixo Fiche_semaine_N_Prenom_Nom.pdf — se falhar, partilha com o nome original
+      let uriPartilha = uri
+      try {
+        const limpar = (t: string) =>
+          (t.normalize ? t.normalize('NFD') : t)
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Za-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 30)
+        const partes = [limpar(prenom), limpar(nom)].filter(Boolean)
+        const nomePdf = `Fiche_semaine_${numSemana}${partes.length ? '_' + partes.join('_') : ''}.pdf`
+        const base = FileSystem.cacheDirectory
+        if (!base) throw new Error('cacheDirectory indisponível')
+        const destino = `${base}${nomePdf}`
+        await FileSystem.deleteAsync(destino, { idempotent: true })
+        await FileSystem.moveAsync({ from: uri, to: destino })
+        uriPartilha = destino
+      } catch (eR) {
+        log.warn('historique', 'rename do PDF falhou — a partilhar com o nome original', eR)
+      }
       setFicheLoading(false)
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
+      await Sharing.shareAsync(uriPartilha, { mimeType: 'application/pdf', dialogTitle: `Fiche semaine ${numSemana}`, UTI: 'com.adobe.pdf' })
       // Marquer automatiquement la semaine comme envoyée dans le suivi "Folhe Hebdo"
       try {
         const ano = lundi.getFullYear()

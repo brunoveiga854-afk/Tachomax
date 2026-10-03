@@ -471,8 +471,7 @@ export default function AujourdhuiScreen() {
             setPausaFimTimestamp(fim)
           } else {
             setPausaFimTimestamp(null)
-            await AsyncStorage.removeItem('pausaFimTimestamp')
-            // Pausa expirou enquanto em background (hot resume) — retomar de imediato
+            // Pausa expirou enquanto em background (hot resume) — retomar de imediato (o handlePause lê e apaga a chave)
             if (!pausaAutoRetomadaRef.current) {
               log.info('index', 'pausa expirou em background — a retomar (hot resume)', { fim })
               pausaAutoRetomadaRef.current = true
@@ -519,7 +518,7 @@ export default function AujourdhuiScreen() {
         if (fimRaw) {
           const fim = parseInt(fimRaw)
           if (fim > Date.now()) setPausaFimTimestamp(fim)
-          else { setPausaFimTimestamp(null); await AsyncStorage.removeItem('pausaFimTimestamp') }
+          else { setPausaFimTimestamp(null) }   // o handlePause lê e apaga a chave
           // Pausa expirou enquanto em background
           if (fim <= Date.now() && !pausaAutoRetomadaRef.current) {
             log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp: fim })
@@ -1081,8 +1080,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   const handlePause = async () => {
     if (emPausaRef.current) {
       // Reprendre — finaliser la pause courante (durée figée avant reset)
-      const fimReal = fimPausaOverrideRef.current ?? Date.now()
-      const duracaoPausa = fimPausaOverrideRef.current
+      // Fim programado já ultrapassado = instante real em que a pausa acabou (um só instante para tudo)
+      const fimProgRaw = await AsyncStorage.getItem('pausaFimTimestamp')
+      if (!emPausaRef.current) return   // outra chamada retomou entretanto (evita contar a pausa duas vezes)
+      const fimProg = fimProgRaw ? parseInt(fimProgRaw) : null
+      const agoraMs = Date.now()
+      const fimProgramadoPassado = (fimProg && fimProg > pausaInicioRef.current && fimProg <= agoraMs) ? fimProg : null
+      const fimReal = fimPausaOverrideRef.current ?? fimProgramadoPassado ?? agoraMs
+      const duracaoPausa = (fimPausaOverrideRef.current || fimProgramadoPassado)
         ? Math.max(0, Math.floor((fimReal - pausaInicioRef.current) / 1000))
         : computeSegPausa()   // timestamp-based, sem drift de ticks
       const pausaAtual = { dur: duracaoPausa, inicio: pausaInicioRef.current }
@@ -1118,10 +1123,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setSegPausa(0)
       setEmPausa(false)
       emPausaRef.current = false
-      // Ancorar tsInicioServico no fim programado da pausa (ou agora) e calcular segServico
-      const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
-      const fim = fimRaw ? parseInt(fimRaw) : null
-      tsInicioServico.current = fimPausaOverrideRef.current ?? ((fim && fim <= Date.now()) ? fim : Date.now())
+      // Ancorar tsInicioServico no mesmo instante do fim da pausa e calcular segServico
+      tsInicioServico.current = fimReal
       const segServicoAjustado = computeSegServico()
       setSegServico(segServicoAjustado)
       setPausaFimTimestamp(null)

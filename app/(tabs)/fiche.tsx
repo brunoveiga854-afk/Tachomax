@@ -1151,6 +1151,10 @@ export default function MonSalaireScreen() {
   const [onbFraisSepare, setOnbFraisSepare] = useState(false)
   const [onbDiaSalario, setOnbDiaSalario] = useState(5)
   const [onbDiaFrais, setOnbDiaFrais] = useState(10)
+  const [onbDiaSalTxt, setOnbDiaSalTxt] = useState('5')
+  const [onbDiaFraisTxt, setOnbDiaFraisTxt] = useState('10')
+  const [onbDiaSalErro, setOnbDiaSalErro] = useState('')
+  const [onbDiaFraisErro, setOnbDiaFraisErro] = useState('')
   const [onbVehiculo, setOnbVehiculo] = useState('porteur')
   const [onbCargo, setOnbCargo] = useState('general')
   const [onbHbase, setOnbHbase] = useState(169)
@@ -4410,8 +4414,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 16 }}>Le jour du mois où l'argent arrive sur ton compte.</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                   <TextInput
-                    value={onbDiaSalario > 0 ? String(onbDiaSalario) : ''}
-                    onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; if (n >= 1 && n <= 31) setOnbDiaSalario(n) }}
+                    value={onbDiaSalTxt}
+                    onChangeText={v => { setOnbDiaSalTxt(v.replace(/[^0-9]/g, '')); setOnbDiaSalErro('') }}
                     keyboardType='number-pad'
                     maxLength={2}
                     placeholder='ex: 5'
@@ -4420,11 +4424,17 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   />
                   <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où ton salaire arrive sur ton compte.'}</Text>
                 </View>
+                {onbDiaSalErro ? <Text style={{ fontSize: 12, color: '#e74c3c', marginTop: -10, marginBottom: 12 }}>{onbDiaSalErro}</Text> : null}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity onPress={() => setOnbStep(1)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(3)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => {
+                    const n = parseInt(onbDiaSalTxt, 10)
+                    if (!(n >= 1 && n <= 31)) { setOnbDiaSalErro('Entre un jour valide (de 1 à 31).'); return }
+                    setOnbDiaSalario(n)
+                    setOnbStep(3)
+                  }} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -4457,8 +4467,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 8 }}>Quel jour du mois ?</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 }}>
                   <TextInput
-                    value={onbDiaFrais > 0 ? String(onbDiaFrais) : ''}
-                    onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g,'')) || 0; if (n >= 1 && n <= 31) setOnbDiaFrais(n) }}
+                    value={onbDiaFraisTxt}
+                    onChangeText={v => { setOnbDiaFraisTxt(v.replace(/[^0-9]/g, '')); setOnbDiaFraisErro('') }}
                     keyboardType='number-pad'
                     maxLength={2}
                     placeholder='ex: 10'
@@ -4467,11 +4477,17 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   />
                   <Text style={{ fontSize: 13, color: c.textSub, flex: 2, lineHeight: 20 }}>{'Saisir le jour du mois (1–31) où tes frais arrivent.'}</Text>
                 </View>
+                {onbDiaFraisErro ? <Text style={{ fontSize: 12, color: '#e74c3c', marginTop: -10, marginBottom: 12 }}>{onbDiaFraisErro}</Text> : null}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity onPress={() => setOnbStep(2)} style={{ flex: 1, borderRadius: 14, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>{'<-'} Retour</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setOnbStep(4)} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => {
+                    const n = parseInt(onbDiaFraisTxt, 10)
+                    if (!(n >= 1 && n <= 31)) { setOnbDiaFraisErro('Entre un jour valide (de 1 à 31).'); return }
+                    setOnbDiaFrais(n)
+                    setOnbStep(4)
+                  }} style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 14, padding: 13, alignItems: 'center' }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Suivant {'->'}</Text>
                   </TouchableOpacity>
                 </View>

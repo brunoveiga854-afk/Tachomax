@@ -2890,12 +2890,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   </View>
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 14 }}>{padrao.horasFactorReal !== 1 ? '🟢' : '🟡'}</Text>
+                    <Text style={{ fontSize: 14 }}>{(padrao.horasFactorReal ?? 1) !== 1 ? '🟢' : '🟡'}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>Heures travaillées (correction calendrier)</Text>
                       <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
-                        {padrao.horasFactorReal !== 1
-                          ? `${padrao.horasFactorReal.toFixed(3)}x — le calendrier ${padrao.horasFactorReal > 1 ? 'sous-estime' : 'sur-estime'} légèrement tes heures ✅`
+                        {(padrao.horasFactorReal ?? 1) !== 1
+                          ? `${(padrao.horasFactorReal ?? 1).toFixed(3)}x — le calendrier ${(padrao.horasFactorReal ?? 1) > 1 ? 'sous-estime' : 'sur-estime'} légèrement tes heures ✅`
                           : 'Pas encore de correction apprise — charge des fiches avec heures travaillées'}
                       </Text>
                     </View>

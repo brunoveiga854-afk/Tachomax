@@ -214,6 +214,7 @@ export default function OnboardingScreen() {
         valorDiaConges, valorDiaFerie: 0, valorDiaRC: 0,
         taxaHorariaNetaMedia: hval * liquidRate,
         fraisFactorReal: 0,
+        horasFactorReal: 1,
         vehiculo: typeVehicule, cargo: typeCargo,
         _hvalManual: salBrut > 0,
       }

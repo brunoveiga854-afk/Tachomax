@@ -1,6 +1,7 @@
 import { TachoLogo } from '../../src/TachoLogo'
 import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Modal, Alert, TextInput, Linking, KeyboardAvoidingView, Platform } from 'react-native'
+import Constants from 'expo-constants'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
@@ -1344,7 +1345,8 @@ export default function ReglagesScreen() {
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: 'rgba(52,152,219,0.15)', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#3498db' }} onPress={async () => {
-                const conteudo = logEntries.map(e => `${e.timestamp.replace('T', ' ').slice(0, 19)} [${e.level}] [${e.module}] ${e.message}${e.data !== undefined ? ' — ' + JSON.stringify(e.data) : ''}`).join('\n')
+                const cab = `TachoOffice v${Constants.expoConfig?.version ?? '?'} (versionCode ${Constants.expoConfig?.android?.versionCode ?? '?'}) · Android API ${Platform.Version} · export ${new Date().toISOString().slice(0, 19).replace('T', ' ')}`
+                const conteudo = cab + '\n' + logEntries.map(e => `${e.timestamp.replace('T', ' ').slice(0, 19)} [${e.level}] [${e.module}] ${e.message}${e.data !== undefined ? ' — ' + JSON.stringify(e.data) : ''}`).join('\n')
                 const path = FileSystem.cacheDirectory + 'logs.txt'
                 await FileSystem.writeAsStringAsync(path, conteudo, { encoding: FileSystem.EncodingType.UTF8 })
                 await Sharing.shareAsync(path)

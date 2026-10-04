@@ -24,7 +24,7 @@ import {
   calcMediasDiasTrabalho as _calcMediasDiasTrabalho,
   type Medias,
 } from '../../src/utils/projecoes'
-import { log, perfLog } from '../../src/utils/logger'
+import { log, perfLog, logSeMudou, logMudanca } from '../../src/utils/logger'
 import { COR_OFF } from '../../src/constants/cores'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
@@ -1244,6 +1244,9 @@ export default function MonSalaireScreen() {
     if (p.diaSalario <= 0 || p.diaFrais <= 0) {
       log.warn('fiche', 'persistirPadrao: diaSalario/diaFrais inválidos', { diaSalario: p.diaSalario, diaFrais: p.diaFrais })
     }
+    logMudanca('flag', padrao?.flag, p.flag, 'fiche.persistirPadrao')
+    logMudanca('hval', padrao?.hval, p.hval, 'fiche.persistirPadrao')
+    logMudanca('taxaHorariaNetaMedia', padrao?.taxaHorariaNetaMedia, p.taxaHorariaNetaMedia, 'fiche.persistirPadrao')
     setPadrao(p)
     await secureSet('monSalaire_padrao', JSON.stringify(p))
     log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
@@ -1566,7 +1569,7 @@ export default function MonSalaireScreen() {
           fichePages: h.fichePages ?? null,
           escolhido: h === fichesFrais[0],
         }))
-      log.info('DEBUG_FRAIS_CARD', `frais card ${mesReceber}/${anoReceber}`, {
+      logSeMudou('frais_card', 'DEBUG_FRAIS_CARD', `frais card ${mesReceber}/${anoReceber}`, {
         flag: p.flag,
         anoFrais, mesFrais,
         nDiasFrais: diasFrais.length,
@@ -1711,63 +1714,6 @@ export default function MonSalaireScreen() {
     [historique, histCal, padrao, mediasGlobais]
   )
 
-  // DEBUG_MAIO — remover após leitura dos valores reais no device
-  useEffect(() => {
-    const maio = historique.find((m: MoisData) => m.moisIndex === 4 && m.annee === 2026)
-    if (!maio) return
-    const [aH, mH] = mesTrabalhoDe(maio, padrao)
-    const diasTrab = histCal.filter((j: any) => {
-      const parts = j.date?.split('/')
-      if (!parts || parts.length < 2) return false
-      const mes = parseInt(parts[1]) - 1
-      const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
-      return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
-    })
-    log.info('DEBUG_MAIO', 'valores', {
-      mesTrabalhoIndex: maio.mesTrabalhoIndex,
-      anoTrabalho: maio.anoTrabalho,
-      aH, mH,
-      diasTrabLength: diasTrab.length,
-      taxaHorariaNetaMedia: padrao.taxaHorariaNetaMedia,
-      hval: padrao.hval,
-      liquidRate: padrao.liquidRate,
-      mediasGlobais,
-      estimativa: calcEstimativaMes(maio),
-    })
-    log.info('DEBUG_MAIO_DIAS', 'todos diasTrab', diasTrab.map((j: any) => ({
-      date: j.date, type: j.type, segServico: j.segServico, segH: (j.segServico || 0) / 3600,
-    })))
-    const _totalSeg = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
-    const _totalH = _totalSeg / 3600
-    const [_aF, _mF] = mesFraisTrabalhoDe(maio, padrao)
-    const _fraisCalc = calcFraisMesPorHorarios(histCal, _aF, _mF, padrao)
-    const _factor = (padrao.fraisFactorReal || 0) > 0.1 ? padrao.fraisFactorReal : 1
-    log.info('DEBUG_MAIO_CALC', 'decomposição', {
-      totalSeg: _totalSeg, totalH: _totalH,
-      salLiq: Math.round(_totalH * padrao.taxaHorariaNetaMedia),
-      aF: _aF, mF: _mF,
-      fraisCalcTotal: _fraisCalc.total,
-      fraisFactorReal: padrao.fraisFactorReal,
-      factor: _factor,
-      totalFrais: _fraisCalc.total > 0 ? Math.round(_fraisCalc.total * _factor) : (maio.fraisBoletim || 0),
-    })
-    const _ficheDebug = historique.find((f: MoisData) => {
-      const [aF2, mF2] = mesFraisTrabalhoDe(f, padrao)
-      return mF2 === _mF && aF2 === _aF && !!f.fraisConfirmado
-        && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
-    })
-    log.info('DEBUG_FICHE_FRAIS_ABRIL', 'fiche encontrada', {
-      found: !!_ficheDebug,
-      moisIndex: _ficheDebug?.moisIndex,
-      annee: _ficheDebug?.annee,
-      fraisConfirmado: _ficheDebug?.fraisConfirmado,
-      fraisBoletim: _ficheDebug?.fraisBoletim,
-      fraisRecuConfirme: _ficheDebug?.fraisRecuConfirme,
-      mesFraisTrabalhoIndex: _ficheDebug?.mesFraisTrabalhoIndex,
-      anoFraisTrabalho: _ficheDebug?.anoFraisTrabalho,
-    })
-  }, [historique, histCal, padrao, mediasGlobais, calcEstimativaMes])
-
   // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1887,6 +1833,14 @@ export default function MonSalaireScreen() {
   }
   const recusarConsentIA = () => { consentTipoRef.current = null; setShowConsentIA(false) }
 
+  const categoriaErroIA = (e: any): string => {
+    const msg = typeof e?.message === 'string' ? e.message : ''
+    if (msg.includes('Timeout')) return 'timeout'
+    if (msg.includes('réseau')) return 'rede'
+    if (e?.amigavel) return 'erro_api'
+    return 'resposta_invalida'
+  }
+
   const importerImagens = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['image/*', 'application/pdf'],
@@ -1916,6 +1870,7 @@ export default function MonSalaireScreen() {
       }
       const totalB64 = content.reduce((soma: number, c: any) => soma + (c.source?.data?.length || 0), 0)
       if (totalB64 > 4_500_000) {
+        log.info('fiche', 'import fiches fim', { resultado: 'erro', codigo: 'demasiado_grande', nDocs: 0, nFicheiros: result.assets.length })
         mostrarErro("Fichiers trop lourds pour un seul envoi. Importe-les en plusieurs fois (3 ou 4 à la fois), ou utilise un PDF plutôt qu'une photo.")
         setLoading(false)
         return
@@ -1951,12 +1906,14 @@ Congés/absences:
 Cherche explicitement toutes les lignes possibles: "Heures normales", "Heures supplémentaires 25%", "Heures supplémentaires 50%", "Intéressement", "Participation", "Prime exceptionnelle", "Avantage en nature", "Remboursement frais", "Frais professionnels", "Net à payer avant impôt", "Net payé".
 Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéressement/participation/primes exceptionnelles dans netPaye.` })
       const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3500, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
-      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
-      if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
+      if (data.error) { log.info('fiche', 'import fiches fim', { resultado: 'erro', codigo: 'erro_api', nDocs: 0, nFicheiros: result.assets.length }); mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
+      if (!data.content?.[0]) { log.info('fiche', 'import fiches fim', { resultado: 'erro', codigo: 'sem_conteudo', nDocs: 0, nFicheiros: result.assets.length }); mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       log.info('fiche', 'usage API fiches', { inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens, nFicheiros: result.assets.length })
       processarDocumentos(docs)
+      log.info('fiche', 'import fiches fim', { resultado: 'ok', nDocs: docs.length, nFicheiros: result.assets.length })
     } catch (e: any) {
+      log.info('fiche', 'import fiches fim', { resultado: 'erro', codigo: categoriaErroIA(e), nDocs: 0, nFicheiros: result.assets.length })
       const msg = typeof e?.message === 'string' ? e.message : ''
       if (e?.amigavel || msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
@@ -1968,9 +1925,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
   }
 
   const importerPdfs = async () => {
+    let nFicheiros = 0
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true, multiple: true })
       if (result.canceled) return
+      nFicheiros = result.assets?.length || 0
       log.info('fiche', 'import frais iniciado', { nFicheiros: result.assets?.length || 0 })
       setLoading(true)
       const content: any[] = []
@@ -1989,14 +1948,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       }
       const totalB64 = content.reduce((soma: number, c: any) => soma + (c.source?.data?.length || 0), 0)
       if (totalB64 > 4_500_000) {
+        log.info('fiche', 'import frais fim', { resultado: 'erro', codigo: 'demasiado_grande', nDocs: 0, nFicheiros: nFicheiros })
         mostrarErro("Fichiers trop lourds pour un seul envoi. Importe-les en plusieurs fois (3 ou 4 à la fois), ou utilise un PDF plutôt qu'une photo.")
         setLoading(false)
         return
       }
       content.push({ type: 'text', text: `Tu es un expert en transport routier français. Analyse TOUS ces boletins de frais. Réponds UNIQUEMENT avec un JSON array:\n[{"tipo":"frais","periode":"Février 2026","moisIndex":1,"annee":2026,"entreprise":"","conducteur":"","totalJours":0,"totalKms":0,"decouches":0,"ptDejCount":0,"ptDejValeur":0,"dejCount":0,"dejValeur":0,"dinerCount":0,"dinerValeur":0,"nuitCount":0,"nuitValeur":0,"totalFrais":0,"regles":{"ptDejAte":null,"dejMinAmp":null,"dinerDe":null}},...]\n\nPour le champ "regles", extrait les critères d'attribution si explicitement mentionnés dans le document (sinon laisse null):\n- ptDejAte: heure limite de début de service pour avoir droit au petit déjeuner (nombre décimal, ex: 6.5 pour 06h30)\n- dejMinAmp: amplitude minimale en heures pour avoir droit au déjeuner (ex: 6.017 pour 6h01)\n- dinerDe: heure minimale de fin de service pour avoir droit au dîner (ex: 21.25 pour 21h15)` })
       const data = await chamarProxy({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: 'Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown, sans texte avant ou après.', messages: [{ role: 'user', content }] })
-      if (data.error) { mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
-      if (!data.content?.[0]) { mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
+      if (data.error) { log.info('fiche', 'import frais fim', { resultado: 'erro', codigo: 'erro_api', nDocs: 0, nFicheiros: nFicheiros }); mostrarErro(`Erreur API: ${data.error.message || data.error.type || 'inconnue'}`); setLoading(false); return }
+      if (!data.content?.[0]) { log.info('fiche', 'import frais fim', { resultado: 'erro', codigo: 'sem_conteudo', nDocs: 0, nFicheiros: nFicheiros }); mostrarErro("Impossible d'analyser les documents."); setLoading(false); return }
       const docs: DocumentoAnalysado[] = extrairDocsIA(data.content[0].text)
       log.info('fiche', 'usage API frais', { inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens, nFicheiros: result.assets.length })
       if (docs.length > 0) {
@@ -2037,7 +1997,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         }
       }
       processarDocumentos(docs)
+      log.info('fiche', 'import frais fim', { resultado: 'ok', nDocs: docs.length, nFicheiros: nFicheiros })
     } catch (e: any) {
+      log.info('fiche', 'import frais fim', { resultado: 'erro', codigo: categoriaErroIA(e), nDocs: 0, nFicheiros: nFicheiros })
       const msg = typeof e?.message === 'string' ? e.message : ''
       if (e?.amigavel || msg.includes('Timeout') || msg.includes('réseau') || msg.includes('accès refusé')) {
         mostrarErro(msg)
@@ -2517,7 +2479,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         {showPrevision && calcResult ? (
           (() => {
             const confPct = precisaoEstimativaMotor(padraoAprendido, mesesConfirmados)
-            if (confPct < 70) log.info('fiche', 'card confiance insuffisante', { confPct, mesesConfirmados })
+            if (confPct < 70) logSeMudou('card_confianca', 'fiche', 'card confiance insuffisante', { confPct, mesesConfirmados })
             return (
           <Animated.View style={[st.previsionCard, { transform: [{ scale: calcResult.mesAberto ? pulseAnim : breathAnim }] }]}>
             <Text style={st.previsionLabel}>ESTIMÉ {calcResult.mesReceber.split(' ')[0].toUpperCase()} {calcResult.mesReceber.split(' ')[1]}</Text>

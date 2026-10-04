@@ -15,9 +15,9 @@ export type LogEntry = {
   data?: unknown
 }
 
-// ── Histórico circular (máx 100) ──────────────────────────────────────────────
+// ── Histórico circular (máx 300) ──────────────────────────────────────────────
 
-const MAX_ENTRIES = 100
+const MAX_ENTRIES = 300
 const history: LogEntry[] = []
 
 const push = (entry: LogEntry) => {
@@ -82,6 +82,31 @@ export const perfLog = {
   getPerformanceLogs: () => [...performanceLogs],
 }
 
+// ── Logs só quando o valor muda ───────────────────────────────────────────────
+
+const ultimosPorChave = new Map<string, string>()
+
+const serializar = (v: unknown): string | null => {
+  try { return JSON.stringify(v) ?? 'undefined' } catch { return null }
+}
+
+// Escreve só se `data` for diferente da última vez que esta `chave` escreveu.
+// Se não for possível comparar (ex.: referência circular), escreve na mesma.
+export const logSeMudou = (chave: string, module: string, message: string, data?: unknown) => {
+  const atual = serializar(data)
+  if (atual !== null && ultimosPorChave.get(chave) === atual) return
+  if (atual !== null) ultimosPorChave.set(chave, atual)
+  record('INFO', module, message, data)
+}
+
+// Escreve só se o valor mudou (antigo !== novo, comparação por JSON).
+export const logMudanca = (campo: string, antigo: unknown, novo: unknown, origem: string) => {
+  const a = serializar(antigo)
+  const n = serializar(novo)
+  if (a !== null && n !== null && a === n) return
+  record('INFO', origem, `mudança ${campo}`, { antigo, novo })
+}
+
 export const log = {
   debug: (module: string, message: string, data?: unknown) =>
     record('DEBUG', module, message, data),
@@ -103,6 +128,7 @@ export const log = {
 
   clear: () => {
     history.length = 0
+    ultimosPorChave.clear()
   },
 
   time: (module: string, label: string) => perfLog.time(module, label),

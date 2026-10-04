@@ -48,6 +48,7 @@ type Jour = {
   kmFim?: number
 }
 const STORAGE_KEY = 'TACHOOFFICE_estado'
+const MAX_HISTORIQUE = 1500
 
 // ─── Stats sub-components — defined at module level so React never remounts ──
 // Defining components inside a render body creates a new reference each render,
@@ -879,7 +880,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
-      await AsyncStorage.setItem('historique', JSON.stringify(listaValida.slice(0, 365)))
+      await AsyncStorage.setItem('historique', JSON.stringify(listaValida.slice(0, MAX_HISTORIQUE)))
       setDiasHistorique(listaValida)
       setEditandoDiaId(null)
       setShowAddDia(false)
@@ -1253,7 +1254,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
-      await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, 365)))
+      await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, MAX_HISTORIQUE)))
       setDiasHistorique(listaValidaT)
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)

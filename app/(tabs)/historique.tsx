@@ -1147,7 +1147,7 @@ const getJoursMois = () => {
               style={{ flex: 1.2, backgroundColor: selecionados.size > 0 ? '#e74c3c' : c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: selecionados.size > 0 ? '#e74c3c' : c.navBtnBorder }}
             >
               <Text style={{ fontSize: 12, fontWeight: '700', color: selecionados.size > 0 ? 'white' : c.textSub }}>
-                🗑️ Apagar{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
+                🗑️ Supprimer{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
               </Text>
             </TouchableOpacity>
           </View>

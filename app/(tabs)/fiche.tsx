@@ -2692,7 +2692,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)} €</Text>
                       </View>
                       <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
-                        Mode: {calcResult.modoCalculo === 'calibrado' ? '⚡ calibré (taxa neta média)' : '📊 estimé (formule classique)'}
+                        Mode: {calcResult.modoCalculo === 'calibrado' ? '⚡ calibré (taux net moyen)' : '📊 estimé (formule classique)'}
                       </Text>
                     </>
                   )}
@@ -2918,7 +2918,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       {calcResult.modoCalculo === 'preciso'
                         ? '✅ Mode précis — salaire réel depuis ta fiche de paye confirmée.'
                         : calcResult.modoCalculo === 'calibrado'
-                        ? '⚡ Mode calibré — taxa neta moyenne apprise de ton historique. Très fiable.'
+                        ? (historique.some(f => f.salarioConfirmado && (f.netPaye || 0) > 0)
+                            ? '⚡ Mode calibré — taux net moyen appris de ton historique. Très fiable.'
+                            : '⚡ Mode calibré — Estimation basée sur tes réglages de départ.')
                         : '📊 Mode estimé — formule classique. Charge plus de fiches pour améliorer.'}
                     </Text>
                   </View>
@@ -3218,7 +3220,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     style={{ flex: 1.2, backgroundColor: selMeses.size > 0 ? '#e74c3c' : c.navBtn, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: selMeses.size > 0 ? '#e74c3c' : c.navBtnBorder }}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '700', color: selMeses.size > 0 ? 'white' : c.textSub }}>
-                      🗑️ Apagar{selMeses.size > 0 ? ` (${selMeses.size})` : ''}
+                      🗑️ Supprimer{selMeses.size > 0 ? ` (${selMeses.size})` : ''}
                     </Text>
                   </TouchableOpacity>
                 </View>

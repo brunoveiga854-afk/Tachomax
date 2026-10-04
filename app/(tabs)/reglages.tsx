@@ -14,7 +14,7 @@ import { useLangue } from '../../context/LangueContext'
 import { useApp } from '../../context/AppContext'
 import { useToast } from '../../context/ToastContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
-import { pedirPermissaoNotificacoes, cancelarTodosAlertas, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
+import { pedirPermissaoNotificacoes, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
 
 // Chaves a exportar/importar (AsyncStorage)
@@ -36,7 +36,6 @@ export default function ReglagesScreen() {
   const [showNomModal, setShowNomModal] = useState(false)
   const [editPrenom, setEditPrenom] = useState('')
   const [editNom, setEditNom] = useState('')
-  const [notifications, setNotifications] = useState(true)
   const [showModalHistorique, setShowModalHistorique] = useState(false)
   const [showModalReset, setShowModalReset] = useState(false)
   const [showModalSucesso, setShowModalSucesso] = useState(false)
@@ -115,9 +114,6 @@ export default function ReglagesScreen() {
     })
     getDiasRestantes().then(setDiasTrial)
     getDataExpiracao().then(setDataExpiracao)
-    AsyncStorage.getItem('notificacoes_ativas').then(v => {
-      if (v !== null) setNotifications(v === 'true')
-    })
 
     AsyncStorage.getItem('rappel_saisie_ativo').then(v => {
       const ativo = v !== 'false'
@@ -914,34 +910,6 @@ export default function ReglagesScreen() {
         <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
           <Text style={[st.sectionTitle, { color: c.textLabel }]}>{t.notifications}</Text>
           <View style={st.settingRow}>
-            <View>
-              <Text style={[st.settingLabel, { color: c.text }]}>{t.alertesPause}</Text>
-              <Text style={[st.settingSub, { color: c.textSub }]}>{t.rappelPause}</Text>
-            </View>
-            <Switch
-              value={notifications}
-              onValueChange={async (valor) => {
-                if (valor) {
-                  const ok = await pedirPermissaoNotificacoes()
-                  if (!ok) {
-                    Alert.alert(
-                      'Notifications désactivées',
-                      'Active les notifications pour TachoOffice dans les Paramètres de ton téléphone.',
-                      [{ text: 'OK' }]
-                    )
-                    return
-                  }
-                } else {
-                  await cancelarTodosAlertas()
-                }
-                setNotifications(valor)
-                await AsyncStorage.setItem('notificacoes_ativas', String(valor))
-              }}
-              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
-              thumbColor="white"
-            />
-          </View>
-          <View style={[st.settingRow, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder }]}>
             <View style={{ flex: 1 }}>
               <Text style={[st.settingLabel, { color: c.text }]}>📋 Rappel de saisie</Text>
               <Text style={[st.settingSub, { color: c.textSub }]}>Rappel quotidien à 20h si tu n'as pas enregistré ta journée</Text>

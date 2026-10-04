@@ -18,7 +18,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.tachomax.app",
-      "versionCode": 2,
+      "versionCode": 10,
       "permissions": [],
       "allowBackup": false
     },

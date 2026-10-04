@@ -136,3 +136,35 @@ export async function cancelarRappelSaisie(): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
 }
 
+// Apaga só o alerta de amplitude (e os dois ids antigos de pausa). Não toca no lembrete das 20h.
+export async function cancelarAlertaAmplitude(): Promise<void> {
+  for (const id of [NOTIF_IDS.AMPLITUDE_ALERTA, NOTIF_IDS.PAUSA_ALERTA, NOTIF_IDS.PAUSA_OBRIGATORIA]) {
+    await Notifications.cancelScheduledNotificationAsync(id).catch(() => {})
+  }
+}
+
+// Lembrete único para amanhã (hora:minuto). Substitui o lembrete diário existente (mesmo id).
+export async function agendarRappelSaisieAmanha(hora = 20, minuto = 0): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(NOTIF_IDS.RAPPEL_SAISIE).catch(() => {})
+
+  const quando = new Date()
+  quando.setDate(quando.getDate() + 1)
+  quando.setHours(hora, minuto, 0, 0)
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: NOTIF_IDS.RAPPEL_SAISIE,
+    content: {
+      title: '📋 TachoOffice — Saisie du jour',
+      body: "N'oublie pas d'enregistrer ta journée de travail !",
+      sound: 'default',
+      data: { type: 'rappel_saisie' },
+      ...(Platform.OS === 'android' ? { channelId: 'tachooffice' } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: quando,
+    },
+  })
+  log.info('notif', 'rappel saisie agendado para amanhã', { para: quando.toISOString() })
+}
+

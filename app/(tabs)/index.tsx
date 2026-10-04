@@ -26,8 +26,9 @@ import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
   cancelarTodosAlertas,
-  cancelarRappelSaisie,
+  cancelarAlertaAmplitude,
   agendarRappelSaisie,
+  agendarRappelSaisieAmanha,
 } from '../../src/notifications'
 type Profil = 'CD' | 'MIXTE' | 'LD'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF'
@@ -507,7 +508,7 @@ export default function AujourdhuiScreen() {
           savedDate.getFullYear() !== today.getFullYear()
         if (isDifferentDay) {
           await AsyncStorage.removeItem(STORAGE_KEY)
-          await cancelarTodosAlertas()
+          await cancelarAlertaAmplitude()
           return
         }
       }
@@ -539,7 +540,7 @@ export default function AujourdhuiScreen() {
       limparFraisReglesAoArrancar()
       await restaurarEstado()
       carregarDiasMes()
-      cancelarTodosAlertas()
+      cancelarAlertaAmplitude()
       AsyncStorage.getItem('ultimo_terminer').then(v => {
         if (v) setUltimoTerminerTs(parseInt(v))
       })
@@ -1188,7 +1189,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       lastBgTick: Date.now(),
       horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
     })
-    await cancelarTodosAlertas()
+    await cancelarAlertaAmplitude()
     // Si une durée a été saisie, programmer une alerte et auto-retoma
     const parts = pausaDuracaoInput.match(/^(\d{1,2})[h:H]?(\d{2})$/)
     let duracaoS = 0
@@ -1322,8 +1323,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     await guardarDia(fim, snapKm, snapService, snapPausaTotal)
     log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, frais: snapFrais, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    await cancelarTodosAlertas()
-    await cancelarRappelSaisie()
+    try {
+      await cancelarAlertaAmplitude()
+      if ((await AsyncStorage.getItem('rappel_saisie_ativo')) !== 'false') await agendarRappelSaisieAmanha(20, 0)
+    } catch (e) { log.warn('index', 'terminar: notificações falharam (não bloqueante)', e) }
     await AsyncStorage.removeItem(STORAGE_KEY)
     const terminadoTs = Date.now()
     // Só actualizar o timestamp de repouso se o serviço durou pelo menos 30 min

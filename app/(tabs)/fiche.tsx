@@ -1182,7 +1182,14 @@ export default function MonSalaireScreen() {
   const flagEfectivo = padraoAprendido.flagConfirmado && padraoAprendido.flag != null
     ? padraoAprendido.flag
     : padrao.flag
-  const [mesesConfirmados, setMesesConfirmados] = useState(0)
+  const mesesConfirmados = useMemo(
+    () => new Set(
+      historique
+        .filter(f => f.salarioConfirmado && (f.netPaye || 0) > 0)
+        .map(f => `${f.annee}-${f.moisIndex}`)
+    ).size,
+    [historique]
+  )
   const [showCadeado, setShowCadeado] = useState(false)
   const router = useRouter()
 
@@ -1359,8 +1366,6 @@ export default function MonSalaireScreen() {
         }
       }
       setPadraoAprendido(migrarPadraoAprendido(appState.padraoAprendido ?? PADRAO_INICIAL))
-      const mesesRaw = await AsyncStorage.getItem('aprendizagem_meses_confirmados')
-      if (mesesRaw) setMesesConfirmados(parseInt(mesesRaw) || 0)
       setHistCal(cal)
       const reglesLimpas = await limparFraisReglesAoArrancar()
       if (data) {

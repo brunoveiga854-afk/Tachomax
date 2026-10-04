@@ -566,8 +566,15 @@ export default function ReglagesScreen() {
 
     // ── 6. MOTEUR ──────────────────────────────────────────────
     lines.push('\n🧠 MOTEUR')
-    const mesesConfRaw = rawMap['aprendizagem_meses_confirmados']
-    const mesesConf = mesesConfRaw ? (parseInt(mesesConfRaw) || 0) : 0
+    let mesesConf = 0
+    try {
+      const fichesMot = fichesRaw ? (JSON.parse(fichesRaw) as any[]) : []
+      mesesConf = new Set(
+        fichesMot
+          .filter(f => f.salarioConfirmado && (f.netPaye || 0) > 0)
+          .map(f => `${f.annee}-${f.moisIndex}`)
+      ).size
+    } catch {}
     lines.push('   Meses confirmados: ' + mesesConf)
     if (mesesConf === 0) warnings.push('Aucun mois confirmé — précision réduite')
     const timingSal = hlagConf

@@ -682,21 +682,21 @@ function diagnosticarDadosFaltantes(dados: MoisData[], hist: any[], p: Padrao): 
   const faltas: string[] = []
   const salConf = dados.filter(d => d.salarioConfirmado && d.netPaye > 0)
   const fraisConf = dados.filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0)
-  if (salConf.length < 3) faltas.push(`faltam ${3 - salConf.length} salário(s) confirmado(s) para fechar o hlag`)
-  if (fraisConf.length < 3) faltas.push(`faltam ${3 - fraisConf.length} frais confirmado(s) para fechar o flag`)
+  if (salConf.length < 3) faltas.push(`${3 - salConf.length} salaire(s) confirmé(s) manquant(s) pour valider le décalage salaire (hlag)`)
+  if (fraisConf.length < 3) faltas.push(`${3 - fraisConf.length} frais confirmé(s) manquant(s) pour valider le décalage frais (flag)`)
 
   for (const fiche of salConf.slice(-3)) {
     const anoPay = fiche.pagamentoSalAno ?? fiche.annee
     const mesPay = fiche.pagamentoSalMesIndex ?? fiche.moisIndex
     const [aH, mH] = shiftMois(anoPay, mesPay, -p.hlag)
     if (diasCalendarioMes(hist, aH, mH).length === 0) {
-      faltas.push(`falta calendário de ${MOIS_NOMS[mH]} ${aH}`)
+      faltas.push(`calendrier de ${MOIS_NOMS[mH]} ${aH} manquant`)
       break
     }
   }
 
   if (dados.some(d => (d.joursRC || 0) > 0) && p.valorDiaRC === 0) {
-    faltas.push('falta valor RC na fiche para aprender valorDiaRC com precisão')
+    faltas.push('valeur R.C. absente de la fiche pour apprendre le jour de R.C. avec précision')
   }
 
   return faltas
@@ -714,7 +714,7 @@ function alertasFraisIncoerentes(dados: MoisData[], hist: any[], p: Padrao): str
       const diff = Math.round((esperado - pago) * 100) / 100
       const tolerancia = Math.max(5, esperado * 0.02)
       if (esperado <= 0 || diff <= tolerancia) return null
-      return `Este mês esperava ${esperado.toFixed(2)}€ de frais mas o boletim diz ${pago.toFixed(2)}€ — diferença de ${diff.toFixed(2)}€. Verifica se todos os dias foram pagos correctamente.`
+      return `Ce mois, j'attendais ${esperado.toFixed(2)}€ de frais mais le bulletin indique ${pago.toFixed(2)}€ — écart de ${diff.toFixed(2)}€. Vérifie que tous les jours ont bien été payés.`
     })
     .filter(Boolean) as string[]
 }
@@ -2450,7 +2450,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     perfLog.timeEnd('fiche', 'guardarTudo')
     log.info('fiche', 'guardarTudo concluído', { numMeses: novoHist.length, hlag: novoPadrao.hlag, flag: novoPadrao.flag, confianca: novoPadrao.confianca })
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
-    const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nFalta: ${faltas.join(' · ')}` : `${baseMsg}\n\nPadrão aprendido com dados confirmados.`
+    const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nÀ compléter : ${faltas.join(' · ')}` : `${baseMsg}\n\nPattern appris avec des données confirmées.`
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
     setLoading(false)
     setShowModalSucesso(true)
@@ -2657,36 +2657,36 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   {calcResult.modoCalculo === 'preciso' ? (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>✅ Salaire réel (fiche confirmée)</Text>
-                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)} €</Text>
+                      <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)}</Text>
                     </View>
                   ) : (
                     <>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hNormal)}h norm. × {padrao.hval.toFixed(2)} €</Text>
-                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hNormal * padrao.hval)} €</Text>
+                        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hNormal)} norm. × {padrao.hval.toFixed(2)} €</Text>
+                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hNormal * padrao.hval)}</Text>
                       </View>
                       {calcResult.hExtra25 > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra25)}h +25% × {padrao.h25.toFixed(2)} €</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra25 * padrao.h25)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra25)} +25% × {padrao.h25.toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra25 * padrao.h25)}</Text>
                         </View>
                       )}
                       {calcResult.hExtra50 > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra50)}h +50% × {padrao.h50.toFixed(2)} €</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra50 * padrao.h50)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>⏱ {fmtH(calcResult.hExtra50)} +50% × {padrao.h50.toFixed(2)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.hExtra50 * padrao.h50)}</Text>
                         </View>
                       )}
                       {calcResult.nConges > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🏖 {calcResult.nConges}j congés × {(padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nConges * (padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval))} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nConges * (padrao.valorDiaConges > 0 ? padrao.valorDiaConges : (padrao.hbase / 22) * padrao.hval))}</Text>
                         </View>
                       )}
                       {calcResult.nRC > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🔄 {calcResult.nRC}j R.C. × {(padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval).toFixed(2)} €</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nRC * (padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval))} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.nRC * (padrao.valorDiaRC > 0 ? padrao.valorDiaRC : (padrao.hbase / 22) * padrao.hval))}</Text>
                         </View>
                       )}
                       <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 2 }} />
@@ -2694,7 +2694,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                           Brut→Net ({Math.round(calcResult.liquidRateUsado * 100)}%{calcResult.liquidRateUsado === 0.79 ? ' · défaut ⚠️' : ' · réel ✅'})
                         </Text>
-                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)} €</Text>
+                        <Text style={{ fontSize: 12, color: 'white', fontWeight: '700' }}>{fmtInt(calcResult.salLiq)}</Text>
                       </View>
                       <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
                         Mode: {calcResult.modoCalculo === 'calibrado' ? '⚡ calibré (taux net moyen)' : '📊 estimé (formule classique)'}
@@ -2709,25 +2709,25 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       {calcResult.fraisDetail.ptd > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🍵 Pt-déj × {calcResult.fraisDetail.ptd}</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.ptd * padrao.ptd)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.ptd * padrao.ptd)}</Text>
                         </View>
                       )}
                       {calcResult.fraisDetail.dej > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🥗 Déjeuner × {calcResult.fraisDetail.dej}</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.dej * padrao.dej)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.dej * padrao.dej)}</Text>
                         </View>
                       )}
                       {calcResult.fraisDetail.din > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🍽 Dîner × {calcResult.fraisDetail.din}</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.din * padrao.din)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.din * padrao.din)}</Text>
                         </View>
                       )}
                       {calcResult.fraisDetail.nui > 0 && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>🌙 Nuit × {calcResult.fraisDetail.nui}</Text>
-                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.nui * padrao.nui)} €</Text>
+                          <Text style={{ fontSize: 12, color: 'white', fontWeight: '600' }}>{fmtInt(calcResult.fraisDetail.nui * padrao.nui)}</Text>
                         </View>
                       )}
                       {calcResult.fraisConfirmado && (
@@ -2739,7 +2739,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 4 }} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>TOTAL ESTIMÉ</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#2ecc71' }}>{fmtInt(calcResult.totalLiq)} €</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#2ecc71' }}>{fmtInt(calcResult.totalLiq)}</Text>
                   </View>
                   {calcResult.nFeries > 0 && (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

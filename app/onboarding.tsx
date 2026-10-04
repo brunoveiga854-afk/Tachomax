@@ -262,7 +262,7 @@ export default function OnboardingScreen() {
     } catch (e) {
       log.error('onboarding', 'terminerOnboarding falhou', e)
       setTerminando(false)
-      Alert.alert('Erro', 'Não foi possível guardar os dados. Por favor tenta novamente.')
+      Alert.alert('Erreur', "Impossible d'enregistrer les données. Réessaie dans un instant.")
     }
   }
 

@@ -22,7 +22,6 @@ import {
 } from '../../src/utils/projecoes'
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
-import { mesmoDia } from '../../src/utils/chaveDia'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -867,7 +866,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       } else {
         // ADICIONAR — inserir novo (sem duplicados por data)
         const novoDiaManual = { id: Date.now().toString(), ...diaDados }
-        lista = lista.filter((j: any) => !mesmoDia(j, novoDiaManual))
+        lista = lista.filter((j: any) => j.date !== novoDiaManual.date)
         lista.unshift(novoDiaManual)
       }
       lista.sort((a: any, b: any) => {
@@ -1248,7 +1247,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
     }
     try {
-      const semDuplicadoT = lista.filter((j: any) => !mesmoDia(j, novoDia))
+      const semDuplicadoT = lista.filter((j: any) => j.date !== novoDia.date)
       semDuplicadoT.unshift(novoDia)
       const listaValidaT = semDuplicadoT.filter((entry: any) => {
         const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'

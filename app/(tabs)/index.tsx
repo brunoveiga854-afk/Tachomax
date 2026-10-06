@@ -22,6 +22,7 @@ import {
 } from '../../src/utils/projecoes'
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
+import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -1258,6 +1259,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, MAX_HISTORIQUE)))
       setDiasHistorique(listaValidaT)
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
+      void AsyncStorage.getItem('tracteur_value').then(v => gravarKmCamiao(v ?? '', kmFimGuardado)).catch(() => {})
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }

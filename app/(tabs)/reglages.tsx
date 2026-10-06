@@ -17,6 +17,7 @@ import { useToast } from '../../context/ToastContext'
 import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
+import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
 
 // Chaves a exportar/importar (AsyncStorage)
 // monSalaire_padrao/aprendizagem_padrao omitidos: recalculados automaticamente
@@ -763,6 +764,7 @@ export default function ReglagesScreen() {
                 const km = kmTracteurActuel.trim()
                 if (!km || parseFloat(km) <= 0) return
                 await AsyncStorage.setItem('km_ultimo_fim', km)
+                void gravarKmCamiao(tracteurValue, /^\d+$/.test(km) ? parseInt(km, 10) : NaN)
                 actualizarCampo('kmUltimoFim', parseInt(km))
                 log.info('reglages', 'km actualizado manualmente', { km })
                 await atualizarCamposOk()

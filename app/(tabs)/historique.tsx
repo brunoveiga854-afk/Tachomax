@@ -19,6 +19,7 @@ import { useToast } from '../../context/ToastContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
 import { log } from '../../src/utils/logger'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
+import { kmTotalDoDia, textoTroca, juntarComentario } from '../../src/utils/camioes'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -540,14 +541,16 @@ const getJoursMois = () => {
       frais: fraisCalculado,
       segServico: novoSeg,
       segPausa: pausaMinFinal * 60,
-      kmInicio: parseFloat(editKmInicio) || 0,
-      kmFim: parseFloat(editKmFim) || 0,
-      kmDiarios: (() => {
-        const i = parseFloat(editKmInicio) || 0
-        const f = parseFloat(editKmFim) || 0
-        if (i > 0 && f > 0) return Math.abs(Math.round(f - i))
-        return parseFloat(editKm) || 0
-      })(),
+      ...((jourEdit as any).troca ? {} : {
+        kmInicio: parseFloat(editKmInicio) || 0,
+        kmFim: parseFloat(editKmFim) || 0,
+        kmDiarios: (() => {
+          const i = parseFloat(editKmInicio) || 0
+          const f = parseFloat(editKmFim) || 0
+          if (i > 0 && f > 0) return Math.abs(Math.round(f - i))
+          return parseFloat(editKm) || 0
+        })(),
+      }),
       nota: editNotaTexto.trim()
         ? (jourEdit.nota
             ? { ...jourEdit.nota, texto: editNotaTexto.trim() }
@@ -649,14 +652,14 @@ const getJoursMois = () => {
           travMin: mn ? mn.travMin : 0,
           kmDepart: kmI > 0 ? String(kmI) : '',
           kmArrivee: kmF > 0 ? String(kmF) : '',
-          kmTotal: (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
+          kmTotal: (entry as any)?.troca ? kmTotalDoDia(entry as any) : (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
           petitDej: (fraisJ as any).ptDej || false,
           repas: (fraisJ as any).repas || false,
           nuit: entry?.decouche || false,
           adr: adrVal === 'true',
           vehicule: tracteurVal || '',
           remorque: remorqueVal || '',
-          commentaire: (entry as any)?.nota?.texto || '',
+          commentaire: juntarComentario((entry as any)?.nota?.texto, textoTroca((entry as any)?.troca)),
         }
       })
       const joursFinal = indicesSelecionados
@@ -682,7 +685,7 @@ const getJoursMois = () => {
       const linhas: LinhaFiche[] = entriesSel.map(e => {
         const kmI = e.kmInicio || 0; const kmF = e.kmFim || 0
         const ehTrab = e.type === 'TRAB' || e.type === 'DEC'
-        const kmDia = (kmI > 0 && kmF > 0) ? Math.abs(kmF - kmI) : (e.kmDiarios || 0)
+        const kmDia = (e as any).troca ? (parseInt(kmTotalDoDia(e as any)) || 0) : (kmI > 0 && kmF > 0) ? Math.abs(kmF - kmI) : (e.kmDiarios || 0)
         let problema: string | null = null
         if (invalidos.some(x => x.id === e.id)) problema = 'service < 2 min'
         else if (kmI > 0 && kmF > 0 && kmF < kmI) problema = 'km fin < km début'
@@ -1242,6 +1245,7 @@ const getJoursMois = () => {
                 <TextInput
                   style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1.5, borderColor: editKmInicioAuto ? '#f5a623' : c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
                   value={editKmInicio}
+                  editable={!(jourEdit as any)?.troca}
                   onChangeText={v => {
                     setEditKmInicio(v); setEditKmInicioAuto(false)
                     const i = parseFloat(v) || 0; const f = parseFloat(editKmFim) || 0
@@ -1257,6 +1261,7 @@ const getJoursMois = () => {
                 <TextInput
                   style={{ backgroundColor: c.input, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center' }}
                   value={editKmFim}
+                  editable={!(jourEdit as any)?.troca}
                   onChangeText={v => {
                     setEditKmFim(v)
                     const i = parseFloat(editKmInicio) || 0; const f = parseFloat(v) || 0
@@ -1276,12 +1281,16 @@ const getJoursMois = () => {
               <View style={{ backgroundColor: 'rgba(41,128,185,0.10)', borderRadius: 10, padding: 12, borderWidth: 1.5, borderColor: '#2980b9', alignItems: 'center' }}>
                 <Text style={{ fontSize: 20, fontWeight: '900', color: '#2980b9' }}>
                   {(() => {
+                    if ((jourEdit as any)?.troca) return `${kmTotalDoDia(jourEdit as any) || '—'} km`
                     const i = parseFloat(editKmInicio) || 0; const f = parseFloat(editKmFim) || 0
                     if (i > 0 && f > 0) return `${Math.abs(Math.round(f - i))} km`
                     return editKm ? `${editKm} km` : '— km'
                   })()}
                 </Text>
               </View>
+              {(jourEdit as any)?.troca ? (
+                <Text style={{ fontSize: 11, color: c.textSub, marginTop: 6 }}>km por camião: {textoTroca((jourEdit as any).troca)}</Text>
+              ) : null}
             </View>
             <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 8, fontWeight: '600' }}>TYPE DE JOUR</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>

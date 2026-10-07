@@ -1,6 +1,6 @@
 import {
   normalizarMatricula, mesmoCamiao, ultimoKmDoCamiao, registarKm, kmDoCamiao,
-  kmTotalDoDia, textoTroca, juntarComentario, reclassificar, TrocaCamiao,
+  kmTotalDoDia, textoTroca, juntarComentario, reclassificar, kmFimDoDia, TrocaCamiao,
 } from './camioes'
 
 const troca = (kmIA: number, kmFA: number, kmIB: number, kmFB: number): TrocaCamiao => ({
@@ -159,5 +159,26 @@ describe('reclassificar', () => {
   })
   it('valores inválidos não rebentam', () => {
     expect(reclassificar(NaN, 0, 0, 'pause').movido).toBe(0)
+  })
+})
+
+describe('kmFimDoDia', () => {
+  it('sem troca devolve o kmFim do dia', () => {
+    expect(kmFimDoDia({ kmFim: 30500 })).toBe(30500)
+  })
+  it('sem troca e kmFim indefinido, 0 ou null devolve 0', () => {
+    expect(kmFimDoDia({})).toBe(0)
+    expect(kmFimDoDia({ kmFim: 0 })).toBe(0)
+    expect(kmFimDoDia({ kmFim: null })).toBe(0)
+  })
+  it('com troca devolve o fim de B e ignora o kmFim do dia (que é o de A)', () => {
+    expect(kmFimDoDia({ kmFim: 30400, troca: troca(30000, 30400, 50000, 50400) })).toBe(50400)
+  })
+  it('com troca e fim de B a 0 ("Passer") devolve 0', () => {
+    expect(kmFimDoDia({ kmFim: 30400, troca: troca(30000, 30400, 50000, 0) })).toBe(0)
+  })
+  it('null ou undefined devolve 0', () => {
+    expect(kmFimDoDia(null)).toBe(0)
+    expect(kmFimDoDia(undefined)).toBe(0)
   })
 })

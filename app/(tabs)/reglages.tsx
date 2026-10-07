@@ -18,6 +18,7 @@ import { getDiasRestantes, getDataExpiracao } from '../../src/trial'
 import { pedirPermissaoNotificacoes, agendarRappelSaisie, cancelarRappelSaisie } from '../../src/notifications'
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
 import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
+import { kmFimDoDia } from '../../src/utils/camioes'
 
 // Chaves a exportar/importar (AsyncStorage)
 // monSalaire_padrao/aprendizagem_padrao omitidos: recalculados automaticamente
@@ -146,7 +147,8 @@ export default function ReglagesScreen() {
   // (histCal já vem ordenado mais-recente-primeiro via unshift)
   useEffect(() => {
     const kmContexto = appState.kmUltimoFim
-    const kmHistorico = appState.histCal?.find((d: any) => (d.kmFim || 0) > 0)?.kmFim ?? null
+    const diaComKm = appState.histCal?.find((d: any) => kmFimDoDia(d) > 0)
+    const kmHistorico = diaComKm ? kmFimDoDia(diaComKm) : null
     const kmFinal = kmContexto > 0 ? kmContexto : kmHistorico
     if (kmFinal) setKmTracteurActuel(String(kmFinal))
   }, [appState.kmUltimoFim, appState.histCal])

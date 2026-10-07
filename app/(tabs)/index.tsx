@@ -24,7 +24,7 @@ import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
-import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, type TrocaCamiao } from '../../src/utils/camioes'
+import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, type TrocaCamiao } from '../../src/utils/camioes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -588,7 +588,8 @@ export default function AujourdhuiScreen() {
   useEffect(() => {
     if (!enService) {
       const kmContexto = appState.kmUltimoFim
-      const kmHistorico = appState.histCal?.find((d: any) => (d.kmFim || 0) > 0)?.kmFim ?? null
+      const diaComKm = appState.histCal?.find((d: any) => kmFimDoDia(d) > 0)
+      const kmHistorico = diaComKm ? kmFimDoDia(diaComKm) : null
       const v = kmContexto > 0 ? kmContexto : kmHistorico
       if (v && v > 0 && (!kmInicioInput || kmInicioAuto)) {
         setKmInicioInput(String(v))

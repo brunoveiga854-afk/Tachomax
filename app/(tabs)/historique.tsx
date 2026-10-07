@@ -19,7 +19,7 @@ import { useToast } from '../../context/ToastContext'
 import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitizeFraisRegles, sanitizeFraisValeurs } from '../../src/frais'
 import { log } from '../../src/utils/logger'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
-import { kmTotalDoDia, textoTroca, juntarComentario } from '../../src/utils/camioes'
+import { kmTotalDoDia, kmFimDoDia, textoTroca, juntarComentario, type TrocaCamiao } from '../../src/utils/camioes'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -36,6 +36,7 @@ type Jour = {
   kmDiarios?: number
   kmInicio?: number
   kmFim?: number
+  troca?: TrocaCamiao
   nota?: { categoria: string; emoji: string; texto?: string }
 }
 type LinhaFiche = { entry: Jour; label: string; horas: string; km: string; problema: string | null; nota: string }
@@ -459,8 +460,8 @@ const getJoursMois = () => {
     if (!kmI) {
       const idx = historique.findIndex(j => j.id === jour.id)
       const prevJour = idx >= 0 && idx + 1 < historique.length ? historique[idx + 1] : null
-      if (prevJour && prevJour.kmFim && prevJour.kmFim > 0) {
-        kmInicioFinal = prevJour.kmFim
+      if (prevJour && kmFimDoDia(prevJour) > 0) {
+        kmInicioFinal = kmFimDoDia(prevJour)
         autoInicio = true
       }
     }
@@ -568,10 +569,10 @@ const getJoursMois = () => {
       return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
     }
     const maisRecenteComKm = nova
-      .filter(j => (j.kmFim || 0) > 0)
+      .filter(j => kmFimDoDia(j) > 0)
       .reduce<Jour | null>((m, j) => (!m || tsDia(j) > tsDia(m) ? j : m), null)
-    if (maisRecenteComKm?.id === jourEdit.id && (jourAtualizado.kmFim || 0) > 0) {
-      const kmNovo = Math.round(jourAtualizado.kmFim as number)
+    if (maisRecenteComKm?.id === jourEdit.id && kmFimDoDia(jourAtualizado) > 0) {
+      const kmNovo = Math.round(kmFimDoDia(jourAtualizado))
       await AsyncStorage.setItem('km_ultimo_fim', String(kmNovo))
       actualizarCampo('kmUltimoFim', kmNovo)
     }

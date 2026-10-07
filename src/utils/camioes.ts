@@ -105,3 +105,16 @@ export function reclassificar(
   const movido = Number.isFinite(delta) ? Math.max(0, Math.min(segServicoAgora, delta)) : 0
   return { segServico: segServicoAgora - movido, segPausaTotal: segPausaTotal + movido, movido }
 }
+
+/**
+ * Último km do camião "de agora" de um dia do histórico.
+ * - Com troca: fim do camião B (troca.b.kmFim). O kmFim do dia é o de A.
+ * - Sem troca: o kmFim do dia.
+ * 0 = sem km (ex.: "Passer").
+ */
+export function kmFimDoDia(
+  dia: { kmFim?: number | null; troca?: { b: { kmFim: number } } | null } | null | undefined,
+): number {
+  if (!dia) return 0
+  return dia.troca ? (Number(dia.troca.b.kmFim) || 0) : (Number(dia.kmFim) || 0)
+}

@@ -25,7 +25,7 @@ import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
 import { lerUltimoCamiao, gravarUltimoCamiao } from '../../src/utils/ultimoCamiao'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
-import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, type TrocaCamiao } from '../../src/utils/camioes'
+import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, segServicoDe, normalizarMatricula, kmDoCamiao, type TrocaCamiao } from '../../src/utils/camioes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -937,10 +937,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   }, [enService])
 
   // Calcula segServico a partir da âncora de timestamp — imune a throttling de JS
-  const computeSegServico = () => {
-    if (tsInicioServico.current == null) return segServicoBaseRef.current
-    return segServicoBaseRef.current + Math.floor((Date.now() - tsInicioServico.current) / 1000)
-  }
+  const computeSegServico = () => segServicoDe(segServicoBaseRef.current, tsInicioServico.current, Date.now())
 
   const computeSegPausa = () => {
     if (!emPausaRef.current || !pausaInicioRef.current) return 0
@@ -1112,6 +1109,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let decisao: ReturnType<typeof decidirTrocaNoDemarrer> = { accao: 'nada' }
     let ultimo: Awaited<ReturnType<typeof lerUltimoCamiao>> = null
     let preenchido = 0
+    let motivo: 'sem_registo' | 'sem_camiao_actual' | 'mesmo_camiao' | 'erro' | 'diferente' = 'erro'
     try {
       const [u, tv, kmGuardado] = await Promise.all([
         lerUltimoCamiao(), AsyncStorage.getItem('tracteur_value'), AsyncStorage.getItem('km_ultimo_fim'),
@@ -1122,11 +1120,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       const guardado = parseInt(kmGuardado ?? '') || 0
       preenchido = guardado > 0 ? guardado : (diaComKm ? kmFimDoDia(diaComKm) : 0)   // mesmo valor que o effect pré-preenche
       decisao = decidirTrocaNoDemarrer(u, { value: tv ?? '' }, mapa)
+      motivo = !u ? 'sem_registo'
+        : normalizarMatricula(tv) === '' ? 'sem_camiao_actual'
+        : mesmoCamiao(u.value, tv) ? 'mesmo_camiao' : 'diferente'
       if (decisao.accao === 'perguntar' && !u) decisao = { accao: 'nada' }
     } catch (e) {
       log.warn('index', 'tocarDemarrer: verificação do camião falhou (arranca normal)', e)
       decisao = { accao: 'nada' }
     }
+    log.info('index', 'demarrer: camião', { decisao: decisao.accao === 'nada' || !ultimo ? 'nada' : 'perguntar', motivo })
     if (decisao.accao === 'nada' || !ultimo) { void handleDemarrer(); return }
 
     const ult = ultimo
@@ -1139,9 +1141,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       'Changement de camion',
       `Dernier service : ${d.ultimo}. Maintenant : ${d.actual}. Tu as changé de camion ?`,
       [
-        { text: `Oui, ${d.actual}`, onPress: () => { libertar(); void handleDemarrer(intocado ? (d.kmActual ?? 0) : undefined) } },
+        { text: `Oui, ${d.actual}`, onPress: () => { libertar(); log.info('index', 'demarrer: resposta', { escolha: 'oui', intocado }); void handleDemarrer(intocado ? (d.kmActual ?? 0) : undefined) } },
         { text: `Non, je suis revenu à ${d.ultimo}`, onPress: async () => {
           libertar()
+          log.info('index', 'demarrer: resposta', { escolha: 'non', intocado })
           try {
             await AsyncStorage.setItem('tracteur_type', ult.type)
             await AsyncStorage.setItem('tracteur_value', ult.value)
@@ -1150,9 +1153,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           } catch (e) { log.error('index', 'tocarDemarrer: repor camião falhou', e); return }
           void handleDemarrer(intocado && d.kmUltimo != null ? d.kmUltimo : undefined)
         } },
-        { text: 'Annuler', style: 'cancel', onPress: libertar },
+        { text: 'Annuler', style: 'cancel', onPress: () => { libertar(); log.info('index', 'demarrer: resposta', { escolha: 'annuler', intocado }) } },
       ],
-      { cancelable: true, onDismiss: libertar },
+      { cancelable: true, onDismiss: () => { libertar(); log.info('index', 'demarrer: resposta', { escolha: 'annuler', intocado }) } },
     )
   }
 
@@ -1360,6 +1363,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         .then(([tt, tv]) => gravarUltimoCamiao({ type: tt === 'parc' ? 'parc' : 'immat', value: tv ?? '' })).catch(() => {})
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
+      if (troca) log.info('index', 'dia gravado com troca', {
+        kmA: kmDoCamiao(troca.a.kmInicio, troca.a.kmFim), kmB: kmDoCamiao(troca.b.kmInicio, troca.b.kmFim),
+        kmTotal: novoDia.kmDiarios, segServico: snapService, segPausa: snapPausaTotal,
+      })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
   }
 
@@ -1435,10 +1442,18 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
   // Passa 'movido' segundos de serviço para pausa (mesma contabilidade do handlePause). A amplitude não muda.
   const aplicarPausaDaTroca = async (movido: number, inicioTs: number) => {
-    segServicoBaseRef.current = Math.max(0, segServicoBaseRef.current - movido)
+    const baseAntes = segServicoBaseRef.current
+    const servicoAntes = computeSegServico()
+    const pausaTotalAntes = segPausaTotalBaseRef.current + computeSegPausa()
+    // a base pode ficar negativa: o total (base + tempo desde a âncora) é que não pode
+    segServicoBaseRef.current = segServicoBaseRef.current - movido
     segPausaTotalBaseRef.current += movido
     const novoServico = computeSegServico()
     const novaPausaTotal = segPausaTotalBaseRef.current + computeSegPausa()
+    log.info('index', 'troca: pausa aplicada', {
+      resposta: trocaBResposta, movido, servicoAntes, servicoDepois: novoServico,
+      pausaTotalAntes, pausaTotalDepois: novaPausaTotal, baseAntes, baseDepois: segServicoBaseRef.current,
+    })
     setSegServico(novoServico)
     setSegPausaTotal(novaPausaTotal)
     const lista = [...pausas, { dur: movido, inicio: inicioTs }]

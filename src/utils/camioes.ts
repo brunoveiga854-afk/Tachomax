@@ -161,3 +161,12 @@ export function decidirTrocaNoDemarrer(
 export function campoKmIntocado(valorCampo: number, preenchido: number): boolean {
   return !(valorCampo > 0) || valorCampo === preenchido
 }
+
+/**
+ * Serviço em segundos: base + tempo desde a âncora (se houver). Sem âncora devolve a base.
+ * A base pode ser negativa (desconto da troca "Pause"); o total é que não pode.
+ */
+export function segServicoDe(base: number, tsInicioMs: number | null | undefined, agoraMs: number): number {
+  if (tsInicioMs == null) return base
+  return base + Math.floor((agoraMs - tsInicioMs) / 1000)
+}

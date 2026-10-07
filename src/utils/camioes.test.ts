@@ -1,7 +1,7 @@
 import {
   normalizarMatricula, mesmoCamiao, ultimoKmDoCamiao, registarKm, kmDoCamiao,
   kmTotalDoDia, textoTroca, juntarComentario, reclassificar, kmFimDoDia,
-  parseUltimoCamiao, decidirTrocaNoDemarrer, campoKmIntocado, TrocaCamiao,
+  parseUltimoCamiao, decidirTrocaNoDemarrer, campoKmIntocado, segServicoDe, TrocaCamiao,
 } from './camioes'
 
 const troca = (kmIA: number, kmFA: number, kmIB: number, kmFB: number): TrocaCamiao => ({
@@ -253,5 +253,30 @@ describe('campoKmIntocado', () => {
   it('diferente do pré-preenchido é tocado (inclui pré-preenchido 0)', () => {
     expect(campoKmIntocado(31000, 30500)).toBe(false)
     expect(campoKmIntocado(31000, 0)).toBe(false)
+  })
+})
+
+describe('segServicoDe', () => {
+  const agora = 1_000_000_000_000
+  it('base 0 e âncora há 159 s dá 159', () => {
+    expect(segServicoDe(0, agora - 159_000, agora)).toBe(159)
+  })
+  it('base negativa (desconto da troca) e âncora há 456 s dá 297', () => {
+    expect(segServicoDe(-159, agora - 456_000, agora)).toBe(297)
+  })
+  it('base 0 e âncora null dá 0', () => {
+    expect(segServicoDe(0, null, agora)).toBe(0)
+  })
+  it('base 1000 e âncora null dá 1000', () => {
+    expect(segServicoDe(1000, null, agora)).toBe(1000)
+    expect(segServicoDe(1000, undefined, agora)).toBe(1000)
+  })
+  it('igual à fórmula antiga para bases positivas', () => {
+    const antiga = (b: number, ts: number | null) => (ts == null ? b : b + Math.floor((agora - ts) / 1000))
+    for (const b of [0, 1, 600, 4500, 36000]) {
+      for (const ts of [null, agora, agora - 1_500, agora - 90_000, agora - 3_600_000]) {
+        expect(segServicoDe(b, ts, agora)).toBe(antiga(b, ts))
+      }
+    }
   })
 })

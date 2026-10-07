@@ -91,7 +91,7 @@ const StatsDivider = ({ c }: { c: StatsC }) => (
 export default function AujourdhuiScreen() {
   const { themeSombre } = useTheme()
   const { t } = useLangue()
-  const { state: appState, recarregarApp } = useApp()
+  const { state: appState, recarregarApp, actualizarCampo } = useApp()
   const { showToast } = useToast()
   const [enService, setEnService] = useState(false)
   const [emPausa, setEmPausa] = useState(false)
@@ -1256,9 +1256,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
-      await AsyncStorage.setItem('historique', JSON.stringify(listaValidaT.slice(0, MAX_HISTORIQUE)))
+      const listaGuardada = listaValidaT.slice(0, MAX_HISTORIQUE)
+      await AsyncStorage.setItem('historique', JSON.stringify(listaGuardada))
       setDiasHistorique(listaValidaT)
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
+      actualizarCampo('kmUltimoFim', parseInt(kmFimInput) || 0)
+      actualizarCampo('histCal', listaGuardada)
       void AsyncStorage.getItem('tracteur_value').then(v => gravarKmCamiao(v ?? '', kmFimGuardado)).catch(() => {})
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
@@ -1517,9 +1520,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true)
-              await carregarStatsSemaine()
-              await carregarDiasMes()
-              setRefreshing(false)
+              try { await recarregarApp() } finally { setRefreshing(false) }
             }}
             colors={['#f5a623']}
             tintColor={'#f5a623'}

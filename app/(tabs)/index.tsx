@@ -22,8 +22,9 @@ import {
 } from '../../src/utils/projecoes'
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
-import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
-import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, type TrocaPendente } from '../../src/utils/trocaPendente'
+import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
+import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, type TrocaPendente } from '../../src/utils/trocaPendente'
+import { mesmoCamiao, ultimoKmDoCamiao, reclassificar } from '../../src/utils/camioes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -120,6 +121,24 @@ export default function AujourdhuiScreen() {
   const [showKmFimInput, setShowKmFimInput] = useState(false)
   const [trocaPendente, setTrocaPendente] = useState<TrocaPendente | null>(null)
   const continuandoRef = useRef(false)
+  const [showTrocaB, setShowTrocaB] = useState(false)
+  const [trocaBPasso, setTrocaBPasso] = useState<1 | 2>(1)
+  const [trocaBTipo, setTrocaBTipo] = useState<'immat' | 'parc'>('immat')
+  const [trocaBValor, setTrocaBValor] = useState('')
+  const [trocaBKm, setTrocaBKm] = useState('')
+  const [trocaBKmSugerido, setTrocaBKmSugerido] = useState<number | null>(null)
+  const [trocaBResposta, setTrocaBResposta] = useState<'pause' | 'service'>('service')
+  const [trocaBSegX, setTrocaBSegX] = useState(0)
+  const [trocaBErro, setTrocaBErro] = useState('')
+  const [trocaBBusy, setTrocaBBusy] = useState(false)
+  const confirmandoTrocaBRef = useRef(false)
+  // Sugestão do último km conhecido da matrícula de B
+  useEffect(() => {
+    if (!showTrocaB) return
+    let vivo = true
+    lerMapaKm().then(m => { if (vivo) setTrocaBKmSugerido(ultimoKmDoCamiao(m, trocaBValor)) })
+    return () => { vivo = false }
+  }, [showTrocaB, trocaBValor])
   const kmScaleAnim = useRef(new Animated.Value(0.4)).current
   const kmOpacityAnim = useRef(new Animated.Value(0)).current
   const [showSummaryModal, setShowSummaryModal] = useState(false)
@@ -1326,6 +1345,91 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     } finally { continuandoRef.current = false }
   }
 
+  const abrirTrocaB = () => {
+    if (!trocaPendente || trocaPendente.b) return
+    setTrocaBTipo(trocaPendente.camiaoA.type ?? 'immat')
+    setTrocaBValor(''); setTrocaBKm(''); setTrocaBKmSugerido(null); setTrocaBErro('')
+    setTrocaBResposta(trocaPendente.estadoAoContinuar)
+    setTrocaBPasso(1)
+    setShowTrocaB(true)
+  }
+
+  const trocaBSeguinte = () => {
+    if (!trocaPendente) return
+    const valor = trocaBValor.trim()
+    if (!valor) { setTrocaBErro('Indique le camion B.'); return }
+    if (mesmoCamiao(trocaPendente.camiaoA.value, valor)) { setTrocaBErro('Même camion que le A.'); return }
+    setTrocaBErro('')
+    setTrocaBSegX(Math.max(0, Math.floor((Date.now() - trocaPendente.ts) / 1000)))
+    setTrocaBPasso(2)
+  }
+
+  // Passa 'movido' segundos de serviço para pausa (mesma contabilidade do handlePause). A amplitude não muda.
+  const aplicarPausaDaTroca = async (movido: number, inicioTs: number) => {
+    segServicoBaseRef.current = Math.max(0, segServicoBaseRef.current - movido)
+    segPausaTotalBaseRef.current += movido
+    const novoServico = computeSegServico()
+    const novaPausaTotal = segPausaTotalBaseRef.current + computeSegPausa()
+    setSegServico(novoServico)
+    setSegPausaTotal(novaPausaTotal)
+    const lista = [...pausas, { dur: movido, inicio: inicioTs }]
+    const deveResetar = pausaSequenciaValida(lista) || movido >= 45 * 60
+    const listaFinal = deveResetar ? [] : lista
+    const reglOk = deveResetar || pausaReglementaireOk
+    if (deveResetar) { setPausaReglementaireOk(true); setPausas([]) } else { setPausas(lista) }
+    let b1 = pausaBloco1Feita
+    let b2 = pausaBloco2Feita
+    if (!b1 && movido >= 900) b1 = true
+    else if (b1 && !b2 && movido >= 1800) b2 = true
+    setPausaBloco1Feita(b1); setPausaBloco2Feita(b2)
+    if (!emPausaRef.current) { tsRetomouServico.current = Date.now(); setServicoContinuo(0) }
+    await guardarEstado(criarEstadoSnapshot({
+      segServico: novoServico, segServicoBase: segServicoBaseRef.current,
+      segPausaTotal: novaPausaTotal, segPausaTotalBase: segPausaTotalBaseRef.current,
+      pausas: listaFinal, pausaReglementaireOk: reglOk, pausaBloco1Feita: b1, pausaBloco2Feita: b2,
+      tsBackground: null,
+    }))
+  }
+
+  const confirmarTrocaB = async () => {
+    if (confirmandoTrocaBRef.current) return
+    const tp = trocaPendente
+    if (!tp || tp.b) { setShowTrocaB(false); return }
+    confirmandoTrocaBRef.current = true
+    setTrocaBBusy(true)
+    try {
+      const valor = trocaBValor.trim()
+      const tipo = trocaBTipo
+      const kmB = parseKmInput(trocaBKm)
+      const r = reclassificar(computeSegServico(), tp.segServicoAoContinuar, segPausaTotalBaseRef.current, trocaBResposta)
+      // 1) registo primeiro: se falhar, não se muda mais nada
+      const completa = await completarTrocaPendente({ camiao: { type: tipo, value: valor }, kmInicio: kmB }, r.movido, trocaBResposta)
+      if (!completa) {
+        const atual = await lerTrocaPendente()
+        if (atual?.b) { setTrocaPendente(atual); setShowTrocaB(false) }
+        else setTrocaBErro("Impossible d'enregistrer le camion B. Réessaie.")
+        return
+      }
+      setTrocaPendente(completa)
+      // 2) reclassificação serviço → pausa (só se a resposta foi 'pause' e houve serviço a mover)
+      if (r.movido > 0) await aplicarPausaDaTroca(r.movido, tp.ts)
+      // 3) camião B passa a ser o camião actual (km_ultimo_fim NÃO se escreve)
+      await AsyncStorage.setItem('tracteur_type', tipo)
+      await AsyncStorage.setItem('tracteur_value', valor)
+      actualizarCampo('tracteurType', tipo)
+      actualizarCampo('tracteurValue', valor)
+      void gravarKmCamiao(valor, kmB)
+      setShowTrocaB(false)
+      log.info('index', 'camion B enregistré', { resposta: trocaBResposta, movido: r.movido })
+    } catch (e) {
+      log.error('index', 'confirmarTrocaB falhou', e)
+      setTrocaBErro("Impossible d'enregistrer le camion B. Réessaie.")
+    } finally {
+      confirmandoTrocaBRef.current = false
+      setTrocaBBusy(false)
+    }
+  }
+
   const confirmarTerminer = async (comDecouche: boolean) => {
     if (comDecouche) setDecouche(true)
     setDemarrando(true)
@@ -1546,12 +1650,18 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           <Text style={{ fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '800' }}>✕</Text>
         </TouchableOpacity>
       )}
-      {enService && trocaPendente && (
+      {enService && trocaPendente && (trocaPendente.b ? (
         <View style={{ backgroundColor: 'rgba(245,166,35,0.15)', borderBottomWidth: 1, borderBottomColor: 'rgba(245,166,35,0.3)', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text style={{ fontSize: 14 }}>🔄</Text>
-          <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '700' }}>Changement de camion en cours</Text>
+          <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '700' }}>{`Changement de camion : ${trocaPendente.camiaoA.value || '?'} → ${trocaPendente.b.camiao.value}`}</Text>
         </View>
-      )}
+      ) : (
+        <TouchableOpacity onPress={abrirTrocaB} style={{ backgroundColor: 'rgba(245,166,35,0.15)', borderBottomWidth: 1, borderBottomColor: 'rgba(245,166,35,0.3)', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 14 }}>🔄</Text>
+          <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '700' }}>Changement de camion en cours</Text>
+          <Text style={{ fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '800' }}>Camion B ›</Text>
+        </TouchableOpacity>
+      ))}
       <ScrollView
         ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
@@ -2428,6 +2538,79 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* MODAL CAMION B — troca de camião a meio do dia */}
+      <Modal visible={showTrocaB} transparent animationType="slide" onRequestClose={() => { if (!trocaBBusy) setShowTrocaB(false) }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+              <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.cardBorder }}>
+                {trocaBPasso === 1 ? (
+                  <>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 16 }}>🔄 Camion B</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      {(['immat', 'parc'] as const).map(tp => (
+                        <TouchableOpacity key={tp} onPress={() => setTrocaBTipo(tp)} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: trocaBTipo === tp ? '#f5a623' : c.bg, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: trocaBTipo === tp ? '#fff' : c.textSub }}>{tp === 'immat' ? 'Immatriculation' : 'Numéro de parc'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TextInput
+                      value={trocaBValor}
+                      onChangeText={v => { setTrocaBValor(v); setTrocaBErro('') }}
+                      placeholder={trocaBTipo === 'immat' ? 'ex: AB-123-CD' : 'ex: T042'}
+                      placeholderTextColor={c.textSub}
+                      autoCapitalize="characters"
+                      style={{ backgroundColor: c.bg, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 }}
+                    />
+                    <TextInput
+                      value={trocaBKm}
+                      onChangeText={v => setTrocaBKm(limparInputKm(v))}
+                      placeholder="Km début du camion B (optionnel)"
+                      placeholderTextColor={c.textSub}
+                      keyboardType="numeric"
+                      style={{ backgroundColor: c.bg, borderRadius: 10, padding: 12, color: c.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: c.cardBorder }}
+                    />
+                    {trocaBKmSugerido !== null && !trocaBKm && (
+                      <TouchableOpacity onPress={() => setTrocaBKm(String(trocaBKmSugerido))} style={{ paddingVertical: 8 }}>
+                        <Text style={{ fontSize: 12, color: '#f5a623', fontWeight: '700' }}>{`Dernier km connu : ${trocaBKmSugerido} · utiliser`}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {!!trocaBErro && <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '600', marginTop: 8 }}>{trocaBErro}</Text>}
+                    <TouchableOpacity onPress={trocaBSeguinte} style={{ backgroundColor: '#f5a623', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 16, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Suivant</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowTrocaB(false)} style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6 }}>{`Pendant le changement (${Math.floor(trocaBSegX / 60)} min), tu étais en :`}</Text>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                      {(['pause', 'service'] as const).map(op => (
+                        <TouchableOpacity key={op} onPress={() => setTrocaBResposta(op)} style={{ flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: 'center', backgroundColor: trocaBResposta === op ? '#f5a623' : c.bg, borderWidth: 1, borderColor: trocaBResposta === op ? '#f5a623' : c.cardBorder }}>
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: trocaBResposta === op ? '#fff' : c.text }}>{op === 'pause' ? '⏸ Pause' : '⏱ Service'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {trocaPendente?.estadoAoContinuar === 'pause' && trocaBResposta === 'service' && (
+                      <Text style={{ fontSize: 11, color: c.textSub, fontStyle: 'italic', marginTop: 8 }}>La pause déjà comptée reste comptée.</Text>
+                    )}
+                    {!!trocaBErro && <Text style={{ fontSize: 12, color: '#e74c3c', fontWeight: '600', marginTop: 8 }}>{trocaBErro}</Text>}
+                    <TouchableOpacity onPress={confirmarTrocaB} disabled={trocaBBusy} style={{ backgroundColor: '#f5a623', opacity: trocaBBusy ? 0.6 : 1, borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 16, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>Confirmer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { if (!trocaBBusy) setTrocaBPasso(1) }} style={{ borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Retour</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

@@ -1,7 +1,7 @@
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'))
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, TROCA_PENDENTE_KEY, TrocaPendente } from './trocaPendente'
+import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, TROCA_PENDENTE_KEY, TrocaPendente } from './trocaPendente'
 
 const T: TrocaPendente = { camiaoA: { type: 'immat', value: 'AB-123-CD' }, kmInicioA: 1000, kmFimA: 1100, ts: 1700000000000, estadoAoContinuar: 'service', segServicoAoContinuar: 3600 }
 beforeEach(async () => { await AsyncStorage.clear(); jest.clearAllMocks() })
@@ -47,4 +47,43 @@ it('duas chamadas concorrentes gravam uma só vez e a segunda devolve false', as
   expect(b).toBe(false)
   expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1)
   expect((await lerTrocaPendente())?.kmFimA).toBe(1100)
+})
+
+const B = { camiao: { type: 'parc' as const, value: 'T042' }, kmInicio: 5000 }
+
+it('completar sem troca devolve null e não grava nada', async () => {
+  expect(await completarTrocaPendente(B, 600, 'pause')).toBeNull()
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled()
+})
+it('completar grava b, segParaPausa e a resposta', async () => {
+  await gravarTrocaPendente(T)
+  const r = await completarTrocaPendente(B, 600, 'pause')
+  expect(r).toEqual({ ...T, b: B, segParaPausa: 600, respostaPausa: 'pause' })
+  expect(await lerTrocaPendente()).toEqual(r)
+})
+it('a segunda chamada a completar não sobrescreve', async () => {
+  await gravarTrocaPendente(T)
+  await completarTrocaPendente(B, 600, 'pause')
+  expect(await completarTrocaPendente({ camiao: { type: 'immat', value: 'ZZ-999-ZZ' }, kmInicio: 1 }, 5, 'service')).toBeNull()
+  const lida = await lerTrocaPendente()
+  expect(lida?.b?.camiao.value).toBe('T042')
+  expect(lida?.segParaPausa).toBe(600)
+})
+it('duas chamadas concorrentes a completar gravam uma só vez', async () => {
+  await gravarTrocaPendente(T)
+  jest.clearAllMocks()
+  const [x, y] = await Promise.all([
+    completarTrocaPendente(B, 600, 'pause'),
+    completarTrocaPendente({ ...B, kmInicio: 9999 }, 1, 'service'),
+  ])
+  expect(x).not.toBeNull()
+  expect(y).toBeNull()
+  expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1)
+  expect((await lerTrocaPendente())?.b?.kmInicio).toBe(5000)
+})
+it('registo antigo (peça 1) sem b continua a ler-se', async () => {
+  await AsyncStorage.setItem(TROCA_PENDENTE_KEY, JSON.stringify(T))
+  const lida = await lerTrocaPendente()
+  expect(lida).toEqual(T)
+  expect(lida?.b).toBeUndefined()
 })

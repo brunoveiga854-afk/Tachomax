@@ -23,6 +23,7 @@ import {
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
+import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, type TrocaPendente } from '../../src/utils/trocaPendente'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -117,6 +118,8 @@ export default function AujourdhuiScreen() {
   const [showTerminerModal, setShowTerminerModal] = useState(false)
   const [showKmModal, setShowKmModal] = useState(false)
   const [showKmFimInput, setShowKmFimInput] = useState(false)
+  const [trocaPendente, setTrocaPendente] = useState<TrocaPendente | null>(null)
+  const continuandoRef = useRef(false)
   const kmScaleAnim = useRef(new Animated.Value(0.4)).current
   const kmOpacityAnim = useRef(new Animated.Value(0)).current
   const [showSummaryModal, setShowSummaryModal] = useState(false)
@@ -495,9 +498,9 @@ export default function AujourdhuiScreen() {
   const restaurarEstado = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY)
-      if (!data) return
+      if (!data) { await limparTrocaPendente(); setTrocaPendente(null); return }
       const estado = JSON.parse(data)
-      if (!estado.enService) return
+      if (!estado.enService) { await limparTrocaPendente(); setTrocaPendente(null); return }
 
       // Sessão de um dia diferente? Limpar — contadores de condução não transitam entre dias
       if (estado.dateInicio) {
@@ -509,6 +512,7 @@ export default function AujourdhuiScreen() {
           savedDate.getFullYear() !== today.getFullYear()
         if (isDifferentDay) {
           await AsyncStorage.removeItem(STORAGE_KEY)
+          await limparTrocaPendente(); setTrocaPendente(null)
           await cancelarAlertaAmplitude()
           return
         }
@@ -517,6 +521,7 @@ export default function AujourdhuiScreen() {
       const agora = Date.now()
       const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
+      setTrocaPendente(await lerTrocaPendente())
       if (estado.emPausa) {
         const fimRaw = await AsyncStorage.getItem('pausaFimTimestamp')
         if (fimRaw) {
@@ -1023,6 +1028,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const rappelAtivo = await AsyncStorage.getItem('rappel_saisie_ativo')
     if (rappelAtivo !== 'false' && notifOk) await agendarRappelSaisie(20, 0)
 
+    await limparTrocaPendente(); setTrocaPendente(null)
+
     // 2. Calcular hora e modo noturno
     const agora = new Date()
     const h = String(agora.getHours()).padStart(2, '0')
@@ -1291,6 +1298,34 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setTimeout(() => setShowTerminerModal(true), 300)
   }
 
+  const continuerLeJour = async () => {
+    if (continuandoRef.current) return            // toque duplo em simultâneo
+    continuandoRef.current = true
+    try {
+      const kmFimA = parseKmInput(kmFimInput)     // "Passer" = 0
+      setShowTerminerModal(false); setShowKmFimInput(false); setShowKmModal(false)
+      const existente = await lerTrocaPendente()
+      if (existente) { setTrocaPendente(existente); setKmFimInput(''); return }   // não sobrescreve
+      const [tipo, valor] = await Promise.all([
+        AsyncStorage.getItem('tracteur_type'), AsyncStorage.getItem('tracteur_value'),
+      ])
+      const troca: TrocaPendente = {
+        camiaoA: { type: tipo === 'immat' || tipo === 'parc' ? tipo : null, value: valor ?? '' },
+        kmInicioA: getKmInicioManual(),
+        kmFimA,
+        ts: Date.now(),
+        estadoAoContinuar: emPausaRef.current ? 'pause' : 'service',
+        segServicoAoContinuar: computeSegServico(),
+      }
+      if (await gravarTrocaPendente(troca)) {
+        setTrocaPendente(troca)
+        void gravarKmCamiao(troca.camiaoA.value, kmFimA)   // não escreve km_ultimo_fim
+      }
+      setKmFimInput('')
+      log.info('index', 'continuer le jour', { estado: troca.estadoAoContinuar })
+    } finally { continuandoRef.current = false }
+  }
+
   const confirmarTerminer = async (comDecouche: boolean) => {
     if (comDecouche) setDecouche(true)
     setDemarrando(true)
@@ -1333,6 +1368,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       if ((await AsyncStorage.getItem('rappel_saisie_ativo')) !== 'false') await agendarRappelSaisieAmanha(20, 0)
     } catch (e) { log.warn('index', 'terminar: notificações falharam (não bloqueante)', e) }
     await AsyncStorage.removeItem(STORAGE_KEY)
+    await limparTrocaPendente(); setTrocaPendente(null)
     const terminadoTs = Date.now()
     // Só actualizar o timestamp de repouso se o serviço durou pelo menos 30 min
     // (evita que serviços teste/erro reiniciem o contador de repos)
@@ -1509,6 +1545,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '600', lineHeight: 16 }}>{snackbar}</Text>
           <Text style={{ fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '800' }}>✕</Text>
         </TouchableOpacity>
+      )}
+      {enService && trocaPendente && (
+        <View style={{ backgroundColor: 'rgba(245,166,35,0.15)', borderBottomWidth: 1, borderBottomColor: 'rgba(245,166,35,0.3)', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 14 }}>🔄</Text>
+          <Text style={{ flex: 1, fontSize: 12, color: themeSombre ? '#f5a623' : '#b37a00', fontWeight: '700' }}>Changement de camion en cours</Text>
+        </View>
       )}
       <ScrollView
         ref={mainScrollRef}
@@ -2378,6 +2420,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             </TouchableOpacity>
             <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }} onPress={() => confirmarTerminer(decouche)}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{decouche ? '🌙 Terminer (Découché)' : '⏹ Terminer le service'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.08)', marginBottom: 10 }} onPress={continuerLeJour}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#f5a623' }}>🔄 Continuer le jour</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => { setShowTerminerModal(false); setShowKmFimInput(false) }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.textSub }}>Annuler</Text>

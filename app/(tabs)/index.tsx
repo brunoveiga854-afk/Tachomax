@@ -23,8 +23,8 @@ import {
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
-import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, type TrocaPendente } from '../../src/utils/trocaPendente'
-import { mesmoCamiao, ultimoKmDoCamiao, reclassificar } from '../../src/utils/camioes'
+import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
+import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, type TrocaCamiao } from '../../src/utils/camioes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -50,6 +50,7 @@ type Jour = {
   kmDiarios?: number
   kmInicio?: number
   kmFim?: number
+  troca?: TrocaCamiao
 }
 const STORAGE_KEY = 'TACHOOFFICE_estado'
 const MAX_HISTORIQUE = 1500
@@ -368,6 +369,10 @@ export default function AujourdhuiScreen() {
   const getKmInicioManual = () => parseKmInput(kmInicioInput) || kmInicioTacho
 
   const calcularKmManual = () => {
+    if (trocaPendente?.b) {
+      const t = trocaDoDia(trocaPendente, parseKmInput(kmFimInput))
+      return t ? arredondarKm(parseFloat(kmTotalDoDia({ troca: t, kmDiarios: 0 })) || 0) : 0
+    }
     const kmFim = parseKmInput(kmFimInput)
     const kmInicio = getKmInicioManual()
     if (kmInicio > 0) return arredondarKm(kmFim - kmInicio)
@@ -1266,12 +1271,17 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }).total
     const kmInicioGuardado = getKmInicioManual()
     const kmFimGuardado = parseKmInput(kmFimInput)
+    const tp = await lerTrocaPendente()
+    const troca = trocaDoDia(tp, kmFimGuardado)
     const novoDia: Jour = {
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
       debut: horaInicio, fin: fimStr,
       segServico: snapService, segPausa: snapPausaTotal, decouche, frais, modeNuit,
-      kmDiarios: kmManual, kmInicio: kmInicioGuardado, kmFim: kmFimGuardado,
+      kmDiarios: troca ? (parseFloat(kmTotalDoDia({ troca, kmDiarios: 0 })) || kmManual) : kmManual,
+      kmInicio: troca ? troca.a.kmInicio : kmInicioGuardado,
+      kmFim: troca ? troca.a.kmFim : kmFimGuardado,   // com troca: par do camião A (o fim de B vai em troca.b.kmFim)
+      ...(troca ? { troca } : {}),
     }
     try {
       const semDuplicadoT = lista.filter((j: any) => j.date !== novoDia.date)
@@ -1288,7 +1298,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       actualizarCampo('kmUltimoFim', parseInt(kmFimInput) || 0)
       actualizarCampo('histCal', listaGuardada)
-      void AsyncStorage.getItem('tracteur_value').then(v => gravarKmCamiao(v ?? '', kmFimGuardado)).catch(() => {})
+      if (troca) void gravarKmCamiao(troca.b.camiao.value, kmFimGuardado)   // só B; o km de A ficou gravado no Continuer
+      else void AsyncStorage.getItem('tracteur_value').then(v => gravarKmCamiao(v ?? '', kmFimGuardado)).catch(() => {})
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
@@ -1428,6 +1439,20 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       confirmandoTrocaBRef.current = false
       setTrocaBBusy(false)
     }
+  }
+
+  // Terminer com troca pendente mas sem camião B: pergunta antes de gravar um dia normal
+  const avisarTerminerSemB = (comDecouche: boolean) => {
+    Alert.alert(
+      'Changement de camion',
+      "Tu as indiqué un changement de camion mais pas le camion B.",
+      [
+        { text: 'Saisir le camion B', onPress: () => { setShowTerminerModal(false); setShowKmFimInput(false); abrirTrocaB() } },
+        { text: 'Terminer sans changement', style: 'destructive', onPress: () => confirmarTerminer(comDecouche) },
+        { text: 'Annuler', style: 'cancel' },
+      ],
+      { cancelable: true },
+    )
   }
 
   const confirmarTerminer = async (comDecouche: boolean) => {
@@ -2528,7 +2553,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 ios_backgroundColor={c.cardBorder}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }} onPress={() => confirmarTerminer(decouche)}>
+            <TouchableOpacity style={{ backgroundColor: '#e74c3c', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 }} onPress={() => (trocaPendente && !trocaPendente.b) ? avisarTerminerSemB(decouche) : confirmarTerminer(decouche)}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>{decouche ? '🌙 Terminer (Découché)' : '⏹ Terminer le service'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.08)', marginBottom: 10 }} onPress={continuerLeJour}>
@@ -2620,7 +2645,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
           <Animated.View style={{ transform: [{ scale: kmScaleAnim }], width: '78%', backgroundColor: c.card, borderRadius: 28, padding: 28, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 20, borderWidth: 2, borderColor: '#f5a623' }}>
             <Text style={{ fontSize: 36, marginBottom: 8 }}>📍</Text>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4 }}>KM de fin de service</Text>
-            <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 20 }}>Début : {getKmInicioManual()} km</Text>
+            <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 20 }}>Début : {trocaPendente?.b ? trocaPendente.b.kmInicio : getKmInicioManual()} km</Text>
             <TextInput
               value={kmFimInput}
               onChangeText={v => setKmFimInput(limparInputKm(v))}

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import type { TrocaCamiao } from './camioes'
 
 export const TROCA_PENDENTE_KEY = 'troca_pendente'
 export type EstadoAoContinuar = 'pause' | 'service'
@@ -89,6 +90,19 @@ export async function completarTrocaPendente(
     return nova
   } catch { return null }
   finally { completando = false }
+}
+
+/**
+ * Constrói a troca que fica gravada no dia, a partir da troca pendente e do km de fim de B (o do modal do Terminer).
+ * Devolve null sem troca ou sem B. Tipo de camião null assume 'immat'; segParaPausa em falta assume 0.
+ */
+export function trocaDoDia(tp: TrocaPendente | null | undefined, kmFimB: number): TrocaCamiao | null {
+  if (!tp || !tp.b) return null
+  return {
+    a: { camiao: { type: tp.camiaoA.type ?? 'immat', value: tp.camiaoA.value }, kmInicio: tp.kmInicioA, kmFim: tp.kmFimA },
+    b: { camiao: { type: tp.b.camiao.type ?? 'immat', value: tp.b.camiao.value }, kmInicio: tp.b.kmInicio, kmFim: kmFimB },
+    segParaPausa: tp.segParaPausa ?? 0,
+  }
 }
 
 /** Apaga a troca pendente. Nunca lança. */

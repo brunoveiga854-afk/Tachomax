@@ -1,7 +1,8 @@
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'))
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, TROCA_PENDENTE_KEY, TrocaPendente } from './trocaPendente'
+import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, TROCA_PENDENTE_KEY, TrocaPendente } from './trocaPendente'
+import { kmTotalDoDia } from './camioes'
 
 const T: TrocaPendente = { camiaoA: { type: 'immat', value: 'AB-123-CD' }, kmInicioA: 1000, kmFimA: 1100, ts: 1700000000000, estadoAoContinuar: 'service', segServicoAoContinuar: 3600 }
 beforeEach(async () => { await AsyncStorage.clear(); jest.clearAllMocks() })
@@ -86,4 +87,35 @@ it('registo antigo (peça 1) sem b continua a ler-se', async () => {
   const lida = await lerTrocaPendente()
   expect(lida).toEqual(T)
   expect(lida?.b).toBeUndefined()
+})
+
+const TB: TrocaPendente = { ...T, b: B, segParaPausa: 600, respostaPausa: 'pause' }
+
+it('trocaDoDia com B constrói a e b, com o km de fim de B', () => {
+  expect(trocaDoDia(TB, 5250)).toEqual({
+    a: { camiao: { type: 'immat', value: 'AB-123-CD' }, kmInicio: 1000, kmFim: 1100 },
+    b: { camiao: { type: 'parc', value: 'T042' }, kmInicio: 5000, kmFim: 5250 },
+    segParaPausa: 600,
+  })
+})
+it('trocaDoDia sem B (ou sem troca) devolve null', () => {
+  expect(trocaDoDia(T, 5250)).toBeNull()
+  expect(trocaDoDia(null, 5250)).toBeNull()
+  expect(trocaDoDia(undefined, 5250)).toBeNull()
+})
+it('trocaDoDia com tipo null assume immat e segParaPausa em falta assume 0', () => {
+  const tp = { ...T, camiaoA: { type: null, value: 'X1' }, b: { camiao: { type: null, value: 'Y2' }, kmInicio: 10 } } as TrocaPendente
+  const r = trocaDoDia(tp, 20)
+  expect(r?.a.camiao.type).toBe('immat')
+  expect(r?.b.camiao.type).toBe('immat')
+  expect(r?.segParaPausa).toBe(0)
+})
+it('trocaDoDia com km de fim 0 ("Passer") guarda kmFim 0 e o total só conta A', () => {
+  const r = trocaDoDia(TB, 0)
+  expect(r?.b.kmFim).toBe(0)
+  expect(kmTotalDoDia({ troca: r, kmDiarios: 0 })).toBe('100')
+})
+it('kmTotalDoDia com a troca construída soma A + B', () => {
+  const r = trocaDoDia(TB, 5250)
+  expect(kmTotalDoDia({ troca: r, kmDiarios: 0 })).toBe('350')
 })

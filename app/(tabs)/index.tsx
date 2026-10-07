@@ -1350,7 +1350,6 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     segPausaTotalBaseRef.current = 0; pausaInicioRef.current = 0
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
-    await carregarStatsSemaine()
     setDemarrando(false)
 
     // Show rich summary instead of simple Alert

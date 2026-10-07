@@ -23,8 +23,9 @@ import {
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
+import { lerUltimoCamiao, gravarUltimoCamiao } from '../../src/utils/ultimoCamiao'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
-import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, type TrocaCamiao } from '../../src/utils/camioes'
+import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, type TrocaCamiao } from '../../src/utils/camioes'
 import {
   pedirPermissaoNotificacoes,
   agendarAlertaAmplitude,
@@ -133,6 +134,7 @@ export default function AujourdhuiScreen() {
   const [trocaBErro, setTrocaBErro] = useState('')
   const [trocaBBusy, setTrocaBBusy] = useState(false)
   const confirmandoTrocaBRef = useRef(false)
+  const perguntandoCamiaoRef = useRef(false)
   // Sugestão do último km conhecido da matrícula de B
   useEffect(() => {
     if (!showTrocaB) return
@@ -1042,7 +1044,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   const pctServico = Math.min((segServico / MAX_SERVICE) * 100, 100)
   const servicoBarColor = pctServico > 90 ? '#e74c3c' : pctServico > 70 ? '#f39c12' : '#27ae60'
 
-  const handleDemarrer = async () => {
+  const handleDemarrer = async (kmOverride?: number) => {
     if (demarrando) return
     setDemarrando(true)
     estadoAtualRef.current = { ...estadoAtualRef.current, enService: true }
@@ -1064,7 +1066,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
     // 3. Atualizar todo o estado de uma vez (React 18 auto-batching)
     setModeNuit(isNuit)
-    const kmInicioConfirmado = parseKmInput(kmInicioInput)
+    const kmInicioConfirmado = kmOverride ?? parseKmInput(kmInicioInput)
     if (kmInicioConfirmado > 0) setKmInicioTacho(kmInicioConfirmado)
     setKmInicioInput('')
     setKmFimInput('')
@@ -1101,6 +1103,57 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
     if (isNuit) showSnackbar(`🌙 ${t.modeNuitActive} — ${t.modeNuitMsg}`)
     setDemarrando(false)
+  }
+
+  // Démarrer: se o camião dos Réglages for diferente do do último serviço terminado, pergunta antes de arrancar.
+  // Em qualquer outro caso (mesmo camião, sem registo, sem camião) arranca exactamente como antes.
+  const tocarDemarrer = async () => {
+    if (demarrando || perguntandoCamiaoRef.current) return
+    let decisao: ReturnType<typeof decidirTrocaNoDemarrer> = { accao: 'nada' }
+    let ultimo: Awaited<ReturnType<typeof lerUltimoCamiao>> = null
+    let preenchido = 0
+    try {
+      const [u, tv, kmGuardado] = await Promise.all([
+        lerUltimoCamiao(), AsyncStorage.getItem('tracteur_value'), AsyncStorage.getItem('km_ultimo_fim'),
+      ])
+      ultimo = u
+      const mapa = await lerMapaKm()
+      const diaComKm = appState.histCal?.find((d: any) => kmFimDoDia(d) > 0)
+      const guardado = parseInt(kmGuardado ?? '') || 0
+      preenchido = guardado > 0 ? guardado : (diaComKm ? kmFimDoDia(diaComKm) : 0)   // mesmo valor que o effect pré-preenche
+      decisao = decidirTrocaNoDemarrer(u, { value: tv ?? '' }, mapa)
+      if (decisao.accao === 'perguntar' && !u) decisao = { accao: 'nada' }
+    } catch (e) {
+      log.warn('index', 'tocarDemarrer: verificação do camião falhou (arranca normal)', e)
+      decisao = { accao: 'nada' }
+    }
+    if (decisao.accao === 'nada' || !ultimo) { void handleDemarrer(); return }
+
+    const ult = ultimo
+    const d = decisao
+    // "intocado" = vazio/0 ou igual ao pré-preenchido; se o utilizador escreveu outro valor, esse mantém-se
+    const intocado = campoKmIntocado(parseKmInput(kmInicioInput), preenchido)
+    perguntandoCamiaoRef.current = true
+    const libertar = () => { perguntandoCamiaoRef.current = false }
+    Alert.alert(
+      'Changement de camion',
+      `Dernier service : ${d.ultimo}. Maintenant : ${d.actual}. Tu as changé de camion ?`,
+      [
+        { text: `Oui, ${d.actual}`, onPress: () => { libertar(); void handleDemarrer(intocado ? (d.kmActual ?? 0) : undefined) } },
+        { text: `Non, je suis revenu à ${d.ultimo}`, onPress: async () => {
+          libertar()
+          try {
+            await AsyncStorage.setItem('tracteur_type', ult.type)
+            await AsyncStorage.setItem('tracteur_value', ult.value)
+            actualizarCampo('tracteurType', ult.type)
+            actualizarCampo('tracteurValue', ult.value)
+          } catch (e) { log.error('index', 'tocarDemarrer: repor camião falhou', e); return }
+          void handleDemarrer(intocado && d.kmUltimo != null ? d.kmUltimo : undefined)
+        } },
+        { text: 'Annuler', style: 'cancel', onPress: libertar },
+      ],
+      { cancelable: true, onDismiss: libertar },
+    )
   }
 
   // CE 561/2006 — check if pause sequence (15+30 in order) is complete
@@ -1301,6 +1354,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       actualizarCampo('histCal', listaGuardada)
       if (troca) void gravarKmCamiao(troca.b.camiao.value, kmFimGuardado)   // só B; o km de A ficou gravado no Continuer
       else void AsyncStorage.getItem('tracteur_value').then(v => gravarKmCamiao(v ?? '', kmFimGuardado)).catch(() => {})
+      // camião do último serviço terminado (com troca = B; sem troca = o dos Réglages). Vazio não escreve.
+      if (troca) void gravarUltimoCamiao(troca.b.camiao)
+      else void Promise.all([AsyncStorage.getItem('tracteur_type'), AsyncStorage.getItem('tracteur_value')])
+        .then(([tt, tv]) => gravarUltimoCamiao({ type: tt === 'parc' ? 'parc' : 'immat', value: tv ?? '' })).catch(() => {})
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       log.info('index', 'dia guardado', { date, type: decouche ? 'DEC' : 'TRAB' })
     } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
@@ -1813,7 +1870,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             {/* ── DÉMARRER BUTTON ── */}
             <View style={{ alignItems: 'center', marginVertical: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulsarBtn }] }}>
-                <TouchableOpacity style={st.btnCircular} onPress={handleDemarrer} disabled={demarrando}>
+                <TouchableOpacity style={st.btnCircular} onPress={tocarDemarrer} disabled={demarrando}>
                   <Text style={st.btnCircularIcon}>▶</Text>
                   <Text style={st.btnCircularLabel}>{t.demarrer}</Text>
                 </TouchableOpacity>

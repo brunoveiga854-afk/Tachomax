@@ -1,6 +1,7 @@
 import {
   normalizarMatricula, mesmoCamiao, ultimoKmDoCamiao, registarKm, kmDoCamiao,
-  kmTotalDoDia, textoTroca, juntarComentario, reclassificar, kmFimDoDia, TrocaCamiao,
+  kmTotalDoDia, textoTroca, juntarComentario, reclassificar, kmFimDoDia,
+  parseUltimoCamiao, decidirTrocaNoDemarrer, campoKmIntocado, TrocaCamiao,
 } from './camioes'
 
 const troca = (kmIA: number, kmFA: number, kmIB: number, kmFB: number): TrocaCamiao => ({
@@ -180,5 +181,77 @@ describe('kmFimDoDia', () => {
   it('null ou undefined devolve 0', () => {
     expect(kmFimDoDia(null)).toBe(0)
     expect(kmFimDoDia(undefined)).toBe(0)
+  })
+})
+
+describe('parseUltimoCamiao', () => {
+  it('JSON válido', () => {
+    expect(parseUltimoCamiao('{"type":"parc","value":"123"}')).toEqual({ type: 'parc', value: '123' })
+    expect(parseUltimoCamiao('{"type":"immat","value":"AB-123-CD"}')).toEqual({ type: 'immat', value: 'AB-123-CD' })
+  })
+  it('null, undefined ou string vazia dão null', () => {
+    expect(parseUltimoCamiao(null)).toBeNull()
+    expect(parseUltimoCamiao(undefined)).toBeNull()
+    expect(parseUltimoCamiao('')).toBeNull()
+  })
+  it('JSON partido ou não-objecto dá null', () => {
+    expect(parseUltimoCamiao('{mau')).toBeNull()
+    expect(parseUltimoCamiao('[1]')).toBeNull()
+    expect(parseUltimoCamiao('"x"')).toBeNull()
+  })
+  it('value em falta, vazio ou sem alfanuméricos dá null', () => {
+    expect(parseUltimoCamiao('{"type":"immat"}')).toBeNull()
+    expect(parseUltimoCamiao('{"type":"immat","value":""}')).toBeNull()
+    expect(parseUltimoCamiao('{"type":"immat","value":" - "}')).toBeNull()
+  })
+})
+
+describe('decidirTrocaNoDemarrer', () => {
+  const mapa = { AB123CD: 1000, EF456GH: 2000 }
+  it('mesmo camião dá nada', () => {
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'AB-123-CD' }, mapa)).toEqual({ accao: 'nada' })
+  })
+  it('mesmo camião com hífen e minúsculas dá nada', () => {
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'ab123cd' }, mapa)).toEqual({ accao: 'nada' })
+  })
+  it('camiões diferentes perguntam, com o km dos dois no mapa', () => {
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'EF-456-GH' }, mapa)).toEqual({
+      accao: 'perguntar', ultimo: 'AB-123-CD', actual: 'EF-456-GH', kmUltimo: 1000, kmActual: 2000,
+    })
+  })
+  it('camião actual sem km no mapa dá kmActual null', () => {
+    const d = decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'XX-999-YY' }, mapa)
+    expect(d).toMatchObject({ accao: 'perguntar', kmActual: null, kmUltimo: 1000 })
+  })
+  it('sem ultimo dá nada', () => {
+    expect(decidirTrocaNoDemarrer(null, { value: 'AB-123-CD' }, mapa)).toEqual({ accao: 'nada' })
+    expect(decidirTrocaNoDemarrer(undefined, { value: 'AB-123-CD' }, mapa)).toEqual({ accao: 'nada' })
+  })
+  it('ultimo vazio dá nada', () => {
+    expect(decidirTrocaNoDemarrer({ value: '' }, { value: 'AB-123-CD' }, mapa)).toEqual({ accao: 'nada' })
+  })
+  it('actual vazio ou null dá nada', () => {
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: '' }, mapa)).toEqual({ accao: 'nada' })
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, null, mapa)).toEqual({ accao: 'nada' })
+  })
+  it('mapa null ou undefined não rebenta', () => {
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'EF-456-GH' }, null))
+      .toMatchObject({ accao: 'perguntar', kmUltimo: null, kmActual: null })
+    expect(decidirTrocaNoDemarrer({ value: 'AB-123-CD' }, { value: 'EF-456-GH' }, undefined))
+      .toMatchObject({ accao: 'perguntar' })
+  })
+})
+
+describe('campoKmIntocado', () => {
+  it('vazio ou 0 é intocado', () => {
+    expect(campoKmIntocado(0, 30500)).toBe(true)
+    expect(campoKmIntocado(0, 0)).toBe(true)
+  })
+  it('igual ao pré-preenchido é intocado', () => {
+    expect(campoKmIntocado(30500, 30500)).toBe(true)
+  })
+  it('diferente do pré-preenchido é tocado (inclui pré-preenchido 0)', () => {
+    expect(campoKmIntocado(31000, 30500)).toBe(false)
+    expect(campoKmIntocado(31000, 0)).toBe(false)
   })
 })

@@ -118,3 +118,46 @@ export function kmFimDoDia(
   if (!dia) return 0
   return dia.troca ? (Number(dia.troca.b.kmFim) || 0) : (Number(dia.kmFim) || 0)
 }
+
+/** Lê o JSON de ultimo_camiao_servico. Qualquer coisa inválida (ou matrícula vazia) dá null. */
+export function parseUltimoCamiao(raw: string | null | undefined): Camiao | null {
+  if (!raw) return null
+  try {
+    const o = JSON.parse(raw)
+    if (!o || typeof o !== 'object' || typeof o.value !== 'string') return null
+    if (normalizarMatricula(o.value) === '') return null
+    return { type: o.type === 'parc' ? 'parc' : 'immat', value: o.value }
+  } catch {
+    return null
+  }
+}
+
+export type DecisaoDemarrer =
+  | { accao: 'nada' }
+  | { accao: 'perguntar'; ultimo: string; actual: string; kmUltimo: number | null; kmActual: number | null }
+
+/**
+ * Ao tocar em Démarrer: pergunta só se há camião do último serviço, camião actual,
+ * e são diferentes (matrícula normalizada). Em qualquer outro caso: nada.
+ */
+export function decidirTrocaNoDemarrer(
+  ultimo: { value: string } | null | undefined,
+  actual: { value: string } | null | undefined,
+  mapa: MapaKm | null | undefined,
+): DecisaoDemarrer {
+  if (!ultimo || !actual) return { accao: 'nada' }
+  if (normalizarMatricula(ultimo.value) === '' || normalizarMatricula(actual.value) === '') return { accao: 'nada' }
+  if (mesmoCamiao(ultimo.value, actual.value)) return { accao: 'nada' }
+  return {
+    accao: 'perguntar',
+    ultimo: ultimo.value,
+    actual: actual.value,
+    kmUltimo: ultimoKmDoCamiao(mapa, ultimo.value),
+    kmActual: ultimoKmDoCamiao(mapa, actual.value),
+  }
+}
+
+/** O campo "Début" está intocado se estiver vazio/0 ou igual ao valor pré-preenchido. */
+export function campoKmIntocado(valorCampo: number, preenchido: number): boolean {
+  return !(valorCampo > 0) || valorCampo === preenchido
+}

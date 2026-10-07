@@ -140,7 +140,12 @@ export default function ReglagesScreen() {
   }, [])
 
   useFocusEffect(
-    React.useCallback(() => { recarregarApp() }, [])
+    React.useCallback(() => {
+      recarregarApp()
+      // o camião pode ter mudado fora deste ecrã (ex.: "Non" no Démarrer); relê ao abrir
+      AsyncStorage.getItem('tracteur_type').then(v => { if (v === 'immat' || v === 'parc') setTracteurType(v) })
+      AsyncStorage.getItem('tracteur_value').then(v => setTracteurValue(v ?? ''))
+    }, [])
   )
 
   // KM: AppContext primeiro, último dia do histórico com kmFim como fallback

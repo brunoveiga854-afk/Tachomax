@@ -1141,7 +1141,20 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       'Changement de camion',
       `Dernier service : ${d.ultimo}. Maintenant : ${d.actual}. Tu as changé de camion ?`,
       [
-        { text: `Oui, ${d.actual}`, onPress: () => { libertar(); log.info('index', 'demarrer: resposta', { escolha: 'oui', intocado }); void handleDemarrer(intocado ? (d.kmActual ?? 0) : undefined) } },
+        { text: `Oui, ${d.actual}`, onPress: () => {
+          libertar()
+          const semKm = intocado && d.kmActual == null
+          if (semKm) {
+            log.info('index', 'demarrer: resposta', { escolha: 'oui', intocado, semKm: true })
+            setKmInicioInput(''); setKmInicioAuto(false)
+            Alert.alert('Km de départ inconnu',
+              `Je ne connais pas le dernier km du camion ${d.actual}. Saisis le km de départ avant de démarrer.`,
+              [{ text: 'OK' }])
+            return
+          }
+          log.info('index', 'demarrer: resposta', { escolha: 'oui', intocado })
+          void handleDemarrer(intocado ? (d.kmActual ?? 0) : undefined)
+        } },
         { text: `Non, je suis revenu à ${d.ultimo}`, onPress: async () => {
           libertar()
           log.info('index', 'demarrer: resposta', { escolha: 'non', intocado })

@@ -24,6 +24,7 @@ import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
 import { lerUltimoCamiao, gravarUltimoCamiao } from '../../src/utils/ultimoCamiao'
+import { chaveDia } from '../../src/utils/dataDia'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
 import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, segServicoDe, normalizarMatricula, kmDoCamiao, type TrocaCamiao } from '../../src/utils/camioes'
 import {
@@ -899,7 +900,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       } else {
         // ADICIONAR — inserir novo (sem duplicados por data)
         const novoDiaManual = { id: Date.now().toString(), ...diaDados }
-        lista = lista.filter((j: any) => j.date !== novoDiaManual.date)
+        lista = lista.filter((j: any) => chaveDia(j, calAno) !== chaveDia(novoDiaManual, calAno))
         lista.unshift(novoDiaManual)
       }
       lista.sort((a: any, b: any) => {
@@ -1354,7 +1355,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       ...(troca ? { troca } : {}),
     }
     try {
-      const semDuplicadoT = lista.filter((j: any) => j.date !== novoDia.date)
+      const semDuplicadoT = lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) !== chaveDia(novoDia, dateInicio.getFullYear()))
       semDuplicadoT.unshift(novoDia)
       const listaValidaT = semDuplicadoT.filter((entry: any) => {
         const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'

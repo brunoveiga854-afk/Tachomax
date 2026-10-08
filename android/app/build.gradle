@@ -96,7 +96,7 @@ android {
         applicationId 'com.tachomax.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
+        versionCode 21
         versionName "1.1.0"
     }
     signingConfigs {

@@ -199,12 +199,18 @@ export default function ReglagesScreen() {
     await AsyncStorage.clear()
     await secureDelete('monSalaire_padrao')
     await secureDelete('aprendizagem_padrao')
+    await secureDelete('conducteur_prenom')
+    await secureDelete('conducteur_nom')
     setShowModalReset(false)
+    await recarregarApp()
     const backupMsg = backupPath
-      ? "\n\n💾 Sauvegarde automatique créée avant la réinitialisation."
-      : "\n\n⚠️ Impossible de créer la sauvegarde automatique."
-    setModalSucessoMsg(`✅ App réinitialisée\nRedémarre l'app pour recommencer.${backupMsg}`)
-    setTimeout(() => setShowModalSucesso(true), 300)
+      ? "💾 Sauvegarde automatique créée avant la réinitialisation."
+      : "⚠️ Impossible de créer la sauvegarde automatique."
+    log.info('reglages', 'reset concluído — a ir para onboarding', { backupCriado: !!backupPath })
+    router.replace('/onboarding')
+    // o index (autosave 30 s / background) pode ter reescrito o estado de serviço antes de desmontar
+    setTimeout(() => { AsyncStorage.removeItem('TACHOOFFICE_estado').catch(() => {}) }, 800)
+    Alert.alert('✅ App réinitialisée', backupMsg)
   }
 
   const exportarDados = async () => {

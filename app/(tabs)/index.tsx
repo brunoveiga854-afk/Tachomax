@@ -626,12 +626,21 @@ export default function AujourdhuiScreen() {
   )
 
   // Sincroniza calendário quando o AppContext actualiza (ex: dia adicionado noutro tab)
+  const histCalViuRef = useRef(false)
+  const statsHistCalViuRef = useRef(false)
   useEffect(() => {
-    if (appState.histCal) setDiasHistorique(appState.histCal)
+    if (appState.histCal) { histCalViuRef.current = true; setDiasHistorique(appState.histCal) }
+    else if (histCalViuRef.current) { histCalViuRef.current = false; setDiasHistorique([]) }
   }, [appState.histCal])
 
   // Stats da semana reactivas ao AppContext
   useEffect(() => {
+    if (!appState.histCal && statsHistCalViuRef.current) {
+      statsHistCalViuRef.current = false
+      setStatsSemaine({ heures: 0, decouche: 0, frais: 0, jours: 0 })
+      return
+    }
+    if (appState.histCal) statsHistCalViuRef.current = true
     carregarStatsSemaine()
   }, [appState.histCal])
 

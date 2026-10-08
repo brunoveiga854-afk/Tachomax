@@ -1329,6 +1329,12 @@ export default function MonSalaireScreen() {
     }
   }, [appState.padrao])
 
+  const histCalViuRef = useRef(false)
+  useEffect(() => {
+    if (appState.histCal) { histCalViuRef.current = true; return }
+    if (histCalViuRef.current) { histCalViuRef.current = false; setHistCal([]) }
+  }, [appState.histCal])
+
   useEffect(() => {
     if (appState.padraoAprendido) {
       setPadraoAprendido(migrarPadraoAprendido(appState.padraoAprendido))

@@ -306,7 +306,7 @@ export default function HistoriqueScreen() {
     setRefreshing(true)
     try {
       const data = await AsyncStorage.getItem('historique')
-      if (!data) return
+      if (!data) { setHistorique([]); return }
       const lista = JSON.parse(data)
       const migrada = lista.map((j: any) => {
         const parts = j.date.split('/')

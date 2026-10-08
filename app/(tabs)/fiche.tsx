@@ -26,6 +26,7 @@ import {
 } from '../../src/utils/projecoes'
 import { log, perfLog, logSeMudou, logMudanca } from '../../src/utils/logger'
 import { limparCopiasCache } from '../../src/utils/limparCache'
+import { netSemFrais, provaDeFiche } from '../../src/utils/netSemFrais'
 import { COR_OFF } from '../../src/constants/cores'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
@@ -2155,8 +2156,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     // Pré-preenche sal + frais da primeira fiche não confirmada
     const fichaZero = fichesNaoConf[0]
     const pf = fichaZero?.dados || fichaZero as any
-    const netPayeZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
+    const netPayeOrigZero = (fichaZero?.dados?.netPaye || (fichaZero as any)?.netPaye || 0)
     const fraisZero = (fichaZero?.dados?.remboursementFrais || (fichaZero as any)?.remboursementFrais || 0)
+    const nsfZero = netSemFrais(netPayeOrigZero, fraisZero, provaDeFiche(fichaZero?.dados, fichaZero))
+    if (fichaZero) log.info('fiche', 'netPaye normalizado', { estado: nsfZero.estado, mudou: nsfZero.estado === 'incluido' })
+    const netPayeZero = nsfZero.estado === 'incluido' ? nsfZero.valor : netPayeOrigZero
     setInputMontantSalQ(netPayeZero > 0 ? String(netPayeZero) : '')
     setInputMontantFraisQ(fraisZero > 0 ? String(fraisZero) : '')
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')

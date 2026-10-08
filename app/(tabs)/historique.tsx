@@ -261,6 +261,7 @@ export default function HistoriqueScreen() {
   const [modoSelecao, setModoSelecao] = useState(false)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [tutorialFolhe, setTutorialFolhe] = useState(true)
+  const [acoesAbertas, setAcoesAbertas] = useState(false)
   useEffect(() => {
     AsyncStorage.getItem('tutorial_visto_folhe').then(v => {
       if (!v) setTutorialFolhe(false)
@@ -270,7 +271,7 @@ export default function HistoriqueScreen() {
     setTutorialFolhe(true)
     AsyncStorage.setItem('tutorial_visto_folhe', '1')
   }
-  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
+  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setAcoesAbertas(false); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
 
   // Fecha o resumo da fiche e resolve a promessa de gerarFicheHebdo. Limpa sempre o pendente.
   const fecharResumo = (ok: boolean) => {
@@ -1002,6 +1003,21 @@ const getJoursMois = () => {
               </View>
             )
           })()}
+          {(() => {
+            const tutorialAtivo = vue === 'semaine' && !tutorialFolhe
+            const aberta = acoesAbertas || tutorialAtivo
+            return (<>
+          <TouchableOpacity
+            onPress={() => setAcoesAbertas(a => !a)}
+            disabled={tutorialAtivo}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6, borderTopWidth: 1, borderTopColor: c.cardBorder }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: c.textSub, letterSpacing: 0.5 }}>{vue === 'semaine' ? 'Rapport · Fiche semaine' : 'Rapport'}</Text>
+            <Text style={{ fontSize: 11, color: c.textSub }}>{aberta ? '▴' : '▾'}</Text>
+          </TouchableOpacity>
+          {aberta && (
+          <View style={{ marginTop: 8 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.12)', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: '#2980b9', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
@@ -1030,6 +1046,10 @@ const getJoursMois = () => {
               </TouchableOpacity>
             )}
           </View>
+          </View>
+          )}
+            </>)
+          })()}
         </View>
         {invalidos.length > 0 && (
           <View style={st.avisoBox}>

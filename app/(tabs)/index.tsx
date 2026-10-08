@@ -840,7 +840,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       regles,
       valeurs: fv,
     })
-    log.debug('index', 'frais auto calculado', { debut, fin, type, total: result.total })
+    log.debug('index', 'frais auto calculado', { debut, fin, type, temTotal: result.total > 0 })
     setAddFrais(result.total.toFixed(2))
   }
 
@@ -1576,7 +1576,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }).total
 
     await guardarDia(fim, snapKm, snapService, snapPausaTotal)
-    log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, frais: snapFrais, km: snapKm })
+    log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, temFrais: snapFrais > 0, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     try {
       await cancelarAlertaAmplitude()

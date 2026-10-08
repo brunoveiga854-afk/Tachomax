@@ -25,6 +25,7 @@ import {
   type Medias,
 } from '../../src/utils/projecoes'
 import { log, perfLog, logSeMudou, logMudanca } from '../../src/utils/logger'
+import { limparCopiasCache } from '../../src/utils/limparCache'
 import { COR_OFF } from '../../src/constants/cores'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
@@ -1246,17 +1247,17 @@ export default function MonSalaireScreen() {
     }
     // Guard nível 2 — campos obrigatórios: warn mas guarda na mesma
     if (p.hbase <= 0 || p.hval <= 0) {
-      log.warn('fiche', 'persistirPadrao: hbase/hval = 0 — estimativa pode ser incorrecta', { hbase: p.hbase, hval: p.hval })
+      log.warn('fiche', 'persistirPadrao: hbase/hval = 0 — estimativa pode ser incorrecta', { hbaseZero: !(p.hbase > 0), hvalZero: !(p.hval > 0) })
     }
     if (p.diaSalario <= 0 || p.diaFrais <= 0) {
       log.warn('fiche', 'persistirPadrao: diaSalario/diaFrais inválidos', { diaSalario: p.diaSalario, diaFrais: p.diaFrais })
     }
     logMudanca('flag', padrao?.flag, p.flag, 'fiche.persistirPadrao')
-    logMudanca('hval', padrao?.hval, p.hval, 'fiche.persistirPadrao')
-    logMudanca('taxaHorariaNetaMedia', padrao?.taxaHorariaNetaMedia, p.taxaHorariaNetaMedia, 'fiche.persistirPadrao')
+    if (padrao?.hval !== p.hval) log.info('fiche.persistirPadrao', 'mudança hval', { mudou: true })
+    if (padrao?.taxaHorariaNetaMedia !== p.taxaHorariaNetaMedia) log.info('fiche.persistirPadrao', 'mudança taxaHorariaNetaMedia', { mudou: true })
     setPadrao(p)
     await secureSet('monSalaire_padrao', JSON.stringify(p))
-    log.info('fiche', 'padrao persistido', { hbase: p.hbase, hval: p.hval, confianca: p.confianca })
+    log.info('fiche', 'padrao persistido', { temHbase: p.hbase > 0, temHval: p.hval > 0, confianca: p.confianca })
   }
 
   const apagaSelMeses = async (periodes: Set<string>) => {
@@ -1569,7 +1570,7 @@ export default function MonSalaireScreen() {
           moisIndex: h.moisIndex, annee: h.annee,
           mesFraisTrabalhoIndex: h.mesFraisTrabalhoIndex ?? null,
           anoFraisTrabalho: h.anoFraisTrabalho ?? null,
-          fraisRecuConfirme: h.fraisRecuConfirme ?? null,
+          temFraisRecu: (h.fraisRecuConfirme || 0) > 0,
           fraisConfirmado: h.fraisConfirmado ?? null,
           fichePages: h.fichePages ?? null,
           escolhido: h === fichesFrais[0],
@@ -1578,14 +1579,14 @@ export default function MonSalaireScreen() {
         flag: p.flag,
         anoFrais, mesFrais,
         nDiasFrais: diasFrais.length,
-        fraisCalDireto,
-        fraisHorarioTotal: fraisHorario.total,
+        temFraisCal: fraisCalDireto > 0,
+        temFraisHorario: fraisHorario.total > 0,
         fichesFraisFound: fichesFrais.length,
         escolhido: fichesFrais[0]
           ? { moisIndex: fichesFrais[0].moisIndex, annee: fichesFrais[0].annee }
           : null,
         ultimos6: _ultimos6,
-        totalFrais,
+        temTotalFrais: totalFrais > 0,
       })
 
       // Salário
@@ -1692,13 +1693,13 @@ export default function MonSalaireScreen() {
       setDriftAlert(detectarDrift(tuplosParaDrift))
       setShowAnalyse(false)
       animarContagem(Math.round(totalLiq), mesAberto)
-      log.info('fiche', 'calcularSalario concluído', { totalLiq: Math.round(totalLiq) })
+      log.info('fiche', 'calcularSalario concluído', { temTotal: totalLiq > 0 })
       perfLog.timeEnd('fiche', 'calcularSalario')
       setCalculando(false)
       setCalculandoMsg('')
     } catch (e) {
       perfLog.timeEnd('fiche', 'calcularSalario')
-      log.error('fiche', 'calcularSalario falhou', { error: e, histLen: appState.histCal?.length ?? 0, padrao: { hbase: padrao.hbase, hval: padrao.hval, hlag: padrao.hlag } })
+      log.error('fiche', 'calcularSalario falhou', { error: e, histLen: appState.histCal?.length ?? 0, padrao: { temHbase: padrao.hbase > 0, temHval: padrao.hval > 0, hlag: padrao.hlag } })
       setCalculando(false)
       setCalculandoMsg('')
       mostrarErro('Erreur: ' + String(e))
@@ -1925,15 +1926,19 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
       }
+    } finally {
+      await limparCopiasCache(result.assets.map(a => a.uri))
     }
     setLoading(false)
   }
 
   const importerPdfs = async () => {
     let nFicheiros = 0
+    let uris: string[] = []
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true, multiple: true })
       if (result.canceled) return
+      uris = (result.assets || []).map(a => a.uri)
       nFicheiros = result.assets?.length || 0
       log.info('fiche', 'import frais iniciado', { nFicheiros: result.assets?.length || 0 })
       setLoading(true)
@@ -2011,6 +2016,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       } else {
         mostrarErro("Réponse IA invalide. Réessaie ou utilise un fichier plus net.")
       }
+    } finally {
+      await limparCopiasCache(uris)
     }
     setLoading(false)
   }
@@ -2244,7 +2251,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       return novo
     })
     const novasRespostas = [...respostas, novaResposta]
-    log.info('fiche', 'resposta registada', { periode: fichaActual.periode, sal, frais: fraisReel, moisAtipico: inputMoisAtipico })
+    log.info('fiche', 'resposta registada', { periode: fichaActual.periode, temNet: sal > 0, temFrais: fraisReel > 0, moisAtipico: inputMoisAtipico })
     setRespostas(novasRespostas)
     if (perguntaAtual < fiches.length - 1) {
       // Pré-preenche sal + frais para a próxima fiche (rascunho tem prioridade)
@@ -2376,8 +2383,6 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         novoDado.moisAtipico = true
         log.warn('fiche', 'mês marcado automaticamente como atípico — net > brut', {
           periode: novoDado.periode,
-          netPaye: netFinal,
-          salairebrut: brutFinal,
           rate: Math.round(netFinal / brutFinal * 100)
         })
       }
@@ -3658,7 +3663,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           setFonteEscolhida('banco')
                           setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
                           setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
-                          log.info('fiche', 'Parte1 Suivant', { salFinal, fraisFinal, fonte: 'banco' })
+                          log.info('fiche', 'Parte1 Suivant', { temNet: salFinal > 0, temFrais: fraisFinal > 0, fonte: 'banco' })
                           if (inputDataParteUm) {
                             log.info('fiche', 'timing confirmado Parte1', { hlag: mesToTrabalhoParteUm, data: inputDataParteUm })
                             const novoPadrao = { ...padraoAprendido, hlag: mesToTrabalhoParteUm, hlagConfirmado: true }
@@ -4313,7 +4318,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   await recarregarApp()
                   showToast('✓ Modifications appliquées')
                   setModalDetail(updated)
-                  log.info('fiche', 'fiche editada', { periode: updated.periode, netPaye: updated.netPaye, salairebrut: updated.salairebrut, moisAtipico: updated.moisAtipico })
+                  log.info('fiche', 'fiche editada', { periode: updated.periode, temNet: (updated.netPaye || 0) > 0, temBrut: (updated.salairebrut || 0) > 0, moisAtipico: updated.moisAtipico })
                   setShowModalEdit(false)
                 } catch (e) { log.error('fiche', 'erro ao guardar edição', e) }
               }}>

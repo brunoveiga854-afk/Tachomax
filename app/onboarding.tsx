@@ -219,7 +219,7 @@ export default function OnboardingScreen() {
         _hvalManual: salBrut > 0,
       }
       await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(padraoInit)))
-      log.debug('onboarding', 'padrao pré-populado (novo)', { hbase, hval })
+      log.debug('onboarding', 'padrao pré-populado (novo)', { temHbase: hbase > 0, temHval: hval > 0 })
     } else {
       // Padrao existant — mettre à jour hbase/hval/h25/h50 en préservant les données apprises
       try {
@@ -236,7 +236,7 @@ export default function OnboardingScreen() {
           ...(params.mode === 'edit' ? { flag: obFraisMemeJour ? obHlag : obFlag } : {}),
         }
         await withRetry(() => secureSet('monSalaire_padrao', JSON.stringify(updated)))
-        log.debug('onboarding', 'padrao actualizado (existente preservado)', { hbase, hval })
+        log.debug('onboarding', 'padrao actualizado (existente preservado)', { temHbase: hbase > 0, temHval: hval > 0 })
       } catch (e) { log.warn('onboarding', 'merge de padrao existente falhou', e) }
     }
     // Guardar timing no motor de aprendizagem

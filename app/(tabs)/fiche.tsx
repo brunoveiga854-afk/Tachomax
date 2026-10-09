@@ -27,6 +27,7 @@ import {
 import { log, perfLog, logSeMudou, logMudanca } from '../../src/utils/logger'
 import { limparCopiasCache } from '../../src/utils/limparCache'
 import { netSemFrais, provaDeFiche } from '../../src/utils/netSemFrais'
+import { somaPremios, recebidoSemPremios, pontuarAcerto } from '../../src/utils/precisaoReal'
 import { COR_OFF } from '../../src/constants/cores'
 import { secureGet, secureSet, secureDelete } from '../../src/utils/secureStorage'
 
@@ -495,12 +496,7 @@ function aplicarConfirmacaoFraisPorValor(
 }
 
 
-const totalPrimesExceptionnelles = (d: any) =>
-  (d?.interessement || 0) +
-  (d?.primeExceptionnelle || 0) +
-  (d?.participationSalariale || 0) +
-  (d?.primeNonAccident || 0) +
-  (d?.autresPrimes || 0)
+const totalPrimesExceptionnelles = (d: any) => somaPremios(d)
 
 const netPayeRecurrent = (d: Pick<MoisData, 'netPaye'> | any) => Math.max(0, (d?.netPaye || 0) - (d?.interessement || 0) - (d?.participationSalariale || 0) - (d?.primeExceptionnelle || 0))
 
@@ -1651,15 +1647,10 @@ export default function MonSalaireScreen() {
       const empresa = histSal.length > 0 ? histSal[0].entreprise : ''
 
       // Precisão real: compara estimativas passadas vs valores confirmados
+      // O recebido não inclui prémios ocasionais (a estimativa é "hors primes")
       const mesesComReal = histSal.filter(m => m.montantTotalRecu > 0)
-      const acertosReais = mesesComReal.map(m => {
-        const est = calcEstimativaMes(m)
-        if (est === 0 || m.montantTotalRecu === 0) return null
-        const diff6 = Math.abs(est - m.montantTotalRecu)
-        // Tolerância realista: ≤30€=100%, ≤70€=98%, ≤120€=95%, ≤200€=88%
-        return diff6 <= 30 ? 100 : diff6 <= 70 ? 98 : diff6 <= 120 ? 95 : diff6 <= 200 ? 88
-          : Math.max(60, Math.round(100 - Math.min(38, diff6 / m.montantTotalRecu * 100)))
-      }).filter(v => v !== null) as number[]
+      const acertosReais = mesesComReal.map(m => pontuarAcerto(calcEstimativaMes(m), recebidoSemPremios(m)))
+        .filter(v => v !== null) as number[]
       const precisao = acertosReais.length >= 2
         ? Math.round(acertosReais.reduce((a, b) => a + b, 0) / acertosReais.length)
         : calcularPrecisao(p, histSal.length)
@@ -3142,14 +3133,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         {historique.length > 0 && (() => {
           // Calcula precisão global apenas para meses com valor real confirmado
           const mesesComReal = historique.filter(m => m.montantTotalRecu > 0)
-          const precisoes = mesesComReal.map(m => {
-            const est = calcEstimativaMes(m)
-            if (est === 0 || m.montantTotalRecu === 0) return null
-            const diff6 = Math.abs(est - m.montantTotalRecu)
-        // Tolerância realista: ≤30€=100%, ≤70€=98%, ≤120€=95%, ≤200€=88%
-        return diff6 <= 30 ? 100 : diff6 <= 70 ? 98 : diff6 <= 120 ? 95 : diff6 <= 200 ? 88
-          : Math.max(60, Math.round(100 - Math.min(38, diff6 / m.montantTotalRecu * 100)))
-          }).filter(v => v !== null) as number[]
+          // O recebido não inclui prémios ocasionais (a estimativa é "hors primes")
+          const precisoes = mesesComReal.map(m => pontuarAcerto(calcEstimativaMes(m), recebidoSemPremios(m)))
+            .filter(v => v !== null) as number[]
           const precisaoGlobal = precisoes.length > 0
             ? Math.round(precisoes.reduce((a, b) => a + b, 0) / precisoes.length)
             : null
@@ -3256,9 +3242,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 const rateAnormal = rateCard !== null && (rateCard < 0.60 || rateCard > 0.90) && !m.moisAtipico
                 const temReal = m.montantTotalRecu > 0
                 const delta = temReal && estimativa > 0 ? m.montantTotalRecu - estimativa : null
-                const pctAcerto = delta !== null && estimativa > 0
-                  ? Math.round(100 - Math.abs(delta) / m.montantTotalRecu * 100)
-                  : null
+                const pctAcerto = delta !== null ? pontuarAcerto(estimativa, recebidoSemPremios(m)) : null
                 const deltaColor = delta === null ? c.textSub : Math.abs(delta) <= 30 ? '#27ae60' : Math.abs(delta) <= 100 ? '#f5a623' : '#e74c3c'
                 const esteSelec = selMeses.has(m.periode)
 

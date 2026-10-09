@@ -3131,18 +3131,31 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         )}
 
         {historique.length > 0 && (() => {
-          // Calcula precisão global apenas para meses com valor real confirmado
-          const mesesComReal = historique.filter(m => m.montantTotalRecu > 0)
-          // O recebido não inclui prémios ocasionais (a estimativa é "hors primes")
-          const precisoes = mesesComReal.map(m => pontuarAcerto(calcEstimativaMes(m), recebidoSemPremios(m)))
+          // Teste honesto: só meses com a estimativa guardada na altura (antes de saber o real)
+          // e com valor real confirmado. O recebido não inclui prémios ocasionais (a estimativa é "hors primes")
+          const mesesTestados = historique.filter(m => (m.estimativaSnapshot || 0) > 0 && m.montantTotalRecu > 0)
+          const precisoes = mesesTestados.map(m => pontuarAcerto(m.estimativaSnapshot as number, recebidoSemPremios(m)))
             .filter(v => v !== null) as number[]
-          const precisaoGlobal = precisoes.length > 0
+          const precisaoGlobal = precisoes.length >= 3
             ? Math.round(precisoes.reduce((a, b) => a + b, 0) / precisoes.length)
             : null
 
           return (
             <View style={{ marginTop: 16 }}>
               {/* ── BADGE GLOBAL DE PRECISÃO ── */}
+              {precisaoGlobal === null && (
+                <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.cardBorder }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1.2 }}>PRÉCISION DE L'APP</Text>
+                      <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>Pas encore assez de mois testés ({precisoes.length}/3)</Text>
+                    </View>
+                    <View style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: c.cardBorder }}>
+                      <Text style={{ fontSize: 24, fontWeight: '900', color: c.textSub }}>—</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
               {precisaoGlobal !== null && (() => {
                   const pgColor = precisaoGlobal >= 95 ? '#27ae60' : precisaoGlobal >= 85 ? '#2ecc71' : precisaoGlobal >= 75 ? '#f5a623' : '#e74c3c'
                   const pgBg   = precisaoGlobal >= 95 ? 'rgba(39,174,96,0.15)' : precisaoGlobal >= 85 ? 'rgba(243,156,18,0.12)' : precisaoGlobal >= 75 ? 'rgba(245,166,35,0.15)' : 'rgba(231,76,60,0.15)'
@@ -3152,7 +3165,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <View>
                           <Text style={{ fontSize: 11, fontWeight: '800', color: c.textLabel, letterSpacing: 1.2 }}>PRÉCISION DE L'APP</Text>
-                          <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>{mesesComReal.length} mois comparés · Estimé vs Réel</Text>
+                          <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>{precisoes.length} mois testés · Estimé avant vs Réel</Text>
                         </View>
                         <View style={{ backgroundColor: pgBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: pgColor }}>
                           <Text style={{ fontSize: 24, fontWeight: '900', color: pgColor }}>{precisaoGlobal}%</Text>

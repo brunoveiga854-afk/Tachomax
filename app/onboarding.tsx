@@ -350,7 +350,7 @@ export default function OnboardingScreen() {
               style={st.nomInput}
               value={nom}
               onChangeText={setNom}
-              placeholder="Ex: Veiga"
+              placeholder="Ex: Dupont"
               placeholderTextColor={COR_OFF}
               autoCapitalize="characters"
               returnKeyType="done"

@@ -28,6 +28,12 @@ const BACKUP_KEYS = [
   'monSalaire_v2',
 ]
 
+// Carimbo com hora LOCAL do telemóvel (não UTC): AAAA-MM-DD_HHhMM — usado nos nomes dos backups
+function carimboLocal(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}`
+}
+
 export default function ReglagesScreen() {
   const { themeSombre, toggleTheme } = useTheme()
   const { langue, setLangue, t } = useLangue()
@@ -168,8 +174,7 @@ export default function ReglagesScreen() {
   }, [scrollToParam])
 
   const apagaHistorique = async () => {
-    const agora = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-')
-    const backupPath = await criarBackupSilencioso(`tachooffice_backup_avant_suppression_historique_${agora}.json`)
+    const backupPath = await criarBackupSilencioso(`TachoOffice_auto_avant_suppression_${carimboLocal()}.json`)
     log.warn('reglages', 'historique apagado pelo utilizador', { backupCriado: !!backupPath })
     await AsyncStorage.removeItem('historique')
     await recarregarApp()
@@ -190,9 +195,12 @@ export default function ReglagesScreen() {
         const val = await AsyncStorage.getItem(key)
         if (val) { try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val } }
       }
-      const date = new Date().toISOString().slice(0, 10)
-      const filename = nomeFicheiro ?? `tachooffice_backup_avant_reset_${date}.json`
-      const path = `${FileSystem.documentDirectory}${filename}`
+      let filename = nomeFicheiro ?? `TachoOffice_auto_avant_reset_${carimboLocal()}.json`
+      let path = `${FileSystem.documentDirectory}${filename}`
+      if ((await FileSystem.getInfoAsync(path)).exists) {
+        filename = filename.replace(/\.json$/, `_${String(new Date().getSeconds()).padStart(2, '0')}s.json`)
+        path = `${FileSystem.documentDirectory}${filename}`
+      }
       await FileSystem.writeAsStringAsync(path, JSON.stringify(backup, null, 2), { encoding: FileSystem.EncodingType.UTF8 })
       log.info('reglages', 'backup silencioso criado', { path: filename })
       return path
@@ -234,8 +242,7 @@ export default function ReglagesScreen() {
         }
       }
       const json = JSON.stringify(backup, null, 2)
-      const date = new Date().toISOString().slice(0, 10)
-      const filename = `tachooffice_backup_${date}.json`
+      const filename = `TachoOffice_sauvegarde_${carimboLocal()}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 })
       log.info('reglages', 'export criado', { filename, nKeys: Object.keys(backup.data).length })
@@ -316,7 +323,7 @@ export default function ReglagesScreen() {
     try {
       const dir = FileSystem.documentDirectory
       const nomes = dir ? await FileSystem.readDirectoryAsync(dir) : []
-      const candidatos = nomes.filter(n => n.startsWith('tachooffice_backup_avant_') && n.endsWith('.json'))
+      const candidatos = nomes.filter(n => n.endsWith('.json') && (n.startsWith('TachoOffice_auto_avant_') || n.startsWith('tachooffice_backup_avant_')))
       let melhor: { path: string; mtime: number } | null = null
       for (const n of candidatos) {
         const info = await FileSystem.getInfoAsync(`${dir}${n}`)

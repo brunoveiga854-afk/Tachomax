@@ -47,6 +47,7 @@ export default function ReglagesScreen() {
   const [importData, setImportData] = useState<any>(null)
   const [loadingExport, setLoadingExport] = useState(false)
   const [loadingImport, setLoadingImport] = useState(false)
+  const [loadingShareAuto, setLoadingShareAuto] = useState(false)
   const [diasTrial, setDiasTrial] = useState<number | null>(null)
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
@@ -167,16 +168,21 @@ export default function ReglagesScreen() {
   }, [scrollToParam])
 
   const apagaHistorique = async () => {
-    log.warn('reglages', 'historique apagado pelo utilizador')
+    const agora = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-')
+    const backupPath = await criarBackupSilencioso(`tachooffice_backup_avant_suppression_historique_${agora}.json`)
+    log.warn('reglages', 'historique apagado pelo utilizador', { backupCriado: !!backupPath })
     await AsyncStorage.removeItem('historique')
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     setShowModalHistorique(false)
-    setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
+    const backupMsg = backupPath
+      ? "💾 Sauvegarde automatique créée avant la suppression."
+      : "⚠️ Impossible de créer la sauvegarde automatique."
+    setModalSucessoMsg(`✅ Historique effacé\nTon historique a été supprimé.\n\n${backupMsg}`)
     setTimeout(() => setShowModalSucesso(true), 300)
   }
 
-  const criarBackupSilencioso = async (): Promise<string | null> => {
+  const criarBackupSilencioso = async (nomeFicheiro?: string): Promise<string | null> => {
     try {
       const backup: any = { version: 'tachooffice-v1', exportedAt: new Date().toISOString(), data: {} }
       const allKeys = await AsyncStorage.getAllKeys()
@@ -185,7 +191,7 @@ export default function ReglagesScreen() {
         if (val) { try { backup.data[key] = JSON.parse(val) } catch { backup.data[key] = val } }
       }
       const date = new Date().toISOString().slice(0, 10)
-      const filename = `tachooffice_backup_avant_reset_${date}.json`
+      const filename = nomeFicheiro ?? `tachooffice_backup_avant_reset_${date}.json`
       const path = `${FileSystem.documentDirectory}${filename}`
       await FileSystem.writeAsStringAsync(path, JSON.stringify(backup, null, 2), { encoding: FileSystem.EncodingType.UTF8 })
       log.info('reglages', 'backup silencioso criado', { path: filename })
@@ -303,6 +309,34 @@ export default function ReglagesScreen() {
       setShowModalSucesso(true)
     }
     setImportData(null)
+  }
+
+  const partilharBackupAutomatico = async () => {
+    setLoadingShareAuto(true)
+    try {
+      const dir = FileSystem.documentDirectory
+      const nomes = dir ? await FileSystem.readDirectoryAsync(dir) : []
+      const candidatos = nomes.filter(n => n.startsWith('tachooffice_backup_avant_') && n.endsWith('.json'))
+      let melhor: { path: string; mtime: number } | null = null
+      for (const n of candidatos) {
+        const info = await FileSystem.getInfoAsync(`${dir}${n}`)
+        if (!info.exists) continue
+        const mtime = info.modificationTime ?? 0
+        if (!melhor || mtime > melhor.mtime) melhor = { path: `${dir}${n}`, mtime }
+      }
+      log.info('reglages', 'backup automatico procurado', { nFicheiros: candidatos.length, encontrado: !!melhor })
+      if (!melhor) {
+        setModalSucessoMsg("ℹ️ Aucune sauvegarde automatique trouvée.\nElle est créée avant un effacement de l'historique ou une réinitialisation.")
+        setShowModalSucesso(true)
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(melhor.path, { mimeType: 'application/json', dialogTitle: 'Sauvegarde automatique TachoOffice', UTI: 'public.json' })
+      }
+    } catch (e) {
+      log.error('reglages', 'partilharBackupAutomatico falhou', e)
+      setModalSucessoMsg("❌ Erreur lors du partage de la sauvegarde.")
+      setShowModalSucesso(true)
+    }
+    setLoadingShareAuto(false)
   }
 
   const c = {
@@ -1021,6 +1055,22 @@ export default function ReglagesScreen() {
               </Text>
             </View>
           </TouchableOpacity>
+          <View style={{ height: 10 }} />
+          <TouchableOpacity
+            style={[st.backupBtn, { backgroundColor: 'rgba(230,126,34,0.1)', borderColor: '#e67e22' }]}
+            onPress={partilharBackupAutomatico}
+            disabled={loadingShareAuto}
+          >
+            <Text style={{ fontSize: 22 }}>🛟</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#e67e22' }}>
+                {loadingShareAuto ? 'Recherche en cours...' : 'Récupérer la dernière sauvegarde automatique'}
+              </Text>
+              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
+                Créée avant un effacement ou une réinitialisation. Enregistre-la puis utilise « Restaurer »
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* ── 8. MES DONNÉES ── */}
@@ -1166,7 +1216,7 @@ export default function ReglagesScreen() {
               style={{ backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.cardBorder, fontSize: 16, fontWeight: '600', color: c.text, marginBottom: 24 }}
               value={editNom}
               onChangeText={v => setEditNom(v.toUpperCase())}
-              placeholder="Ex: VEIGA"
+              placeholder="Ex: DUPONT"
               placeholderTextColor={c.textSub}
               autoCapitalize="characters"
             />

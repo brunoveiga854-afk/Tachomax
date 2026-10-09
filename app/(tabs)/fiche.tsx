@@ -2464,7 +2464,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo')
     log.info('fiche', 'guardarTudo concluído', { numMeses: novoHist.length, hlag: novoPadrao.hlag, flag: novoPadrao.flag, confianca: novoPadrao.confianca })
-    const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Précision: ${novoPadrao.confianca}%`
+    const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Données: ${novoPadrao.confianca}%`
     const msgAprendizagem = faltas.length > 0 ? `${baseMsg}\n\nÀ compléter : ${faltas.join(' · ')}` : `${baseMsg}\n\nPattern appris avec des données confirmées.`
     setModalSucessoMsg(alertasFrais.length > 0 ? `${msgAprendizagem}\n\n⚠️ ${alertasFrais.join('\n\n⚠️ ')}` : msgAprendizagem)
     setLoading(false)
@@ -2989,16 +2989,16 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
               }}>
                 <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>
-                  {precisaoActual >= 85 ? '✅' : precisaoActual >= 79 ? '⚡' : '🔴'} {precisaoActual}% de précision
+                  {precisaoActual >= 85 ? '✅' : precisaoActual >= 79 ? '⚡' : '🔴'} Données : {precisaoActual}%
                 </Text>
               </View>
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>· {historique.length} mois</Text>
             </View>
-            {historique.length < 6 && (
+            {historique.length < 3 && (
               <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8, textAlign: 'center' }}>
                 {historique.length === 0
                   ? '📊 Charge tes fiches pour démarrer les estimations'
-                  : `📊 Encore ${6 - historique.length} mois de fiches pour atteindre 95% de précision`}
+                  : `📊 Encore ${3 - historique.length} mois de fiches pour atteindre 95% de données`}
               </Text>
             )}
           </TouchableOpacity>

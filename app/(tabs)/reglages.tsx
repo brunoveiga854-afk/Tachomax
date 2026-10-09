@@ -53,7 +53,6 @@ export default function ReglagesScreen() {
   const [importData, setImportData] = useState<any>(null)
   const [loadingExport, setLoadingExport] = useState(false)
   const [loadingImport, setLoadingImport] = useState(false)
-  const [loadingShareAuto, setLoadingShareAuto] = useState(false)
   const [diasTrial, setDiasTrial] = useState<number | null>(null)
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
@@ -180,10 +179,7 @@ export default function ReglagesScreen() {
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     setShowModalHistorique(false)
-    const backupMsg = backupPath
-      ? "💾 Sauvegarde automatique créée avant la suppression."
-      : "⚠️ Impossible de créer la sauvegarde automatique."
-    setModalSucessoMsg(`✅ Historique effacé\nTon historique a été supprimé.\n\n${backupMsg}`)
+    setModalSucessoMsg("✅ Historique effacé\nTon historique a été supprimé.")
     setTimeout(() => setShowModalSucesso(true), 300)
   }
 
@@ -316,34 +312,6 @@ export default function ReglagesScreen() {
       setShowModalSucesso(true)
     }
     setImportData(null)
-  }
-
-  const partilharBackupAutomatico = async () => {
-    setLoadingShareAuto(true)
-    try {
-      const dir = FileSystem.documentDirectory
-      const nomes = dir ? await FileSystem.readDirectoryAsync(dir) : []
-      const candidatos = nomes.filter(n => n.endsWith('.json') && (n.startsWith('TachoOffice_auto_avant_') || n.startsWith('tachooffice_backup_avant_')))
-      let melhor: { path: string; mtime: number } | null = null
-      for (const n of candidatos) {
-        const info = await FileSystem.getInfoAsync(`${dir}${n}`)
-        if (!info.exists) continue
-        const mtime = info.modificationTime ?? 0
-        if (!melhor || mtime > melhor.mtime) melhor = { path: `${dir}${n}`, mtime }
-      }
-      log.info('reglages', 'backup automatico procurado', { nFicheiros: candidatos.length, encontrado: !!melhor })
-      if (!melhor) {
-        setModalSucessoMsg("ℹ️ Aucune sauvegarde automatique trouvée.\nElle est créée avant un effacement de l'historique ou une réinitialisation.")
-        setShowModalSucesso(true)
-      } else if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(melhor.path, { mimeType: 'application/json', dialogTitle: 'Sauvegarde automatique TachoOffice', UTI: 'public.json' })
-      }
-    } catch (e) {
-      log.error('reglages', 'partilharBackupAutomatico falhou', e)
-      setModalSucessoMsg("❌ Erreur lors du partage de la sauvegarde.")
-      setShowModalSucesso(true)
-    }
-    setLoadingShareAuto(false)
   }
 
   const c = {
@@ -1059,22 +1027,6 @@ export default function ReglagesScreen() {
               </Text>
               <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
                 Récupère tout ton historique et tes réglages
-              </Text>
-            </View>
-          </TouchableOpacity>
-          <View style={{ height: 10 }} />
-          <TouchableOpacity
-            style={[st.backupBtn, { backgroundColor: 'rgba(230,126,34,0.1)', borderColor: '#e67e22' }]}
-            onPress={partilharBackupAutomatico}
-            disabled={loadingShareAuto}
-          >
-            <Text style={{ fontSize: 22 }}>🛟</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#e67e22' }}>
-                {loadingShareAuto ? 'Recherche en cours...' : 'Récupérer la dernière sauvegarde automatique'}
-              </Text>
-              <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>
-                Créée avant un effacement ou une réinitialisation. Enregistre-la puis utilise « Restaurer »
               </Text>
             </View>
           </TouchableOpacity>

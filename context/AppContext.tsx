@@ -101,10 +101,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const histSalRaw = await AsyncStorage.getItem('monSalaire_v2')
     let histSal: any[] | null = null
-    try { if (histSalRaw) histSal = JSON.parse(histSalRaw) } catch { log.warn('AppContext', 'monSalaire_v2 corrompido — ignorado') }
+    try {
+      if (histSalRaw) {
+        const parsedSal = JSON.parse(histSalRaw)
+        if (Array.isArray(parsedSal)) histSal = parsedSal
+        else log.warn('AppContext', 'monSalaire_v2 não é um array — ignorado (chave intacta)', { tipo: typeof parsedSal })
+      }
+    } catch { log.warn('AppContext', 'monSalaire_v2 corrompido — ignorado') }
     const histCalRaw = await AsyncStorage.getItem('historique')
     let histCal: any[] | null = null
-    try { if (histCalRaw) histCal = JSON.parse(histCalRaw) } catch { log.warn('AppContext', 'historique corrompido — ignorado') }
+    try {
+      if (histCalRaw) {
+        const parsedCal = JSON.parse(histCalRaw)
+        if (Array.isArray(parsedCal)) histCal = parsedCal
+        else log.warn('AppContext', 'historique não é um array — ignorado (chave intacta)', { tipo: typeof parsedCal })
+      }
+    } catch { log.warn('AppContext', 'historique corrompido — ignorado') }
 
     const profil = (profilRaw === 'CD' || profilRaw === 'MIXTE' || profilRaw === 'LD')
       ? profilRaw

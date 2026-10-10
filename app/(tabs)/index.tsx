@@ -53,9 +53,41 @@ type Jour = {
   kmInicio?: number
   kmFim?: number
   troca?: TrocaCamiao
+  pausasDetalhe?: { inicio: number; dur: number; origem?: string }[]   // opcional: intervalos individuais das pausas (dias antigos não têm)
 }
 const STORAGE_KEY = 'TACHOOFFICE_estado'
+const STORAGE_KEY_ABORTADO = 'TACHOOFFICE_estado_abortado'   // cópia crua de um serviço em curso não recuperável (>24h)
+const LIMITE_RECUPERACAO_H = 24                              // arranque a frio: acima disto não se recupera (igual ao cap do resume em quente)
 const MAX_HISTORIQUE = 1500
+const HISTORIQUE_ARQUIVO_KEY = 'historique_arquivo'   // salvaguarda: excedente acima de MAX_HISTORIQUE (nada o lê; não entra em export/import)
+const HISTORIQUE_AVISO = 1400                         // log.warn a partir daqui
+
+// Corta o histórico em MAX_HISTORIQUE, mas arquiva o excedente ANTES de o descartar.
+// Se o arquivo falhar (ilegível / setItem), NÃO corta: devolve a lista completa. Nunca lança.
+async function cortarHistoricoComArquivo(lista: any[]): Promise<any[]> {
+  const n = lista.length
+  if (n >= HISTORIQUE_AVISO) log.warn('index', 'histórico perto/acima do limite', { n, limite: MAX_HISTORIQUE })
+  else log.debug('index', 'histórico: contagem', { n })
+  if (n <= MAX_HISTORIQUE) return lista
+  const excedente = lista.slice(MAX_HISTORIQUE)
+  try {
+    const raw = await AsyncStorage.getItem(HISTORIQUE_ARQUIVO_KEY)
+    let arquivo: any[] = []
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) throw new Error('historique_arquivo não é um array')
+      arquivo = parsed
+    }
+    const ids = new Set(arquivo.map((j: any) => j?.id))
+    const novos = excedente.filter((j: any) => j?.id == null || !ids.has(j.id))
+    await AsyncStorage.setItem(HISTORIQUE_ARQUIVO_KEY, JSON.stringify([...arquivo, ...novos]))
+    log.warn('index', 'histórico acima do limite — excedente arquivado', { arquivados: novos.length, totalArquivo: arquivo.length + novos.length, mantidos: MAX_HISTORIQUE })
+    return lista.slice(0, MAX_HISTORIQUE)
+  } catch (e) {
+    log.warn('index', 'arquivo do histórico falhou — lista completa mantida (sem cortar)', { tipo: (e as any)?.name, excedente: excedente.length })
+    return lista
+  }
+}
 
 // ─── Stats sub-components — defined at module level so React never remounts ──
 // Defining components inside a render body creates a new reference each render,
@@ -249,6 +281,7 @@ export default function AujourdhuiScreen() {
   const [folhaChave, setFolhaChave] = useState('')
 
   const pausaInicioRef = useRef<number>(0)
+  const pausasDiaRef = useRef<{ inicio: number; dur: number; origem?: string }[]>([])   // todas as pausas do serviço (não é limpa pelo reset regulamentar)
   const [pausaBloco1Feita, setPausaBloco1Feita] = useState(false)
   const [pausaBloco2Feita, setPausaBloco2Feita] = useState(false)
   const tsInicioUltimaPausa = useRef<number | null>(null)
@@ -430,6 +463,7 @@ export default function AujourdhuiScreen() {
       pausaBloco1Feita: !!snap.pausaBloco1Feita,
       pausaBloco2Feita: !!snap.pausaBloco2Feita,
       pausas: snap.pausas || [],
+      pausasDia: pausasDiaRef.current,
       horaInicio: snap.horaInicio || '',
       dateInicio: snap.dateInicio?.toISOString(),
       tsInicioServico: tsInicioServico.current,
@@ -458,6 +492,7 @@ export default function AujourdhuiScreen() {
     setPausaBloco1Feita(!!estado.pausaBloco1Feita)
     setPausaBloco2Feita(!!estado.pausaBloco2Feita)
     if (estado.pausas) setPausas(estado.pausas)
+    pausasDiaRef.current = Array.isArray(estado.pausasDia) ? estado.pausasDia : []
     if (estado.dateInicio) setDateInicio(new Date(estado.dateInicio))
 
     // Restaurar refs de timestamp para computeSegServico()
@@ -554,24 +589,37 @@ export default function AujourdhuiScreen() {
       const estado = JSON.parse(data)
       if (!estado.enService) { await limparTrocaPendente(); setTrocaPendente(null); return }
 
-      // Sessão de um dia diferente? Limpar — contadores de condução não transitam entre dias
+      // Serviço implausivelmente longo (>24h desde o início)? Não recupera em silêncio: guarda cópia crua, avisa e só então remove.
+      // Um serviço que atravessa a meia-noite (<24h) é recuperado normalmente, como no resume em quente.
       if (estado.dateInicio) {
-        const savedDate = new Date(estado.dateInicio)
-        const today = new Date()
-        const isDifferentDay =
-          savedDate.getDate() !== today.getDate() ||
-          savedDate.getMonth() !== today.getMonth() ||
-          savedDate.getFullYear() !== today.getFullYear()
-        if (isDifferentDay) {
-          await AsyncStorage.removeItem(STORAGE_KEY)
-          await limparTrocaPendente(); setTrocaPendente(null)
-          await cancelarAlertaAmplitude()
+        const horasDecorridas = (Date.now() - new Date(estado.dateInicio).getTime()) / 3600000
+        if (!(horasDecorridas >= -5 / 60 && horasDecorridas <= LIMITE_RECUPERACAO_H)) {   // NaN e início no futuro (>5 min) também abortam
+          log.warn('index', 'restaurarEstado: serviço não recuperável — a abortar com cópia', { horas: Number.isFinite(horasDecorridas) ? Math.round(horasDecorridas) : null, limiteH: LIMITE_RECUPERACAO_H })
+          let copiado = false
+          try {
+            const jaExiste = await AsyncStorage.getItem(STORAGE_KEY_ABORTADO)
+            const chaveCopia = jaExiste ? `${STORAGE_KEY_ABORTADO}_${Date.now()}` : STORAGE_KEY_ABORTADO   // nunca sobrescreve uma cópia anterior
+            await AsyncStorage.setItem(chaveCopia, JSON.stringify({ abortadoEm: Date.now(), motivo: 'duracao-implausivel', estadoCru: data }))
+            copiado = true
+            log.info('index', 'restaurarEstado: cópia do estado abortado gravada', { chaveNova: !!jaExiste, tamanho: data.length })
+          } catch (e) { log.error('index', 'restaurarEstado: cópia do estado abortado FALHOU — original mantido', { tipo: (e as any)?.name }) }
+          if (copiado) {
+            try { await AsyncStorage.removeItem(STORAGE_KEY) }
+            catch (e) { log.error('index', 'restaurarEstado: removeItem do estado abortado falhou', { tipo: (e as any)?.name }) }
+          }
+          try { await limparTrocaPendente(); setTrocaPendente(null) } catch (e) { log.warn('index', 'restaurarEstado: limpar troca falhou (não bloqueante)', { tipo: (e as any)?.name }) }
+          try { await cancelarAlertaAmplitude() } catch (e) { log.warn('index', 'restaurarEstado: cancelar alerta falhou (não bloqueante)', { tipo: (e as any)?.name }) }
+          const msgAbortado = copiado
+            ? "Le service précédent date de plus de 24 h et n'a pas été récupéré. Une copie de sécurité a été conservée."
+            : "Le service précédent date de plus de 24 h et n'a pas été récupéré. La copie de sécurité a échoué : les données d'origine ont été laissées en place."
+          setStorageErro(msgAbortado)
+          Alert.alert('Service non récupéré', msgAbortado)
           return
         }
       }
 
       const agora = Date.now()
-      const tempoBackground = estado.tsBackground ? Math.floor((agora - estado.tsBackground) / 1000) : 0
+      const tempoBackground = estado.tsBackground ? Math.max(0, Math.min(24 * 3600, Math.floor((agora - estado.tsBackground) / 1000))) : 0
       aplicarEstadoPersistido(estado, tempoBackground)
       setTrocaPendente(await lerTrocaPendente())
       if (estado.emPausa) {
@@ -968,7 +1016,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
-      await AsyncStorage.setItem('historique', JSON.stringify(listaValida.slice(0, MAX_HISTORIQUE)))
+      const listaGravar = await cortarHistoricoComArquivo(listaValida)
+      await AsyncStorage.setItem('historique', JSON.stringify(listaGravar))
       setDiasHistorique(listaValida)
       setEditandoDiaId(null)
       setShowAddDia(false)
@@ -1140,12 +1189,13 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     tsInicioServico.current = Date.now()
     segPausaTotalBaseRef.current = 0
     pausaInicioRef.current = 0
+    pausasDiaRef.current = []
 
     // 4. Persistir estado
     await guardarEstado({
       enService: true, emPausa: false, decouche, modeNuit: isNuit,
       segServico: 0, segAmplitude: 0, segPausa: 0,
-      segPausaTotal: 0, kmDiarios: 0, kmInicioTacho: kmInicioConfirmado, pausaReglementaireOk: false, pausas: [],
+      segPausaTotal: 0, kmDiarios: 0, kmInicioTacho: kmInicioConfirmado, pausaReglementaireOk: false, pausas: [], pausasDia: [],
       lastBgTick: Date.now(),
       horaInicio: `${h}h${m}`, dateInicio: agora.toISOString(),
       tsBackground: null,
@@ -1256,6 +1306,10 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         : computeSegPausa()   // timestamp-based, sem drift de ticks
       const pausaAtual = { dur: duracaoPausa, inicio: pausaInicioRef.current }
       const novaListaPausas = [...pausas, pausaAtual]
+      if (pausaAtual.inicio > 0) {
+        pausasDiaRef.current = [...pausasDiaRef.current, { inicio: pausaAtual.inicio, dur: pausaAtual.dur }]   // histórico completo, sobrevive ao reset regulamentar
+        log.debug('index', 'pausa registada no detalhe do dia', { n: pausasDiaRef.current.length, durMin: Math.floor(pausaAtual.dur / 60) })
+      }
 
       const sequenciaOk = pausaSequenciaValida(novaListaPausas)
       const pausaUnica45 = duracaoPausa >= 45 * 60
@@ -1297,6 +1351,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         enService, emPausa: false, decouche, modeNuit,
         segServico: segServicoAjustado, segAmplitude, segPausa: 0, segPausaTotal: segPausaTotalBaseRef.current, kmDiarios, kmInicioTacho,
         pausaReglementaireOk: deveResetar || pausaReglementaireOk, pausas: deveResetar ? [] : novaListaPausas,
+        pausasDia: pausasDiaRef.current,
         lastBgTick: Date.now(),
         horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
       })
@@ -1347,6 +1402,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       enService, emPausa: true, decouche, modeNuit,
       segServico, segAmplitude, segPausa: 0,
       segPausaTotal, kmDiarios, kmInicioTacho, pausaReglementaireOk, pausas,
+      pausasDia: pausasDiaRef.current,
       lastBgTick: Date.now(),
       horaInicio, dateInicio: dateInicio?.toISOString(), tsBackground: null,
     })
@@ -1424,6 +1480,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       kmInicio: troca ? troca.a.kmInicio : kmInicioGuardado,
       kmFim: troca ? troca.a.kmFim : kmFimGuardado,   // com troca: par do camião A (o fim de B vai em troca.b.kmFim)
       ...(troca ? { troca } : {}),
+      ...(pausasDiaRef.current.length ? { pausasDetalhe: pausasDiaRef.current } : {}),
     }
     try {
       const semDuplicadoT = lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) !== chaveDia(novoDia, dateInicio.getFullYear()))
@@ -1434,7 +1491,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         if (!ok) log.error('index', 'entrada inválida ignorada', entry)
         return ok
       })
-      const listaGuardada = listaValidaT.slice(0, MAX_HISTORIQUE)
+      const listaGuardada = await cortarHistoricoComArquivo(listaValidaT)
       await AsyncStorage.setItem('historique', JSON.stringify(listaGuardada))
       historicoGravado = true
       setDiasHistorique(listaValidaT)
@@ -1548,6 +1605,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setSegServico(novoServico)
     setSegPausaTotal(novaPausaTotal)
     const lista = [...pausas, { dur: movido, inicio: inicioTs }]
+    pausasDiaRef.current = [...pausasDiaRef.current, { inicio: inicioTs, dur: movido, origem: 'troca' }]
+    log.debug('index', 'pausa da troca registada no detalhe do dia', { n: pausasDiaRef.current.length, durMin: Math.floor(movido / 60) })
     const deveResetar = pausaSequenciaValida(lista) || movido >= 45 * 60
     const listaFinal = deveResetar ? [] : lista
     const reglOk = deveResetar || pausaReglementaireOk
@@ -1685,6 +1744,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setServicoContinuo(0); tsRetomouServico.current = null
     segServicoBaseRef.current = 0; tsInicioServico.current = null
     segPausaTotalBaseRef.current = 0; pausaInicioRef.current = 0
+    pausasDiaRef.current = []
     ultimaVerificacao.current = 0
     amplitudeAlertado.current = false
     setDemarrando(false)

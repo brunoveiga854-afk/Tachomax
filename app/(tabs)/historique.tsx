@@ -38,6 +38,7 @@ type Jour = {
   kmFim?: number
   troca?: TrocaCamiao
   nota?: { categoria: string; emoji: string; texto?: string }
+  pausasDetalhe?: { inicio: number; dur: number; origem?: string }[]
 }
 type LinhaFiche = { entry: Jour; label: string; horas: string; km: string; problema: string | null; nota: string }
 const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }>> = {
@@ -543,6 +544,8 @@ const getJoursMois = () => {
       frais: fraisCalculado,
       segServico: novoSeg,
       segPausa: pausaMinFinal * 60,
+      // pausa editada à mão → o detalhe deixa de bater certo com o total, apaga-se (JSON.stringify ignora undefined)
+      ...(pausaMinFinal !== Math.floor((jourEdit.segPausa || 0) / 60) ? { pausasDetalhe: undefined } : {}),
       ...((jourEdit as any).troca ? {} : {
         kmInicio: parseFloat(editKmInicio) || 0,
         kmFim: parseFloat(editKmFim) || 0,

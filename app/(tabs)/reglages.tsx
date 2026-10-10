@@ -278,8 +278,17 @@ export default function ReglagesScreen() {
         setLoadingImport(false)
         return
       }
-      const nJours = backup.data.historique?.length || 0
-      const nFiches = backup.data.monSalaire_v2?.length || 0
+      const hOk = backup.data.historique === undefined || Array.isArray(backup.data.historique)
+      const sOk = backup.data.monSalaire_v2 === undefined || Array.isArray(backup.data.monSalaire_v2)
+      if (!hOk || !sOk) {
+        log.warn('reglages', 'import: formato inválido — nada foi tocado', { historiqueArray: hOk, salaireArray: sOk })
+        setModalSucessoMsg("❌ Fichier invalide.\nL'historique ou les fiches ne sont pas au bon format.\nRien n'a été modifié.")
+        setShowModalSucesso(true)
+        setLoadingImport(false)
+        return
+      }
+      const nJours = Array.isArray(backup.data.historique) ? backup.data.historique.length : 0
+      const nFiches = Array.isArray(backup.data.monSalaire_v2) ? backup.data.monSalaire_v2.length : 0
       log.info('reglages', 'import lido', { nJours, nFiches })
       setImportData({ backup, nJours, nFiches })
       setShowModalImport(true)
@@ -296,6 +305,26 @@ export default function ReglagesScreen() {
     setShowModalImport(false)
     try {
       const { backup } = importData
+      // segunda verificação (o estado pode ter sido alterado entre preview e confirmação)
+      const hOk = backup.data?.historique === undefined || Array.isArray(backup.data?.historique)
+      const sOk = backup.data?.monSalaire_v2 === undefined || Array.isArray(backup.data?.monSalaire_v2)
+      if (!hOk || !sOk) {
+        log.warn('reglages', 'confirmarImport: formato inválido — nada foi tocado', { historiqueArray: hOk, salaireArray: sOk })
+        setImportData(null)
+        setModalSucessoMsg("❌ Fichier invalide.\nL'historique ou les fiches ne sont pas au bon format.\nRien n'a été modifié.")
+        setShowModalSucesso(true)
+        return
+      }
+      // backup automático ANTES de qualquer escrita; se falhar, aborta
+      const backupPath = await criarBackupSilencioso(`TachoOffice_auto_avant_import_${carimboLocal()}.json`)
+      if (!backupPath) {
+        log.error('reglages', 'confirmarImport: backup prévio falhou — import abortado, nada foi tocado')
+        setImportData(null)
+        setModalSucessoMsg("❌ Sauvegarde automatique impossible.\nImport annulé, rien n'a été modifié.")
+        setShowModalSucesso(true)
+        return
+      }
+      log.info('reglages', 'confirmarImport: backup prévio criado', { nJours: importData.nJours, nFiches: importData.nFiches })
       for (const key of BACKUP_KEYS) {
         if (backup.data[key] !== undefined) {
           await AsyncStorage.setItem(key, JSON.stringify(backup.data[key]))

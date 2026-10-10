@@ -967,19 +967,20 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const jour = diasSemana[dataJour.getDay()]
     const horasMin = addServico.replace('h', ':').split(':')
     const novoSeg = (parseInt(horasMin[0]) * 3600) + ((parseInt(horasMin[1]) || 0) * 60)
-    const diaDados = {
+    // Campos que o formulário realmente mostra/edita
+    const camposForm = {
       date: `${addDiaStr}/${calAno}`,
       jour,
       type: addType,
       debut: addDebut,
       fin: addFin,
       segServico: novoSeg,
-      segPausa: 0,
       decouche: addType === 'DEC',
       frais: parseFloat(addFrais) || 0,
-      modeNuit: false,
-      kmDiarios: 0,
     }
+    // Só para dia NOVO (ou dia que passa a tipo sem trabalho): o formulário não os mostra
+    const camposNovoDia = { segPausa: 0, modeNuit: false, kmDiarios: 0 }
+    const eDiaTrabalho = addType === 'TRAB' || addType === 'DEC'
     try {
       const existente = await AsyncStorage.getItem('historique')
       let lista: any[] = []
@@ -997,10 +998,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       }
       if (editandoDiaId) {
         // EDITAR — substituir o dia existente
-        lista = lista.map((j: any) => j.id === editandoDiaId ? { ...j, ...diaDados } : j)
+        // preserva segPausa/modeNuit/kmDiarios/pausasDetalhe (o formulário não os mostra); tipo sem trabalho repõe-os a zero
+        lista = lista.map((j: any) => j.id === editandoDiaId
+          ? { ...j, ...camposForm, ...(eDiaTrabalho ? {} : { ...camposNovoDia, pausasDetalhe: undefined }) }
+          : j)
+        log.debug('index', 'edição pela Home: campos fora do formulário preservados', { tipoTrabalho: eDiaTrabalho })
       } else {
         // ADICIONAR — inserir novo (sem duplicados por data)
-        const novoDiaManual = { id: Date.now().toString(), ...diaDados }
+        const novoDiaManual = { id: Date.now().toString(), ...camposForm, ...camposNovoDia }
         lista = lista.filter((j: any) => chaveDia(j, calAno) !== chaveDia(novoDiaManual, calAno))
         lista.unshift(novoDiaManual)
       }
@@ -1021,7 +1026,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setDiasHistorique(listaValida)
       setEditandoDiaId(null)
       setShowAddDia(false)
-      log.info('index', 'dia manual guardado', { date: diaDados.date, type: diaDados.type, editando: !!editandoDiaId })
+      log.info('index', 'dia manual guardado', { date: camposForm.date, type: camposForm.type, editando: !!editandoDiaId })
     } catch (e) {
       log.error('index', 'guardarDia (addEdit) falhou', e)
       const msgFalha = "Enregistrement impossible — jour NON sauvegardé. Réessaie."
@@ -2741,7 +2746,19 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 style={{ marginTop: 10, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(231,76,60,0.4)', backgroundColor: 'rgba(231,76,60,0.06)' }}
                 onPress={async () => {
                   const existente = await AsyncStorage.getItem('historique')
-                  const lista = existente ? JSON.parse(existente) : []
+                  let lista: any[] = []
+                  if (existente) {
+                    let parsed: unknown = null
+                    try { parsed = JSON.parse(existente) } catch { parsed = null }
+                    if (!Array.isArray(parsed)) {
+                      const msgIlegivelDel = "Historique illisible — jour NON supprimé, rien n'a été modifié."
+                      log.error('index', 'apagar dia: historique ilegível — abortado', { tamanho: existente.length })
+                      setStorageErro(msgIlegivelDel)
+                      Alert.alert('Jour non supprimé', msgIlegivelDel)
+                      return   // formulário fica aberto; a chave 'historique' não é tocada
+                    }
+                    lista = parsed
+                  }
                   const km = kmUltimoFimAposApagar(lista, [editandoDiaId], await AsyncStorage.getItem('km_ultimo_fim'))
                   const nova = lista.filter((j: any) => j.id !== editandoDiaId)
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))

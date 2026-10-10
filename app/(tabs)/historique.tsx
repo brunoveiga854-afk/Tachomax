@@ -392,7 +392,7 @@ const getJoursMois = () => {
   }
   const exportarRelatorio = async (jours: Jour[], label: string) => {
     const totalService = jours.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
-    const totalPauses = jours.reduce((a, j) => a + (j.segPausa || 0), 0)
+    const totalPauses = jours.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segPausa || 0) : 0), 0)
     const totalFrais = jours.reduce((a, j) => a + (j.frais || 0), 0)
     const nbDecouche = jours.filter(j => j.decouche).length
     const nbTrab = jours.filter(j => j.type === 'TRAB' || j.type === 'DEC').length
@@ -535,6 +535,7 @@ const getJoursMois = () => {
     regles = sanitizeFraisRegles(appState.fraisRegles ?? {})
     valeurs = sanitizeFraisValeurs(appState.fraisValores ?? {})
     const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit), regles, valeurs)
+    const eDiaTrabalho = editType === 'TRAB' || editType === 'DEC'
     const jourAtualizado: Jour = {
       ...jourEdit,
       debut: editDebut,
@@ -556,6 +557,8 @@ const getJoursMois = () => {
           return parseFloat(editKm) || 0
         })(),
       }),
+      // tipo sem trabalho: km do dia ignorado (kmInicio/kmFim nunca se apagam); cobre também dias com troca
+      ...(eDiaTrabalho ? {} : { kmDiarios: 0 }),
       nota: editNotaTexto.trim()
         ? (jourEdit.nota
             ? { ...jourEdit.nota, texto: editNotaTexto.trim() }
@@ -645,19 +648,21 @@ const getJoursMois = () => {
             return { ptDej: r.ptd > 0, repas: (r.dej > 0 || r.din > 0), nuit: entry.decouche || false }
           } catch { return { ptDej: false, repas: false, nuit: false } }
         })() : { ptDej: false, repas: false, nuit: false }
-        const kmI = entry?.kmInicio || 0; const kmF = entry?.kmFim || 0
-        const mn = entry ? minutosDia(entry) : null
+        // horas (início/fim incluídos) e km do PDF só contam em dias de trabalho (TRAB/DEC); OFF/RC/FERIE/FER ficam sem horas nem km
+        const ehTrabPdf = !!entry && (entry.type === 'TRAB' || entry.type === 'DEC')
+        const kmI = ehTrabPdf ? (entry?.kmInicio || 0) : 0; const kmF = ehTrabPdf ? (entry?.kmFim || 0) : 0
+        const mn = entry && ehTrabPdf ? minutosDia(entry) : null
         return {
           date: entry ? ddmmyyyy : '',
           jourLabel: label, jourCourt: JOURS_COURTS[i],
-          debut: entry?.debut || '', fin: entry?.fin || '',
+          debut: ehTrabPdf ? (entry?.debut || '') : '', fin: ehTrabPdf ? (entry?.fin || '') : '',
           amplitude: mn ? fmtMin(mn.ampMin) : '',
           pauseTotal: mn ? fmtMin(mn.pausaMin) : '',
           travailTotal: mn ? fmtMin(mn.travMin) : '',
           travMin: mn ? mn.travMin : 0,
           kmDepart: kmI > 0 ? String(kmI) : '',
           kmArrivee: kmF > 0 ? String(kmF) : '',
-          kmTotal: (entry as any)?.troca ? kmTotalDoDia(entry as any) : (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
+          kmTotal: !ehTrabPdf ? '' : (entry as any)?.troca ? kmTotalDoDia(entry as any) : (kmI > 0 && kmF > 0) ? String(Math.abs(kmF - kmI)) : (entry?.kmDiarios ? String(entry.kmDiarios) : ''),
           petitDej: (fraisJ as any).ptDej || false,
           repas: (fraisJ as any).repas || false,
           nuit: entry?.decouche || false,
@@ -809,7 +814,7 @@ const getJoursMois = () => {
   })
   const totalService = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
   const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
-  const totalKm = joursActuels.reduce((a, j) => a + (j.kmDiarios || 0), 0)
+  const totalKm = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.kmDiarios || 0) : 0), 0)
   const nbDecouche = joursActuels.filter(j => j.decouche).length
   const fraisDetalhes = joursActuels.map(j => calcularFraisJour({
     debut: j.debut,

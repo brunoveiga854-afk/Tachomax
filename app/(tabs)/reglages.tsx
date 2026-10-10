@@ -325,10 +325,21 @@ export default function ReglagesScreen() {
         return
       }
       log.info('reglages', 'confirmarImport: backup prévio criado', { nJours: importData.nJours, nFiches: importData.nFiches })
+      // escrita atómica: tudo serializado ANTES de escrever; multiSet numa só operação; rollback dos valores anteriores se falhar
+      const pares: [string, string][] = []
       for (const key of BACKUP_KEYS) {
-        if (backup.data[key] !== undefined) {
-          await AsyncStorage.setItem(key, JSON.stringify(backup.data[key]))
+        if (backup.data[key] !== undefined) pares.push([key, JSON.stringify(backup.data[key])])
+      }
+      const anteriores = await AsyncStorage.multiGet(pares.map(p => p[0]))
+      try {
+        await AsyncStorage.multiSet(pares)
+      } catch (eEscrita) {
+        log.error('reglages', 'confirmarImport: multiSet falhou — a restaurar valores anteriores', { tipo: (eEscrita as any)?.name, nChaves: pares.length })
+        for (const [k, v] of anteriores) {
+          try { if (v === null) await AsyncStorage.removeItem(k); else await AsyncStorage.setItem(k, v) }
+          catch (eRb) { log.error('reglages', 'confirmarImport: rollback falhou', { chave: k, tipo: (eRb as any)?.name }) }
         }
+        throw eEscrita
       }
       log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()

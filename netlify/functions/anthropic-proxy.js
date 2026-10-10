@@ -1,3 +1,5 @@
+const { validarPedido, MAX_BODY_BYTES } = require('../lib/validarPedido')
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' }
@@ -8,8 +10,14 @@ exports.handler = async (event) => {
     return { statusCode: 401, body: 'Unauthorized' }
   }
 
+  if (Buffer.byteLength(event.body || '', 'utf8') > MAX_BODY_BYTES) {
+    return { statusCode: 413, body: 'Payload Too Large' }
+  }
+
   try {
     const body = JSON.parse(event.body)
+    const erro = validarPedido(body)
+    if (erro) return { statusCode: 400, body: `Invalid request: ${erro}` }
 
     if (body.model !== 'claude-sonnet-4-6') {
       return { statusCode: 400, body: 'Model not allowed' }

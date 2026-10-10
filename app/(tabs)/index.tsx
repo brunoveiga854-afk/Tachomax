@@ -2,7 +2,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, COR_FRAIS } from '../../src/constants/cores'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator, InteractionManager } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -91,6 +91,30 @@ const ProgBar = ({ pct, color, c }: { pct: number; color: string; c: StatsC }) =
 const StatsDivider = ({ c }: { c: StatsC }) => (
   <View style={{ height: 1, backgroundColor: c.cardBorder, marginVertical: 8 }} />
 )
+// Projections: dimensões dos chips de mês e geometria (posição do centro do chip seleccionado no conteúdo do scroll)
+const PILL_SEL_W = 76
+const PILL_SEL_H = 96
+const PILL_VIZ_W = 56
+const PILL_VIZ_H = 76
+const PILL_GAP = 6
+const PILL_PAD_DIR = 8
+const PILL_OPAC = [1, 0.9, 0.6, 0.35, 0.25]
+const COR_SEM_FICHE = '#8e8e93'
+// Símbolo de estado do chip: ✓ validado, ● em curso, ◌ (círculo tracejado desenhado) projecção / sem fiche
+const PillSimbolo = ({ tipo, cor, tam }: { tipo: 'ok' | 'cur' | 'proj'; cor: string; tam: number }) =>
+  tipo === 'proj'
+    ? <View style={{ width: tam, height: tam, borderRadius: tam / 2, borderWidth: 1.5, borderStyle: 'dashed', borderColor: cor }} />
+    : <Text style={{ fontSize: tam, fontWeight: '800', color: cor }}>{tipo === 'ok' ? '✓' : '●'}</Text>
+const pillGeom = (pills: { mesIdx: number }[], selIdx: number) => {
+  let x = 0
+  let centro = -1
+  for (const p of pills) {
+    const w = p.mesIdx === selIdx ? PILL_SEL_W : PILL_VIZ_W
+    if (p.mesIdx === selIdx) centro = x + w / 2
+    x += w + PILL_GAP
+  }
+  return { centro, total: x + PILL_PAD_DIR }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AujourdhuiScreen() {
@@ -162,6 +186,9 @@ export default function AujourdhuiScreen() {
   const [statsOpen, setStatsOpen] = useState({ repos: true, hebdo: true, bsem: true, sept: true, pauses: true, frais: true, amplitude: true, assiduite: true, folha: true, projections: true, records: true })
   const [statsBarDetail, setStatsBarDetail] = useState<any>(null)
   const [projDetail, setProjDetail] = useState<any>(null)
+  const [pillsLarg, setPillsLarg] = useState(0)
+  const pillsScrollX = useRef(new Animated.Value(0)).current
+  const pillsJaCentrouRef = useRef(false)
   // Pré-abre projDetail no mês activo quando o modal Stats abre (só se ainda null)
   useEffect(() => {
     if (!showStats) return
@@ -202,9 +229,6 @@ export default function AujourdhuiScreen() {
     if (estimativa === 0 && !mHist) return
     const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
     setProjDetail({ mesIdx: mesActivo, estimativa, isConfirmed, isActive: !isConfirmed, isFuture: false, mHist })
-    setTimeout(() => {
-      pillsScrollRef.current?.scrollTo({ x: Math.max(0, mesActivo - 1) * 78, animated: false })
-    }, 50)
   }, [showStats])
   // Charge les checkboxes "folhe envoyée" pour le mois courant.
   // La clé change chaque mois → état repart toujours de zéro sans nettoyage.
@@ -1722,6 +1746,27 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const ABBR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
     return { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal }
   }, [appState.histSal, appState.histCal, appState.padrao])
+
+  // Centra o chip do mês seleccionado na ScrollView (posição no array pills, não mesIdx*largura)
+  const centrarPill = useCallback((mesIdx: number, larg: number, animated: boolean) => {
+    const pills = projecoesPills?.pills
+    if (!pills || larg <= 0) return
+    const { centro, total } = pillGeom(pills, mesIdx)
+    if (centro < 0) return
+    const x = Math.max(0, Math.min(centro - larg / 2, total - larg))
+    pillsScrollRef.current?.scrollTo({ x, animated })
+    if (!animated) pillsScrollX.setValue(x)
+  }, [projecoesPills])
+  useEffect(() => {
+    if (!showStats) { pillsJaCentrouRef.current = false; return }
+    if (!projDetail || pillsLarg <= 0) return
+    const t = setTimeout(() => {
+      const animated = pillsJaCentrouRef.current
+      pillsJaCentrouRef.current = true
+      centrarPill(projDetail.mesIdx, pillsLarg, animated)
+    }, 30)
+    return () => clearTimeout(t)
+  }, [showStats, projDetail?.mesIdx, pillsLarg, centrarPill])
 
   const fraisNavBreakdown = useMemo(() => {
     const pr = appState.padrao
@@ -3474,58 +3519,96 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             <AccHeader label={`📅 PROJECTIONS ${anoActual}`} k="projections" c={c} sectionPositions={sectionPositions} />
                             {statsOpen.projections && (
                               <SectionWrap c={c}>
-                                <ScrollView ref={pillsScrollRef} horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 8 }}>
-                                  {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }) => (
+                                <ScrollView ref={pillsScrollRef} horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
+                                  style={{ marginBottom: 10 }}
+                                  contentContainerStyle={{ paddingRight: PILL_PAD_DIR, paddingVertical: 6, alignItems: 'center' }}
+                                  scrollEventThrottle={16}
+                                  onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: pillsScrollX } } }], { useNativeDriver: false })}
+                                  onLayout={(e) => {
+                                    const w = e.nativeEvent.layout.width
+                                    setPillsLarg(w)
+                                    if (projDetail) setTimeout(() => centrarPill(projDetail.mesIdx, w, false), 30)
+                                  }}>
+                                  {pills.map(({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }, pIdx) => {
+                                    const sel = projDetail?.mesIdx === mesIdx
+                                    const selPos = pills.findIndex(p => p.mesIdx === projDetail?.mesIdx)
+                                    const dist = selPos < 0 ? 4 : Math.abs(pIdx - selPos)
+                                    const simbolo: 'ok' | 'cur' | 'proj' = isConfirmed ? 'ok' : isActive ? 'cur' : 'proj'
+                                    const corEstado = isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : COR_SEM_FICHE
+                                    return (
                                     <TouchableOpacity key={mesIdx} activeOpacity={0.7}
+                                      hitSlop={{ top: 3, bottom: 3, left: 3, right: 3 }}
                                       onPress={() => {
-                                        const next = projDetail?.mesIdx === mesIdx ? null : { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist }
-                                        setProjDetail(next)
-                                        if (next !== null) {
-                                          pillsScrollRef.current?.scrollTo({ x: Math.max(0, mesIdx - 1) * 78, animated: true })
-                                        }
+                                        if (sel) { centrarPill(mesIdx, pillsLarg, true); return }
+                                        setProjDetail({ mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist })
                                       }}
-                                      style={{
-                                        width: 72, height: 76, marginRight: 6, borderRadius: 10,
-                                        paddingHorizontal: 6,
-                                        alignItems: 'center', justifyContent: 'space-between',
-                                        paddingVertical: 8,
-                                        backgroundColor: isActive  ? 'rgba(245,166,35,0.10)'
-                                                       : isFuture  ? 'rgba(155,89,182,0.07)'
-                                                       : isConfirmed ? 'rgba(39,174,96,0.08)'
-                                                       : c.bg,
-                                        borderWidth: projDetail?.mesIdx === mesIdx ? 2 : 1,
-                                        borderColor: isActive  ? '#f5a623'
-                                                   : isFuture  ? 'rgba(155,89,182,0.35)'
-                                                   : isConfirmed ? 'rgba(39,174,96,0.45)'
-                                                   : c.cardBorder,
-                                        transform: projDetail?.mesIdx === mesIdx ? [{ scale: 1.08 }] : [{ scale: 1 }],
+                                      style={sel ? {
+                                        width: PILL_SEL_W, height: PILL_SEL_H, marginRight: PILL_GAP, borderRadius: 20,
+                                        alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10,
+                                        backgroundColor: '#f5a623',
+                                        shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+                                        elevation: 8, zIndex: 2,
+                                      } : {
+                                        width: PILL_VIZ_W, height: PILL_VIZ_H, marginRight: PILL_GAP, borderRadius: 14,
+                                        alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8,
+                                        backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+                                        opacity: PILL_OPAC[Math.min(dist, PILL_OPAC.length - 1)], zIndex: 1,
                                       }}>
-                                      <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, textAlign: 'center' }}>
-                                        {ABBR[mesIdx]}
-                                      </Text>
-                                      <Text style={{ fontSize: 12, fontWeight: '900', textAlign: 'center',
-                                        color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.text }}>
-                                        {Math.round(estimativa / 10) * 10}€
-                                      </Text>
-                                      <View style={{ height: 14, alignItems: 'center', justifyContent: 'center' }}>
-                                        <Text style={{ fontSize: 8,
-                                          color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.textSub }}>
-                                          {isActive ? '●' : isFuture ? '🔮' : '✓'}
-                                        </Text>
-                                      </View>
+                                      {sel ? (
+                                        <>
+                                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#1a1204' }}>{ABBR[mesIdx]}</Text>
+                                          <Text style={{ fontSize: 30, fontWeight: '900', color: '#1a1204' }}>{mesIdx + 1}</Text>
+                                          <PillSimbolo tipo={simbolo} cor="#1a1204" tam={simbolo === 'proj' ? 12 : 13} />
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSub, textAlign: 'center' }}>
+                                            {ABBR[mesIdx]}
+                                          </Text>
+                                          <Text style={{ fontSize: 12, fontWeight: '900', textAlign: 'center',
+                                            color: isActive ? '#f5a623' : isFuture ? '#9b59b6' : isConfirmed ? '#27ae60' : c.text }}>
+                                            {Math.round(estimativa / 10) * 10}€
+                                          </Text>
+                                          <View style={{ height: 14, alignItems: 'center', justifyContent: 'center' }}>
+                                            <PillSimbolo tipo={simbolo} cor={corEstado} tam={simbolo === 'proj' ? 9 : 8} />
+                                          </View>
+                                        </>
+                                      )}
                                     </TouchableOpacity>
-                                  ))}
+                                    )
+                                  })}
                                 </ScrollView>
-                                {projDetail && (() => {
-                                  const { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } = projDetail
-                                  const color = isActive ? '#f5a623' : isFuture ? '#9b59b6' : '#27ae60'
+                                {projDetail && pills.some(p => p.mesIdx === projDetail.mesIdx) && (() => {
+                                  const { mesIdx, estimativa, isConfirmed, isActive, isFuture, mHist } = pills.find(p => p.mesIdx === projDetail.mesIdx)!
+                                  const color = isActive ? '#f5a623' : isConfirmed ? '#27ae60' : isFuture ? '#9b59b6' : COR_SEM_FICHE
+                                  const badge = isConfirmed ? 'Fiche validée' : isActive ? 'Mois en cours' : isFuture ? 'Projection' : 'Sans fiche'
+                                  const MESES_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+                                  const geom = pillGeom(pills, mesIdx)
+                                  const BICO = 8
+                                  const bicoLeft = pillsLarg > 24 && geom.centro >= 0 ? pillsScrollX.interpolate({
+                                    inputRange: [geom.centro - pillsLarg + 12, geom.centro - 12],
+                                    outputRange: [pillsLarg - 12 - BICO, 12 - BICO],
+                                    extrapolate: 'clamp',
+                                  }) : null
                                   const real = mHist ? (mHist.montantTotalRecu || 0) : 0
                                   const delta = real > 0 ? real - estimativa : 0
                                   const pct = estimativa > 0 && real > 0 ? Math.round((real / estimativa - 1) * 100) : null
                                   const joursOuvres = joursOuvresMois(anoActual, mesIdx)
                                   return (
-                                    <View style={{ marginBottom: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: color + '55' }}>
-                                      <Text style={{ fontSize: 11, fontWeight: '800', color, marginBottom: 6 }}>{ABBR[mesIdx]} {anoActual}</Text>
+                                    <View style={{ marginTop: 4, marginBottom: 10, backgroundColor: c.progressBg, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: color + '55' }}>
+                                      {bicoLeft && (
+                                        <Animated.View pointerEvents="none" style={{
+                                          position: 'absolute', top: -BICO, left: bicoLeft, width: 0, height: 0,
+                                          borderLeftWidth: BICO, borderRightWidth: BICO, borderBottomWidth: BICO,
+                                          borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: c.progressBg,
+                                        }} />
+                                      )}
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '800', color }}>{MESES_FULL[mesIdx]} {anoActual}</Text>
+                                        <View style={{ backgroundColor: color + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                                          <Text style={{ fontSize: 10, fontWeight: '800', color }}>{badge}</Text>
+                                        </View>
+                                      </View>
                                       {isActive && (() => {
                                         const diaRolloverCard = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
                                         const mesHorasCard = ((mesIdx - padrao.hlag) % 12 + 12) % 12

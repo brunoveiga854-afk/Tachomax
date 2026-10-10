@@ -2,6 +2,7 @@
 // Utilitários puros extraídos de fiche.tsx — sem dependências React
 
 import { calcularFraisJour, isJourTravailFrais, isJourSansFrais } from '../frais'
+import { anoDoDia } from './dataDia'
 
 /** Subconjunto do Padrao necessário para calcular frais por horários */
 export type PadraoFrais = {
@@ -56,7 +57,7 @@ export function calcFraisMesPorHorarios(
       const m = parseInt(parts[1]) - 1
       const a = parts.length >= 3
         ? parseInt(parts[2])
-        : (j.id ? new Date(parseInt(j.id)).getFullYear() : ano)
+        : (j.id ? anoDoDia(j) : ano)
       return m === mes && a === ano
     })
     .sort((a: any, b: any) => {

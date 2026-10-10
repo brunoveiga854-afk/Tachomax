@@ -7,6 +7,7 @@ import type { MoisData } from '../types/moisdata'
 import type { PadraoSalario } from '../engine/migracoes'
 import { shiftMois, calcFraisMesPorHorarios } from './calculos'
 import { log } from './logger'
+import { anoDoDia } from './dataDia'
 
 // ── Tipo público das médias ───────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export function calcMediasDiasTrabalho(
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
       const mes = parseInt(parts[1]) - 1
-      const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+      const ano = j.id ? anoDoDia(j) : aH
       return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
     })
     const totalHCal = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
@@ -144,7 +145,7 @@ export function calcEstimativaMes(
     const parts = j.date?.split('/')
     if (!parts || parts.length < 2) return false
     const mes = parseInt(parts[1]) - 1
-    const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+    const ano = j.id ? anoDoDia(j) : aH
     return mes === mH && ano === aH
   })
   const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))

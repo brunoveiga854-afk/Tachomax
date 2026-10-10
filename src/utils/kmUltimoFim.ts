@@ -7,12 +7,13 @@
 // Com troca de camião, o "km final" do dia é o fim de B (kmFimDoDia).
 
 import { kmFimDoDia } from './camioes'
+import { anoDoDia } from './dataDia'
 
 type DiaKm = { id: string; date: string; kmFim?: number | null; troca?: { b: { kmFim: number } } | null }
 
 const tsDia = (j: DiaKm): number => {
   const p = j.date.split('/')
-  const ano = p[2] ? parseInt(p[2]) : new Date(parseInt(j.id)).getFullYear()
+  const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
   return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
 }
 

@@ -24,7 +24,7 @@ import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
 import { lerUltimoCamiao, gravarUltimoCamiao } from '../../src/utils/ultimoCamiao'
-import { chaveDia } from '../../src/utils/dataDia'
+import { chaveDia, anoDoDia } from '../../src/utils/dataDia'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
 import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, segServicoDe, normalizarMatricula, kmDoCamiao, type TrocaCamiao } from '../../src/utils/camioes'
 import {
@@ -61,6 +61,32 @@ const LIMITE_RECUPERACAO_H = 24                              // arranque a frio:
 const MAX_HISTORIQUE = 1500
 const HISTORIQUE_ARQUIVO_KEY = 'historique_arquivo'   // salvaguarda: excedente acima de MAX_HISTORIQUE (nada o lê; não entra em export/import)
 const HISTORIQUE_AVISO = 1400                         // log.warn a partir daqui
+const HISTORIQUE_SUBSTITUIDOS_KEY = 'historique_substituidos'   // salvaguarda: registos substituídos por outro do mesmo dia (nada o lê; não entra em export/import)
+
+// Guarda cópia dos registos que vão ser substituídos por um novo do mesmo dia. Nunca lança nem bloqueia:
+// se falhar, só regista um aviso e a substituição segue como sempre.
+async function arquivarSubstituidos(removidos: any[], idNovo: string, origem: 'guardarDia' | 'manual'): Promise<void> {
+  if (!removidos.length) return
+  try {
+    const raw = await AsyncStorage.getItem(HISTORIQUE_SUBSTITUIDOS_KEY)
+    let arquivo: any[] = []
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) throw new Error('historique_substituidos não é um array')
+      arquivo = parsed
+    }
+    const ids = new Set(arquivo.map((j: any) => j?.id))
+    const agora = new Date().toISOString()
+    const novos = removidos
+      .filter((j: any) => j?.id == null || !ids.has(j.id))
+      .map((j: any) => ({ ...j, substituidoEm: agora, substituidoPor: idNovo, origem }))
+    if (!novos.length) { log.debug('index', 'substituídos: já arquivados', { origem, removidos: removidos.length }); return }
+    await AsyncStorage.setItem(HISTORIQUE_SUBSTITUIDOS_KEY, JSON.stringify([...arquivo, ...novos]))
+    log.info('index', 'registo(s) do mesmo dia arquivado(s) antes de substituir', { origem, arquivados: novos.length, totalArquivo: arquivo.length + novos.length })
+  } catch (e) {
+    log.warn('index', 'arquivo de substituídos falhou — substituição segue sem cópia', { origem, tipo: (e as any)?.name, removidos: removidos.length })
+  }
+}
 
 // Corta o histórico em MAX_HISTORIQUE, mas arquiva o excedente ANTES de o descartar.
 // Se o arquivo falhar (ilegível / setItem), NÃO corta: devolve a lista completa. Nunca lança.
@@ -826,7 +852,7 @@ export default function AujourdhuiScreen() {
         const d = parts[0], m = parts[1]
         const ano = parts.length >= 3
           ? parts[2]
-          : (j.id ? new Date(parseInt(j.id)).getFullYear() : maintenant.getFullYear())
+          : (j.id ? anoDoDia(j) : maintenant.getFullYear())
         const dataJour = new Date(ano, m - 1, d)
         return dataJour >= lundi && dataJour <= domingo
       })
@@ -1006,6 +1032,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       } else {
         // ADICIONAR — inserir novo (sem duplicados por data)
         const novoDiaManual = { id: Date.now().toString(), ...camposForm, ...camposNovoDia }
+        await arquivarSubstituidos(lista.filter((j: any) => chaveDia(j, calAno) === chaveDia(novoDiaManual, calAno)), novoDiaManual.id, 'manual')
         lista = lista.filter((j: any) => chaveDia(j, calAno) !== chaveDia(novoDiaManual, calAno))
         lista.unshift(novoDiaManual)
       }
@@ -1488,6 +1515,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       ...(pausasDiaRef.current.length ? { pausasDetalhe: pausasDiaRef.current } : {}),
     }
     try {
+      await arquivarSubstituidos(lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) === chaveDia(novoDia, dateInicio.getFullYear())), novoDia.id, 'guardarDia')
       const semDuplicadoT = lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) !== chaveDia(novoDia, dateInicio.getFullYear()))
       semDuplicadoT.unshift(novoDia)
       const listaValidaT = semDuplicadoT.filter((entry: any) => {
@@ -2191,7 +2219,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                         const registo = diasHistorique.find(j => {
                           const parts = j.date.split('/')
                           const dataStr = parts.length === 3 ? `${parts[0]}/${parts[1]}` : j.date
-                          const anoEntrada = parts.length >= 3 ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+                          const anoEntrada = parts.length >= 3 ? parseInt(parts[2]) : anoDoDia(j)
                           return dataStr === diaStr && anoEntrada === calAno
                         })
                         const isHoje = eMesAtual && numDia === hojeD
@@ -3837,7 +3865,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                           const parts = j.date?.split('/')
                                           if (!parts || parts.length < 2) return false
                                           const mes = parseInt(parts[1]) - 1
-                                          const ano = j.id ? new Date(parseInt(j.id)).getFullYear() : aH
+                                          const ano = j.id ? anoDoDia(j) : aH
                                           return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
                                         })
                                         const totalHCal = Math.round(diasTrabMes.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600)

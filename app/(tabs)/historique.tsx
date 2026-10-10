@@ -20,6 +20,7 @@ import { calcularFraisJour, DEFAULT_FRAIS_REGLES, DEFAULT_FRAIS_VALEURS, sanitiz
 import { log } from '../../src/utils/logger'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { kmTotalDoDia, kmFimDoDia, textoTroca, juntarComentario, type TrocaCamiao } from '../../src/utils/camioes'
+import { anoDoDia } from '../../src/utils/dataDia'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -312,7 +313,7 @@ export default function HistoriqueScreen() {
       const migrada = lista.map((j: any) => {
         const parts = j.date.split('/')
         if (parts.length === 2) {
-          const ano = new Date(parseInt(j.id)).getFullYear()
+          const ano = anoDoDia(j)
           return { ...j, date: `${parts[0]}/${parts[1]}/${ano}` }
         }
         return j
@@ -363,7 +364,7 @@ export default function HistoriqueScreen() {
       const parts = jour.date.split('/')
       const d = parseInt(parts[0])
       const m = parseInt(parts[1])
-      const ano = parts[2] ? parseInt(parts[2]) : new Date(parseInt(jour.id)).getFullYear()
+      const ano = parts[2] ? parseInt(parts[2]) : anoDoDia(jour)
       const dataJour = new Date(ano, m - 1, d)
       const lundi = new Date(lundiBase)
       lundi.setHours(0, 0, 0, 0)
@@ -386,7 +387,7 @@ const getJoursMois = () => {
     return historique.filter(jour => {
       const parts = jour.date.split('/')
       const m = parseInt(parts[1])
-      const anoJour = parts[2] ? parseInt(parts[2]) : new Date(parseInt(jour.id)).getFullYear()
+      const anoJour = parts[2] ? parseInt(parts[2]) : anoDoDia(jour)
       return m === mes && anoJour === ano
     })
   }
@@ -483,7 +484,7 @@ const getJoursMois = () => {
     if (!jour) return false
     const parts = jour.date.split('/').map(Number)
     if (parts.length < 2) return false
-    const ano = parts[2] || new Date(parseInt(jour.id)).getFullYear()
+    const ano = parts[2] || anoDoDia(jour)
     const atual = new Date(ano, (parts[1] || 1) - 1, parts[0] || 1)
     atual.setDate(atual.getDate() - 1)
     const alvo = `${String(atual.getDate()).padStart(2, '0')}/${String(atual.getMonth() + 1).padStart(2, '0')}`
@@ -572,7 +573,7 @@ const getJoursMois = () => {
     // Se o dia editado é o mais recente (por data) com kmFim>0 → sincroniza km_ultimo_fim
     const tsDia = (j: Jour) => {
       const p = j.date.split('/')
-      const ano = p[2] ? parseInt(p[2]) : new Date(parseInt(j.id)).getFullYear()
+      const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
       return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
     }
     const maisRecenteComKm = nova
@@ -628,7 +629,7 @@ const getJoursMois = () => {
         const entry = historique.find(j => {
           const parts = j.date.split('/')
           const m2 = parseInt(parts[1])-1; const d2 = parseInt(parts[0])
-          const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+          const a2 = parts[2] ? parseInt(parts[2]) : anoDoDia(j)
           return d2 === dataJour.getDate() && m2 === dataJour.getMonth() && a2 === dataJour.getFullYear()
         })
         const fraisJ = entry ? (() => {
@@ -684,7 +685,7 @@ const getJoursMois = () => {
           const [dd2, mm2, yy2] = j.date.split('/')
           return historique.find(h => {
             const p = h.date.split('/'); const m2 = parseInt(p[1]) - 1; const d2 = parseInt(p[0])
-            const a2 = p[2] ? parseInt(p[2]) : new Date(parseInt(h.id)).getFullYear()
+            const a2 = p[2] ? parseInt(p[2]) : anoDoDia(h)
             return d2 === parseInt(dd2) && m2 === parseInt(mm2) - 1 && a2 === parseInt(yy2)
           })
         })
@@ -762,7 +763,7 @@ const getJoursMois = () => {
           return !!historique.find(j => {
             const parts = j.date.split('/')
             const m2 = parseInt(parts[1]) - 1; const d2 = parseInt(parts[0])
-            const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+            const a2 = parts[2] ? parseInt(parts[2]) : anoDoDia(j)
             return d2 === d.getDate() && m2 === d.getMonth() && a2 === d.getFullYear()
           })
         })
@@ -808,7 +809,7 @@ const getJoursMois = () => {
     const d = new Date(lundiFiche); d.setDate(lundiFiche.getDate() + i)
     return !!historique.find(j => {
       const parts = j.date.split('/'); const m2=parseInt(parts[1])-1; const d2=parseInt(parts[0])
-      const a2 = parts[2] ? parseInt(parts[2]) : new Date(parseInt(j.id)).getFullYear()
+      const a2 = parts[2] ? parseInt(parts[2]) : anoDoDia(j)
       return d2 === d.getDate() && m2 === d.getMonth() && a2 === d.getFullYear()
     })
   })
@@ -847,7 +848,7 @@ const getJoursMois = () => {
     return historique.filter(jour => {
       const parts = jour.date.split('/')
       const d = parseInt(parts[0]), m = parseInt(parts[1])
-      const ano = parts[2] ? parseInt(parts[2]) : new Date(parseInt(jour.id)).getFullYear()
+      const ano = parts[2] ? parseInt(parts[2]) : anoDoDia(jour)
       const dataJour = new Date(ano, m - 1, d)
       const lundi = new Date(lundiBase); lundi.setHours(0,0,0,0)
       const domingo = new Date(lundiBase); domingo.setDate(lundi.getDate() + 6); domingo.setHours(23,59,59,999)
@@ -861,7 +862,7 @@ const getJoursMois = () => {
   const barColorBi = pctBiSemana > 90 ? '#e74c3c' : pctBiSemana > 80 ? '#f39c12' : '#27ae60'
   const parseDate = (j: Jour) => {
     const p = j.date.split('/')
-    const ano = p[2] ? parseInt(p[2]) : new Date(parseInt(j.id)).getFullYear()
+    const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
     return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
   }
   const jornatasOrdenadas = [...historique]
@@ -875,8 +876,8 @@ const getJoursMois = () => {
     const [hF, mF] = (hoje.fin || '00h00').replace('h', ':').split(':').map(Number)
     const [hD, mD] = (amanha.debut || '00h00').replace('h', ':').split(':').map(Number)
     const pF = hoje.date.split('/'), pD = amanha.date.split('/')
-    const anoF = pF[2] ? parseInt(pF[2]) : new Date(parseInt(hoje.id)).getFullYear()
-    const anoD = pD[2] ? parseInt(pD[2]) : new Date(parseInt(amanha.id)).getFullYear()
+    const anoF = pF[2] ? parseInt(pF[2]) : anoDoDia(hoje)
+    const anoD = pD[2] ? parseInt(pD[2]) : anoDoDia(amanha)
     const tFim   = new Date(anoF, parseInt(pF[1])-1, parseInt(pF[0]), hF || 0, mF || 0).getTime()
     const tDebut = new Date(anoD, parseInt(pD[1])-1, parseInt(pD[0]), hD || 0, mD || 0).getTime()
     const gapH = (tDebut - tFim) / 3600000

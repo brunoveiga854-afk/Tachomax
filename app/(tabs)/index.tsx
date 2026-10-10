@@ -3110,10 +3110,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                 {(() => {
                   // ── Shared helpers ──────────────────────────────────────────
                   const today = new Date()
-                  const parseDate = (dateStr: string): Date | null => {
+                  const parseDate = (dateStr: string, id?: string): Date | null => {
                     const p = (dateStr || '').split('/')
                     if (p.length === 3) return new Date(+p[2], +p[1] - 1, +p[0])
-                    if (p.length === 2) return new Date(today.getFullYear(), +p[1] - 1, +p[0])
+                    if (p.length === 2) {
+                      // 'dd/mm' sem ano: o ano vem do próprio registo (igual ao Historique); sem `id` válido, ano actual como antes
+                      const anoReg = anoDoDia({ date: dateStr, id })
+                      return new Date(Number.isFinite(anoReg) ? anoReg : today.getFullYear(), +p[1] - 1, +p[0])
+                    }
                     return null
                   }
                   const parseHM = (s: string): number => {
@@ -3128,7 +3132,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   const qualifying = diasHistorique.filter(j => (j.segServico || 0) > 7200 && ['TRAB','DEC'].includes(j.type))
                   const sortedQ = [...qualifying].sort((a, b) => {
-                    const da = parseDate(a.date), db = parseDate(b.date)
+                    const da = parseDate(a.date, a.id), db = parseDate(b.date, b.id)
                     return (db?.getTime() ?? 0) - (da?.getTime() ?? 0)
                   })
 
@@ -3139,8 +3143,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const reposQSec = (() => {
                     if (sortedQ.length < 2) return null
                     const last = sortedQ[0]; const prev = sortedQ[1]
-                    const prevDate = parseDate(prev.date)
-                    const lastDate = parseDate(last.date)
+                    const prevDate = parseDate(prev.date, prev.id)
+                    const lastDate = parseDate(last.date, last.id)
                     if (!prevDate || !lastDate) return null
                     const prevFinMin = parseHM(prev.fin || '18h00')
                     const lastDebMin = parseHM(last.debut || '06h00')
@@ -3158,7 +3162,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const lastFriday = [...diasHistorique].reverse().find(j => j.jour === 'Vendredi')
                   const hebdoSec = (() => {
                     if (!lastFriday) return null
-                    const d = parseDate(lastFriday.date)
+                    const d = parseDate(lastFriday.date, lastFriday.id)
                     if (!d) return null
                     const finMin = parseHM(lastFriday.fin || '18h00')
                     const finDate = new Date(d); finDate.setHours(Math.floor(finMin/60), finMin%60,0,0)
@@ -3169,7 +3173,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   // ── SECTION 3 — 90H / 2 SEM ──────────────────────────────
                   const cutoff14 = new Date(today); cutoff14.setDate(today.getDate() - 14)
-                  const last14 = diasHistorique.filter(j => { const d = parseDate(j.date); return d && d >= cutoff14 && ['TRAB','DEC'].includes(j.type) })
+                  const last14 = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d >= cutoff14 && ['TRAB','DEC'].includes(j.type) })
                   const tot14Seg = last14.reduce((a, j) => a + (j.segServico || 0), 0)
                   const max90h = 90 * 3600
                   const pct90 = Math.min((tot14Seg / max90h) * 100, 100)
@@ -3181,9 +3185,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const JABBR = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
                   const barDetail = statsBarDetail; const setBarDetail = setStatsBarDetail
 
-                          const semaineDays = diasHistorique.filter(j => { const d = parseDate(j.date); return d && d >= monday && ['TRAB','DEC'].includes(j.type) })
-                  const moisDays = diasHistorique.filter(j => { const d = parseDate(j.date); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['TRAB','DEC'].includes(j.type) })
-                  const lastMoisDays = diasHistorique.filter(j => { const d = parseDate(j.date); return d && d?.getMonth() === lastMonth && d?.getFullYear() === lastMonthYear && ['TRAB','DEC'].includes(j.type) })
+                          const semaineDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d >= monday && ['TRAB','DEC'].includes(j.type) })
+                  const moisDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['TRAB','DEC'].includes(j.type) })
+                  const lastMoisDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === lastMonth && d?.getFullYear() === lastMonthYear && ['TRAB','DEC'].includes(j.type) })
 
                   // ── SECTION 6 — PAUSES ────────────────────────────────────
                   // Approximate valid pauses from historique: pauseTotal >= 45min = valid
@@ -3210,11 +3214,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const fraisNavLastMonth = fraisNavLastDate.getMonth()
                   const fraisNavLastYear  = fraisNavLastDate.getFullYear()
                   const fraisNavMoisDays = diasHistorique.filter(j => {
-                    const d = parseDate(j.date)
+                    const d = parseDate(j.date, j.id)
                     return d && d.getMonth() === fraisNavMonth && d.getFullYear() === fraisNavYear && ['TRAB','DEC'].includes(j.type)
                   })
                   const fraisNavLastDays = diasHistorique.filter(j => {
-                    const d = parseDate(j.date)
+                    const d = parseDate(j.date, j.id)
                     return d && d.getMonth() === fraisNavLastMonth && d.getFullYear() === fraisNavLastYear && ['TRAB','DEC'].includes(j.type)
                   })
                   const fraisNavTotal = fraisNavMoisDays.reduce((a,j) => a + (j.frais||0), 0)
@@ -3239,8 +3243,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   // ── SECTION 9 — ASSIDUITÉ ─────────────────────────────────
                   const travMois = moisDays.length
-                  const reposMois = diasHistorique.filter(j => { const d = parseDate(j.date); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['OFF','RC','FERIE','FER'].includes(j.type) }).length
-                  const sortedAll = [...diasHistorique].sort((a,b) => { const da=parseDate(a.date),db=parseDate(b.date); return (db?.getTime()??0)-(da?.getTime()??0) })
+                  const reposMois = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['OFF','RC','FERIE','FER'].includes(j.type) }).length
+                  const sortedAll = [...diasHistorique].sort((a,b) => { const da=parseDate(a.date, a.id),db=parseDate(b.date, b.id); return (db?.getTime()??0)-(da?.getTime()??0) })
                   let streak = 0
                   for (let i = 0; i < sortedAll.length; i++) {
                     if (['TRAB','DEC'].includes(sortedAll[i].type)) streak++
@@ -3251,7 +3255,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const longestServ = diasHistorique.reduce((best: any, j: any) => (!best || (j.segServico||0) > (best.segServico||0)) ? j : best, null)
                   const weeklyTotals: Record<string,number> = {}
                   diasHistorique.forEach(j => {
-                    const d = parseDate(j.date); if (!d || !['TRAB','DEC'].includes(j.type)) return
+                    const d = parseDate(j.date, j.id); if (!d || !['TRAB','DEC'].includes(j.type)) return
                     const mon = new Date(d); mon.setDate(d.getDate() - (d.getDay()+6)%7); mon.setHours(0,0,0,0)
                     const k = mon.toISOString(); weeklyTotals[k] = (weeklyTotals[k]||0) + (j.segServico||0)
                   })
@@ -3260,7 +3264,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   )
                   const monthlyFrais: Record<string,number> = {}
                   diasHistorique.forEach(j => {
-                    const d = parseDate(j.date); if (!d) return
+                    const d = parseDate(j.date, j.id); if (!d) return
                     const k = `${d.getFullYear()}-${d.getMonth()}`; monthlyFrais[k] = (monthlyFrais[k]||0) + (j.frais||0)
                   })
                   const [bestMonthFraisKey, bestMonthFrais] = Object.entries(monthlyFrais).reduce<[string, number]>(
@@ -3502,7 +3506,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 {fraisNavBreakdown && fraisNavBreakdown.total > 0 && (() => {
                                   // Conta por dia — mesma lógica do RÉSUMÉ DE LA SEMAINE (historique.tsx)
                                   const sortedNavDays = [...fraisNavMoisDays].sort((a: any, b: any) => {
-                                    const da = parseDate(a.date), db = parseDate(b.date)
+                                    const da = parseDate(a.date, a.id), db = parseDate(b.date, b.id)
                                     return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
                                   })
                                   const detalhePorDia = sortedNavDays.map((j: any, i: number) => calcularFraisJour({
@@ -3562,7 +3566,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 ) : (() => {
                                   const maxDia = fraisNavMoisDays.reduce((m: number, j: any) => Math.max(m, j.frais || 0), 0)
                                   return [...fraisNavMoisDays].sort((a: any, b: any) => {
-                                    const da = parseDate(a.date), db = parseDate(b.date)
+                                    const da = parseDate(a.date, a.id), db = parseDate(b.date, b.id)
                                     return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
                                   }).map((j: any, i: number) => {
                                     const v = j.frais || 0

@@ -3,7 +3,7 @@ import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, CO
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
 import React, { useEffect, useState, useRef, useMemo } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, StyleSheet, Modal, AppState, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, RefreshControl, ActivityIndicator, InteractionManager } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../context/ThemeContext'
@@ -243,6 +243,7 @@ export default function AujourdhuiScreen() {
 
   const [showCalendario, setShowCalendario] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshReady, setRefreshReady] = useState(false)
   const [storageErro, setStorageErro] = useState<string | null>(null)
   const [appReady, setAppReady] = useState(false)
   const appReadyRef = useRef(false)
@@ -583,6 +584,12 @@ export default function AujourdhuiScreen() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!appReady) return
+    const h = InteractionManager.runAfterInteractions(() => setRefreshReady(true))
+    return () => h.cancel()
+  }, [appReady])
 
   useEffect(() => {
     carregarDiasMes()
@@ -1787,7 +1794,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        refreshControl={
+        refreshControl={refreshReady ? (
           <RefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
@@ -1797,7 +1804,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             colors={['#f5a623']}
             tintColor={'#f5a623'}
           />
-        }
+        ) : undefined}
       >
 
         <View style={st.header}>

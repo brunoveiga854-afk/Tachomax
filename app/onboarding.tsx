@@ -271,7 +271,11 @@ export default function OnboardingScreen() {
 
       {/* ETAPE 0 — BOAS VINDAS */}
       {etape === 0 && (
-        <View style={[st.page, { paddingTop: 12, flex: 1 }]}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={st.logoSection}>
             <TachoLogo size={28} textColor='#ffffff' />
             <Text style={st.logoSub}>L'app du chauffeur professionnel</Text>
@@ -318,7 +322,7 @@ export default function OnboardingScreen() {
           <TouchableOpacity style={[...btnNextStyle, { marginBottom: (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) + 8 }]} onPress={() => setEtape(1)}>
             <Text style={st.btnNextText}>COMMENCER →</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       )}
 
       {/* ETAPE 1 — PERFIL */}

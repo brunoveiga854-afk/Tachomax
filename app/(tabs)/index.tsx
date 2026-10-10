@@ -832,10 +832,15 @@ export default function AujourdhuiScreen() {
     dinerDe: valRegleFrais(raw.dinerDe, fallback.dinerDe ?? DEFAULT_FRAIS_REGLES.dinerDe, 18, 23),
   })
   const carregarFraisRegles = async () => {
-    const reglesData = await AsyncStorage.getItem('frais_regles')
+    let reglesData: string | null = null
+    try { reglesData = await AsyncStorage.getItem('frais_regles') }
+    catch (e) { log.warn('index', 'frais_regles ilegível — default aplicado', { tipo: (e as any)?.name }); return DEFAULT_FRAIS_REGLES }
     let regles = DEFAULT_FRAIS_REGLES
     try { regles = sanitizeFraisRegles(reglesData ? JSON.parse(reglesData) : {}) } catch { log.warn('index', 'frais_regles corrompido — default aplicado'); regles = DEFAULT_FRAIS_REGLES }
-    if (reglesData) await AsyncStorage.setItem('frais_regles', JSON.stringify(regles))
+    if (reglesData) {
+      try { await AsyncStorage.setItem('frais_regles', JSON.stringify(regles)) }
+      catch (e) { log.warn('index', 'frais_regles: reescrita falhou (não bloqueante)', { tipo: (e as any)?.name }) }
+    }
     return regles
   }
   const limparFraisReglesAoArrancar = async () => {
@@ -931,8 +936,16 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       const existente = await AsyncStorage.getItem('historique')
       let lista: any[] = []
       if (existente) {
-        try { lista = JSON.parse(existente) }
-        catch { await AsyncStorage.removeItem('historique'); setStorageErro('Historique corrompu — réinitialisé. Ton nouveau jour a été sauvegardé.') }
+        let parsed: unknown = null
+        try { parsed = JSON.parse(existente) } catch { parsed = null }
+        if (!Array.isArray(parsed)) {
+          const msgIlegivel = "Historique illisible — jour NON sauvegardé, rien n'a été modifié."
+          log.error('index', 'guardarNovoDia: historique ilegível — gravação abortada', { tamanho: existente.length })
+          setStorageErro(msgIlegivel)
+          Alert.alert('Jour non sauvegardé', msgIlegivel)
+          return   // formulário fica aberto; a chave 'historique' não é tocada
+        }
+        lista = parsed
       }
       if (editandoDiaId) {
         // EDITAR — substituir o dia existente
@@ -960,7 +973,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       setEditandoDiaId(null)
       setShowAddDia(false)
       log.info('index', 'dia manual guardado', { date: diaDados.date, type: diaDados.type, editando: !!editandoDiaId })
-    } catch (e) { log.error('index', 'guardarDia (addEdit) falhou', e) }
+    } catch (e) {
+      log.error('index', 'guardarDia (addEdit) falhou', e)
+      const msgFalha = "Enregistrement impossible — jour NON sauvegardé. Réessaie."
+      setStorageErro(msgFalha)
+      Alert.alert('Jour non sauvegardé', msgFalha)   // formulário fica aberto com o que foi digitado
+    }
   }
 
   const guardarProfil = async (p: Profil) => {
@@ -1353,8 +1371,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
   }
 
-  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico, snapPausaTotal = segPausaTotal) => {
-    if (!dateInicio) return
+  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico, snapPausaTotal = segPausaTotal): Promise<'ok' | 'falhou' | 'sem-inicio'> => {
+    if (!dateInicio) {
+      log.error('index', 'guardarDia: dateInicio em falta — nada gravado')
+      return 'sem-inicio'
+    }
     const diasSemana = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
     const jour = diasSemana[dateInicio.getDay()]
     const date = `${String(dateInicio.getDate()).padStart(2, '0')}/${String(dateInicio.getMonth() + 1).padStart(2, '0')}`
@@ -1362,12 +1383,22 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     let fv = { ptDej: 4.42, dej: 16.36, diner: 23.94, nuit: 23.94 }
     let regles = DEFAULT_FRAIS_REGLES
     let lista: any[] = []
+    let historicoLegivel = false
+    let historicoGravado = false
+    if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
+    try { regles = await carregarFraisRegles() }
+    catch (e) { log.warn('index', 'guardarDia: regras de frais indisponíveis — default aplicado', { tipo: (e as any)?.name }) }
     try {
-      if (appState.fraisValores) fv = { ...fv, ...appState.fraisValores }
-      regles = await carregarFraisRegles()
       const existente = await AsyncStorage.getItem('historique')
-      lista = existente ? JSON.parse(existente) : []
-    } catch (e) { log.warn('index', 'terminerServico: falha ao carregar regles/historique (usando defaults)', e) }
+      const parsed = existente ? JSON.parse(existente) : []
+      if (!Array.isArray(parsed)) throw new Error('historique não é um array')
+      lista = parsed
+      historicoLegivel = true
+    } catch (e) { log.error('index', 'guardarDia: historique ilegível — gravação abortada', { tipo: (e as any)?.name }) }
+    if (!historicoLegivel) {
+      setStorageErro("Impossible de lire l'historique — service NON enregistré, rien n'a été modifié. Réessaie.")
+      return 'falhou'
+    }
     const prevDec = diaAnteriorDecouche(lista, dateInicio)
     const frais = calcularFraisJour({
       type: decouche ? 'DEC' : 'TRAB',
@@ -1405,6 +1436,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       })
       const listaGuardada = listaValidaT.slice(0, MAX_HISTORIQUE)
       await AsyncStorage.setItem('historique', JSON.stringify(listaGuardada))
+      historicoGravado = true
       setDiasHistorique(listaValidaT)
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       actualizarCampo('kmUltimoFim', parseInt(kmFimInput) || 0)
@@ -1421,7 +1453,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         kmA: kmDoCamiao(troca.a.kmInicio, troca.a.kmFim), kmB: kmDoCamiao(troca.b.kmInicio, troca.b.kmFim),
         kmTotal: novoDia.kmDiarios, segServico: snapService, segPausa: snapPausaTotal,
       })
-    } catch (e) { log.error('index', 'guardarDia (terminer) falhou', e) }
+      return 'ok'
+    } catch (e) {
+      log.error('index', 'guardarDia (terminer) falhou', e)
+      if (!historicoGravado) setStorageErro("Enregistrement impossible — service NON enregistré. Réessaie.")
+      return historicoGravado ? 'ok' : 'falhou'
+    }
   }
 
   const handleTerminer = () => {
@@ -1583,6 +1620,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
   }
 
   const confirmarTerminer = async (comDecouche: boolean) => {
+    const decoucheAntes = decouche
     if (comDecouche) setDecouche(true)
     setDemarrando(true)
     setShowTerminerModal(false)
@@ -1616,7 +1654,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       valeurs: fv,
     }).total
 
-    await guardarDia(fim, snapKm, snapService, snapPausaTotal)
+    let resultado: 'ok' | 'falhou' | 'sem-inicio' = 'falhou'
+    try { resultado = await guardarDia(fim, snapKm, snapService, snapPausaTotal) }
+    catch (e) {
+      log.error('index', 'confirmarTerminer: guardarDia lançou exceção', { tipo: (e as any)?.name })
+      setStorageErro("Enregistrement impossible — service NON enregistré. Réessaie.")
+    }
+    if (resultado === 'falhou') { setDecouche(decoucheAntes); setDemarrando(false); return }   // serviço mantém-se em curso, nada é apagado
+    if (resultado === 'sem-inicio') setStorageErro("Date de début introuvable — service NON enregistré.")
     log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, temFrais: snapFrais > 0, km: snapKm })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     try {
@@ -1645,6 +1690,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setDemarrando(false)
 
     // Show rich summary instead of simple Alert
+    if (resultado === 'sem-inicio') return   // sem resumo: o banner explica que não foi gravado
     setSummaryData({
       service: snapService,
       conduite: 0,

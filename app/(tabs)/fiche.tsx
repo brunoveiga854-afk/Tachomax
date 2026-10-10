@@ -2572,7 +2572,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   🍽️ FRAIS <Text style={{ fontSize: 9, opacity: 0.7 }}>{calcResult.fraisConfirmado ? '✅' : '✏️'}</Text>
                 </Text>
                 <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>
-                  {calcResult.fraisConfirmado ? 'depuis historique' : 'estimé depuis calendrier'}
+                  {calcResult.fraisConfirmado ? `historique · ${calcResult.mesFraisLabel.split(' ')[0].toLowerCase()}` : `estimé · ${calcResult.mesFraisLabel.split(' ')[0].toLowerCase()}`}
                 </Text>
                 <Text style={{ fontSize: 22, color: 'white', fontWeight: '900', letterSpacing: 0.5 }}>{fmtInt(calcResult.totalFrais)}</Text>
               </TouchableOpacity>
@@ -2582,7 +2582,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <View>
                   <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.80)' }}>Brut estimé</Text>
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'rgba(255,255,255,0.5)', letterSpacing: 1 }}>{calcResult.mesHorasLabel.split(' ')[0].toUpperCase()}</Text>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'rgba(255,255,255,0.5)', letterSpacing: 1 }}>{(() => { const m = calcResult.mesHorasLabel.split(' ')[0].toUpperCase(); return `HEURES ${/^[AEIOUH]/.test(m) ? "D'" : 'DE '}${m}` })()}</Text>
                 </View>
                 <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '700' }}>{fmtInt(calcResult.salBrut)}</Text>
               </View>

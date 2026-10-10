@@ -110,10 +110,6 @@ export default function TabsLayout() {
           </TabIcon>
         ),
       }} />
-      <Tabs.Screen name="onboarding" options={{ href: null }} />
-      <Tabs.Screen name="ThemeProvider" options={{ href: null }} />
-      <Tabs.Screen name="LangueContext" options={{ href: null }} />
-      <Tabs.Screen name="ThemeContext" options={{ href: null }} />
     </Tabs>
   )
 }

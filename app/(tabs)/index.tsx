@@ -20,6 +20,7 @@ import {
   mesPagamentoSalDe, joursOuvresMois, mesTrabalhoDe,
   type Medias,
 } from '../../src/utils/projecoes'
+import { valorFraisDoMes } from '../../src/utils/confirmacaoFrais'
 import { calcFraisMesPorHorarios, shiftMois } from '../../src/utils/calculos'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
@@ -3525,14 +3526,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                     { label: '🍴 Dîner',    n: nDin, val: nDin * (pr.din  || 23.94) },
                                     { label: '🌙 Nuit',     n: nNui, val: nNui * (pr.nui  || 23.94) },
                                   ]
-                                  const moisHist = (appState.histSal as MoisData[] ?? []).find(m => {
-                                    const fMes = m.mesFraisTrabalhoIndex ?? m.moisIndex
-                                    const fAno = m.anoFraisTrabalho ?? m.annee
-                                    return fMes === fraisNavMonth && fAno === fraisNavYear
-                                  })
-                                  const totalReel = moisHist
-                                    ? (moisHist.fraisRecuConfirme || moisHist.fraisBoletim || moisHist.remboursementFrais || 0)
-                                    : 0
+                                  const totalReel = valorFraisDoMes((appState.histSal as MoisData[] ?? []), fraisNavYear, fraisNavMonth)
                                   const ecart = totalReel - fraisNavBreakdown.total
                                   return (
                                     <View style={{ marginBottom: 10 }}>

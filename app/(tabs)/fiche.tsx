@@ -4,6 +4,12 @@ import * as Haptics from 'expo-haptics'
 import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
 import { totalHeuresInicial } from '../../src/utils/totalHeuresFicha'
+import { fixarLagsConfirmados, lagsParaBase } from '../../src/utils/lagsConfirmados'
+import { alertasFraisIncoerentes as alertasFraisPorMesTrabalho, bancoFraisFiavel, fontesIndependentes, melhorFlagPorFontes } from '../../src/utils/aprendizagemFlagFrais'
+import {
+  aplicarConfirmacoesFrais, camposFraisDaEdicao, desligarOrfas, estaLigada,
+  listarPagamentosCandidatos, pagamentoLigado, validarEdicaoPagamentoLigado,
+} from '../../src/utils/confirmacaoFrais'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler, Linking } from 'react-native'
@@ -97,6 +103,8 @@ type DriftAlert = {
 
 type DriftTuplo = { est: number; real: number; estFrais: number; realFrais: number; estSal: number; realSal: number }
 
+type FraisResposta = 'recebido' | 'por_receber' | 'desconhecido' | null
+const gerarIdPagamentoFrais = () => `pg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
 const calcularPrecisao = (padrao: Padrao, nMeses: number): number => {
@@ -333,9 +341,11 @@ function aprenderFlagPorConfirmacoes(dados: MoisData[]): number[] {
   return dados
     .filter(d => d.fraisConfirmado && fraisRealConfirme(d) > 0 && !d.moisAtipico)
     .map(d => {
-      const [anoPay, mesPay] = mesPagamentoFraisDe(d)
+      // Só uma data bancária declarada pelo motorista serve de prova; a fiche não é fonte de si própria.
+      const banco = bancoFraisFiavel(d)
+      if (!banco) return undefined
       const valor = fraisRealConfirme(d)
-      const match = trouverSourceParValeur(dados, valor, anoPay, mesPay, src => [
+      const match = trouverSourceParValeur(fontesIndependentes(dados, d), valor, banco.ano, banco.mes, src => [
         src.fraisRecuConfirme || 0,
         src.fraisBoletim || 0,
         src.remboursementFrais || 0,
@@ -649,22 +659,17 @@ function aplicarConfirmacoesReais(dados: MoisData[], hist: any[], base: Padrao):
     const flagVotos: number[] = []
     for (const fiche of confirmadosFrais) {
       const valorConfirmado = fraisRealConfirme(fiche) || fiche.fraisBoletim || fiche.remboursementFrais || 0
-      const [anoPay, mesPay] = mesPagamentoFraisDe(fiche)
+      // Sem data bancária declarada não há prova de lag (datas inferidas/desconhecidas não contam).
+      const banco = bancoFraisFiavel(fiche)
+      if (!banco) continue
+      const anoPay = banco.ano
+      const mesPay = banco.mes
       let melhorFlag = -1
       let melhorDiff = Infinity
 
-      for (const fonte of dados) {
-        const valoresFonte = [fonte.remboursementFrais || 0, fonte.fraisBoletim || 0].filter(v => v > 0)
-        const [anoFonte, mesFonte] = mesFicheDe(fonte)
-        for (const valorFonte of valoresFonte) {
-          const diff = Math.abs(valorFonte - valorConfirmado)
-          const lag = diffMeses(anoPay, mesPay, anoFonte, mesFonte)
-          if (isLagValide(lag) && diff <= Math.max(5, valorConfirmado * 0.02) && diff < melhorDiff) {
-            melhorDiff = diff
-            melhorFlag = lag
-          }
-        }
-      }
+      // Fontes independentes: a fiche nunca confirma o flag com ela própria.
+      const porFontes = melhorFlagPorFontes(dados, fiche, valorConfirmado)
+      if (porFontes) { melhorDiff = porFontes.diff; melhorFlag = porFontes.flag }
 
       for (let flag = 0; flag <= 3; flag++) {
         const [aF, mF] = shiftMois(anoPay, mesPay, -flag)
@@ -709,23 +714,6 @@ function diagnosticarDadosFaltantes(dados: MoisData[], hist: any[], p: Padrao): 
   }
 
   return faltas
-}
-
-function alertasFraisIncoerentes(dados: MoisData[], hist: any[], p: Padrao): string[] {
-  const confirmados = dados.filter(d => d.salarioConfirmado || d.fraisConfirmado || d.montantTotalRecu > 0).length
-  if (confirmados < 3) return []
-
-  return dados
-    .filter(d => (d.fraisBoletim || 0) > 0)
-    .map(d => {
-      const esperado = calcFraisMesPorHorarios(hist, d.annee, d.moisIndex, p).total
-      const pago = d.fraisBoletim || 0
-      const diff = Math.round((esperado - pago) * 100) / 100
-      const tolerancia = Math.max(5, esperado * 0.02)
-      if (esperado <= 0 || diff <= tolerancia) return null
-      return `Ce mois, j'attendais ${esperado.toFixed(2)}€ de frais mais le bulletin indique ${pago.toFixed(2)}€ — écart de ${diff.toFixed(2)}€. Vérifie que tous les jours ont bien été payés.`
-    })
-    .filter(Boolean) as string[]
 }
 
 // ── ANALISAR PADRÃO V2 ────────────────────────────────────────────────────────
@@ -1157,6 +1145,7 @@ export default function MonSalaireScreen() {
     montantSal: string; montantFrais: string; interessement: string; primeNonAcc: string
     moisAtipico: boolean; fonte: 'banco' | 'fiche'
     totalHeures?: string
+    frais?: { resposta: FraisResposta; mesOffset: number; pagamento: string | null }
   }
   const [historialInputs, setHistorialInputs] = useState<InputsSnapshot[]>([])
   const [inputValor, setInputValor] = useState('')
@@ -1187,6 +1176,11 @@ export default function MonSalaireScreen() {
   const [inputPrimeNonAcc, setInputPrimeNonAcc] = useState('')
   const [inputFraisReel, setInputFraisReel] = useState('')
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
+  // Resposta EXPLÍCITA do motorista sobre os frais da fiche (null = não respondeu → comportamento antigo)
+  const [fraisResposta, setFraisResposta] = useState<FraisResposta>(null)
+  const [fraisMesOffset, setFraisMesOffset] = useState(0)            // meses antes do rótulo da fiche (0–2)
+  const [fraisPagamentoEscolhido, setFraisPagamentoEscolhido] = useState<string | null>(null)
+  const limparRespostaFrais = () => { setFraisResposta(null); setFraisMesOffset(0); setFraisPagamentoEscolhido(null) }
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
@@ -1312,12 +1306,26 @@ export default function MonSalaireScreen() {
     log.info('fiche', 'padrao persistido', { temHbase: p.hbase > 0, temHval: p.hval > 0, confianca: p.confianca })
   }
 
+  // aprendizagem_padrao tal como está gravada (fonte dos desfasamentos confirmados); estado só como reserva
+  const lerApAtual = async (): Promise<any> => {
+    try {
+      const raw = await secureGet('aprendizagem_padrao')
+      if (raw) return JSON.parse(raw)
+    } catch { /* usa o estado */ }
+    return appState.padraoAprendido ?? padraoAprendido
+  }
+  // Aprendizagem do padrão que NUNCA substitui hlag/flag confirmados pelo motorista (nem toca no histórico)
+  const analisarPadraoSeguro = async (dados: MoisData[], hist: any[], base: Padrao): Promise<Padrao> => {
+    const lags = lagsParaBase(base, await lerApAtual(), { hlag: DEF_SAL.hlag, flag: DEF_SAL.flag })
+    return fixarLagsConfirmados(analisarPadraoV2(dados, hist, base), lags)
+  }
+
   const apagaSelMeses = async (periodes: Set<string>) => {
-    const nova = historique.filter(h => !periodes.has(h.periode))
+    const nova = [...desligarOrfas(historique.filter(h => !periodes.has(h.periode)))]
     setHistorique(nova)
     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
     log.warn('fiche', 'meses eliminados (multi-select)', { count: periodes.size })
-    const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+    const novoPadrao = await analisarPadraoSeguro(nova, histCal, padrao)
     await persistirPadrao(novoPadrao)
     actualizarCampo('histSal', nova)
     await recarregarApp({ origem: 'gravacao' })
@@ -1450,10 +1458,15 @@ export default function MonSalaireScreen() {
           base = { ...base, ptd: fv.ptDej || base.ptd, dej: fv.dej || base.dej, din: fv.diner || base.din, nui: fv.nuit || base.nui }
         }
         // Valida hlag com totais confirmados — mais fiável que detecção por bruto estimado
-        const hlagValidado = validarHlagComTotais(hist, cal, base)
-        if (hlagValidado !== base.hlag) base = { ...base, hlag: hlagValidado }
+        // Prioridade: confirmado pelo motorista > padrão existente > predefinido. Confirmado nunca é substituído.
+        const lagsBase = lagsParaBase(base, await lerApAtual(), { hlag: DEF_SAL.hlag, flag: DEF_SAL.flag })
+        base = { ...base, hlag: lagsBase.hlag, flag: lagsBase.flag }
+        if (!lagsBase.hlagTravado) {
+          const hlagValidado = validarHlagComTotais(hist, cal, base)
+          if (hlagValidado !== base.hlag) base = { ...base, hlag: hlagValidado }
+        }
 
-        const p = analisarPadraoV2(hist, cal, base)
+        const p = fixarLagsConfirmados(analisarPadraoV2(hist, cal, base), lagsBase)
         await persistirPadrao(p)
       }
     } catch (e) { log.error('fiche', 'carregarPadraoAtual falhou', e) }
@@ -2247,6 +2260,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setInputInteressementQ((pf?.interessement || 0) > 0 ? String(pf.interessement) : '')
     setInputPrimeNonAccQ((pf?.primeNonAccident || 0) > 0 ? String(pf.primeNonAccident) : '')
     setInputMoisAtipico((pf?.interessement || 0) > 0 || (pf?.primeExceptionnelle || 0) > 0)
+    limparRespostaFrais()
     setShowParteUm(true)
     setInputParteUmSal(netPayeZero > 0 ? String(netPayeZero) : '')
     setInputParteUmFrais(fraisZero > 0 ? String(fraisZero) : '')
@@ -2290,7 +2304,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     const fraisDoc = documentosAnalisados.filter(d => d.tipo === 'frais')
     const fichaActual = fiches[perguntaAtual]
     const sal = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
-    const fraisReel = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+    const fraisReelInput = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+    // «Pas encore reçus» / «Je ne sais pas»: o montante da fiche é só documental, não dinheiro recebido
+    const fraisReel = (fraisResposta === 'por_receber' || fraisResposta === 'desconhecido') ? 0 : fraisReelInput
     if (sal <= 0 && fraisReel <= 0) { setShowModalValorInvalido(true); return }
     const mesFicheIndex = fichaActual.moisIndex
     const anoFiche = fichaActual.annee
@@ -2324,6 +2340,15 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       interessementQ: parseFloat(inputInteressementQ.replace(',','.')) || 0,
       primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
       totalHeuresManual: parseFloat(inputTotalHeures.replace(',', '.')) || 0,
+      // Só existe se o motorista tocou numa resposta (guardarTudo ignora respostas sem isto)
+      fraisConfirmacao: (() => {
+        if (fraisResposta === 'por_receber' || fraisResposta === 'desconhecido') return { estado: fraisResposta }
+        if (fraisResposta === 'recebido' && fraisReelInput > 0) {
+          const [anoB, mesB] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -fraisMesOffset)
+          return { estado: 'recebido' as const, mesBanco: { ano: anoB, mes: mesB }, valor: fraisReelInput, pagamentoPeriode: fraisPagamentoEscolhido ?? undefined }
+        }
+        return undefined
+      })(),
     }
     // Guardar snapshot dos inputs actuais antes de avançar (para restaurar ao recuar)
     setHistorialInputs(h => {
@@ -2335,6 +2360,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         interessement: inputInteressementQ, primeNonAcc: inputPrimeNonAccQ,
         moisAtipico: inputMoisAtipico, fonte: fonteEscolhida,
         totalHeures: inputTotalHeures,
+        frais: { resposta: fraisResposta, mesOffset: fraisMesOffset, pagamento: fraisPagamentoEscolhido },
       }
       return novo
     })
@@ -2366,6 +2392,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
       setInputTotalHeures(totalHeuresInicial(fichaProx as any))
       if (temRascunho) setRascunhoActual(null)
+      limparRespostaFrais()
       setShowParteUm(true)
       setInputParteUmSal(netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
       setInputParteUmFrais(fraisProx > 0 ? String(Math.round(fraisProx * 100) / 100) : '')
@@ -2374,7 +2401,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
       setPerguntaAtual(proxIndex)
     } else {
-      await guardarTudo(novasRespostas); setShowPerguntas(false); setDocumentosAnalisados([])
+      const gravado = await guardarTudo(novasRespostas)
+      if (gravado === false) { setRespostas(r => r.slice(0, -1)); return }
+      setShowPerguntas(false); setDocumentosAnalisados([])
     }
   }
 
@@ -2395,6 +2424,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputPrimeNonAccQ(snap.primeNonAcc)
       setInputMoisAtipico(snap.moisAtipico)
       setFonteEscolhida(snap.fonte)
+      setFraisResposta(snap.frais?.resposta ?? null)
+      setFraisMesOffset(snap.frais?.mesOffset ?? 0)
+      setFraisPagamentoEscolhido(snap.frais?.pagamento ?? null)
+    } else {
+      limparRespostaFrais()
     }
     // Horas: as da ficha anterior (snapshot) ou, sem snapshot, as da própria ficha — nunca as da ficha de onde se recua
     setInputTotalHeures(snap?.totalHeures ?? totalHeuresInicial(fiches[prevIndex] as any))
@@ -2511,6 +2545,26 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         log.debug('fiche', 'guardarTudo push', { periode: novoDado.periode })
       }
     }
+    // Confirmação explícita dos frais (só respostas tocadas pelo motorista; importação automática/IA nunca a criam)
+    {
+      const itensFrais = resps.map(resp => ({
+        fichePeriode: resp.fiche.periode || `${MOIS_NOMS[resp.fiche.moisIndex]} ${resp.fiche.annee}`,
+        confirmacao: resp.fraisConfirmacao,
+      }))
+      const rf = aplicarConfirmacoesFrais(novoHist, itensFrais, { novoId: gerarIdPagamentoFrais })
+      if (rf.recusas.length > 0) {
+        // Nada foi gravado: o motorista corrige a resposta (o modal continua aberto) ou escolhe outra.
+        log.warn('fiche', 'confirmação de frais recusada — nada gravado', { recusas: rf.recusas.map(x => ({ periode: x.fichePeriode, motivo: x.motivo })) })
+        setLoading(false)
+        perfLog.timeEnd('fiche', 'guardarTudo')
+        Alert.alert('Frais non enregistrés', rf.recusas.map(x => `${x.fichePeriode} : ${x.mensagem}`).join('\n\n'))
+        return false
+      }
+      if (itensFrais.some(i => i.confirmacao)) {
+        novoHist.splice(0, novoHist.length, ...rf.historico)
+        log.info('fiche', 'confirmação de frais gravada', { n: itensFrais.filter(i => i.confirmacao).length })
+      }
+    }
     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
     setHistorique(novoHist)
     perfLog.time('fiche', 'guardarTudo:asyncStorage')
@@ -2522,7 +2576,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     // Aplicar valores de frais dos boletins se existirem
     const fraisValsRaw = appState.fraisValores  // já parsed pelo AppContext
     const fraisReglesRaw = await AsyncStorage.getItem('frais_regles')
-    let padraoBase = { ...padrao, hlag: DEF_SAL.hlag, flag: DEF_SAL.flag }
+    // Prioridade: confirmado pelo motorista > padrão existente > predefinido (só se faltar informação)
+    const lagsBase = lagsParaBase(padrao, await lerApAtual(), { hlag: DEF_SAL.hlag, flag: DEF_SAL.flag })
+    let padraoBase = { ...padrao, hlag: lagsBase.hlag, flag: lagsBase.flag }
     if (fraisValsRaw) {
       padraoBase = { ...padraoBase, ptd: fraisValsRaw.ptDej || padraoBase.ptd, dej: fraisValsRaw.dej || padraoBase.dej, din: fraisValsRaw.diner || padraoBase.din, nui: fraisValsRaw.nuit || padraoBase.nui }
     }
@@ -2533,10 +2589,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         padraoBase = { ...padraoBase, regles: reglesLimpas }
       } catch (e) { log.warn('fiche', 'fraisRegles corrompido', e) }
     }
-    const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
-    if (hlagValidado !== padraoBase.hlag) { log.info('fiche', 'hlag validado alterado', { anterior: padraoBase.hlag, novo: hlagValidado }); padraoBase = { ...padraoBase, hlag: hlagValidado } }
+    if (!lagsBase.hlagTravado) {
+      const hlagValidado = validarHlagComTotais(novoHist, histCal, padraoBase)
+      if (hlagValidado !== padraoBase.hlag) { log.info('fiche', 'hlag validado alterado', { anterior: padraoBase.hlag, novo: hlagValidado }); padraoBase = { ...padraoBase, hlag: hlagValidado } }
+    } else {
+      log.info('fiche', 'hlag confirmado — validação automática ignorada', { hlag: lagsBase.hlag })
+    }
     perfLog.time('fiche', 'guardarTudo:analisarPadraoV2')
-    const novoPadrao = analisarPadraoV2(novoHist, histCal, padraoBase)
+    const novoPadrao = fixarLagsConfirmados(analisarPadraoV2(novoHist, histCal, padraoBase), lagsBase)
     perfLog.timeEnd('fiche', 'guardarTudo:analisarPadraoV2')
     perfLog.time('fiche', 'guardarTudo:persistirPadrao')
     await persistirPadrao(novoPadrao)
@@ -2545,7 +2605,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
-    const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
+    const alertasFrais = alertasFraisPorMesTrabalho(
+      novoHist,
+      (a, m) => calcFraisMesPorHorarios(histCal, a, m, novoPadrao).total,
+      novoPadrao,
+      { hlag: novoPadrao.hlag, flag: novoPadrao.flag, hlagConfirmado: lagsBase.hlagTravado, flagConfirmado: lagsBase.flagTravado },
+    )
     perfLog.timeEnd('fiche', 'guardarTudo')
     log.info('fiche', 'guardarTudo concluído', { numMeses: novoHist.length, hlag: novoPadrao.hlag, flag: novoPadrao.flag, confianca: novoPadrao.confianca })
     const baseMsg = `${novoHist.length} mois enregistrés!\nhlag: ${novoPadrao.hlag} · flag: ${novoPadrao.flag} · Données: ${novoPadrao.confianca}%`
@@ -2554,6 +2619,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setLoading(false)
     setShowModalSucesso(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    return true
   }
 
   const fiches = documentosAnalisados.filter(d => d.tipo === 'fiche')
@@ -3462,11 +3528,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                               text: 'Supprimer',
                               style: 'destructive',
                               onPress: async () => {
-                                const nova = historique.filter(h => h.periode !== m.periode)
+                                const nova = [...desligarOrfas(historique.filter(h => h.periode !== m.periode))]
                                 setHistorique(nova)
                                 await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
                                 log.warn('fiche', 'mês eliminado', { periode: m.periode })
-                                const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+                                const novoPadrao = await analisarPadraoSeguro(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
                                 actualizarCampo('histSal', nova)
                                 await recarregarApp({ origem: 'gravacao' })
@@ -3844,6 +3910,55 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                           />
                         </View>
                       </View>
+
+                      {/* ── Frais : documentés (fiche) vs reçus (banque) — réponse explicite du chauffeur ── */}
+                      {((parseFloat(inputMontantFraisQ.replace(',', '.')) || 0) > 0 || (dadosFicha.remboursementFrais || 0) > 0) && (() => {
+                        const periodeFicheQ = fichaActual.periode || `${MOIS_NOMS[fichaActual.moisIndex]} ${fichaActual.annee}`
+                        const valeurFraisQ = parseFloat(inputMontantFraisQ.replace(',', '.')) || dadosFicha.remboursementFrais || 0
+                        const candidatsFrais = listarPagamentosCandidatos(historique, periodeFicheQ, valeurFraisQ)
+                        const bouton = (rotulo: string, ativo: boolean, onPress: () => void, cor = '#2980b9') => (
+                          <TouchableOpacity
+                            key={rotulo}
+                            style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: ativo ? cor + '22' : c.input, borderWidth: ativo ? 1.5 : 1, borderColor: ativo ? cor : c.cardBorder }}
+                            onPress={onPress}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: ativo ? cor : c.textSub }}>{rotulo}</Text>
+                          </TouchableOpacity>
+                        )
+                        return (
+                          <View style={{ marginBottom: 12, padding: 12, backgroundColor: c.input, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 8 }}>As-tu déjà reçu ces frais ?</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                              {bouton('Oui, déjà reçus', fraisResposta === 'recebido', () => { setFraisResposta(fraisResposta === 'recebido' ? null : 'recebido'); setFraisPagamentoEscolhido(null) })}
+                              {bouton('Pas encore reçus', fraisResposta === 'por_receber', () => setFraisResposta(fraisResposta === 'por_receber' ? null : 'por_receber'), '#f5a623')}
+                              {bouton('Je ne sais pas', fraisResposta === 'desconhecido', () => setFraisResposta(fraisResposta === 'desconhecido' ? null : 'desconhecido'), '#7f8c8d')}
+                            </View>
+                            {fraisResposta === 'recebido' && (
+                              <View style={{ marginTop: 12 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Mois de réception</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                  {[0, 1, 2].map(off => {
+                                    const [aOff, mOff] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -off)
+                                    return bouton(`${MOIS_NOMS[mOff]} ${aOff}`, fraisMesOffset === off, () => setFraisMesOffset(off))
+                                  })}
+                                </View>
+                                <Text style={{ fontSize: 12, color: c.textSub, marginTop: 8 }}>
+                                  Montant réellement reçu : {valeurFraisQ > 0 ? `${valeurFraisQ}€` : '—'} (champ « Frais reçus » ci-dessus ; la fiche ne fait que le documenter).
+                                </Text>
+                                {candidatsFrais.length > 0 && (
+                                  <>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginTop: 10, marginBottom: 6 }}>Paiement déjà enregistré ?</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                      {bouton('Aucun', fraisPagamentoEscolhido === null, () => setFraisPagamentoEscolhido(null), '#7f8c8d')}
+                                      {candidatsFrais.map(cd => bouton(`${cd.periode} · ${cd.valor}€`, fraisPagamentoEscolhido === cd.periode, () => setFraisPagamentoEscolhido(cd.periode), '#27ae60'))}
+                                    </View>
+                                  </>
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        )
+                      })()}
                     </>
                   )}
 
@@ -3975,9 +4090,14 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 </View>
               )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: c.textSub, fontSize: 13 }}>Frais reçus</Text>
-                <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail?.fraisRecuConfirme || modalDetail?.fraisBoletim || modalDetail?.remboursementFrais || 0)}</Text>
+                <Text style={{ color: c.textSub, fontSize: 13 }}>{modalDetail && estaLigada(modalDetail) ? 'Frais documentés' : 'Frais reçus'}</Text>
+                <Text style={{ color: '#2980b9', fontWeight: '700', fontSize: 13 }}>{fmt(modalDetail && estaLigada(modalDetail) ? (modalDetail.remboursementFrais || modalDetail.fraisBoletim || 0) : (modalDetail?.fraisRecuConfirme || modalDetail?.fraisBoletim || modalDetail?.remboursementFrais || 0))}</Text>
               </View>
+              {modalDetail && estaLigada(modalDetail) && (
+                <Text style={{ color: c.textSub, fontSize: 11, marginTop: 2 }}>
+                  {(() => { const pg = pagamentoLigado(historique, modalDetail); return pg ? `Déjà reçus et comptés dans ${pg.periode}` : 'Paiement associé introuvable' })()}
+                </Text>
+              )}
               {(modalDetail?.totalHeures || 0) > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={{ color: c.textSub, fontSize: 13 }}>⏱ Heures travaillées</Text>
@@ -3997,7 +4117,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {
                 if (!modalDetail) return
                 setEditNetPaye(parseFloat((modalDetail.netPaye || 0).toFixed(2)).toString())
-                setEditFraisBoletim(parseFloat((modalDetail.fraisRecuConfirme || modalDetail.fraisBoletim || modalDetail.remboursementFrais || 0).toFixed(2)).toString())
+                setEditFraisBoletim(parseFloat((estaLigada(modalDetail) ? (modalDetail.remboursementFrais || modalDetail.fraisBoletim || 0) : (modalDetail.fraisRecuConfirme || modalDetail.fraisBoletim || modalDetail.remboursementFrais || 0)).toFixed(2)).toString())
                 setEditMontantTotal(parseFloat((modalDetail.montantTotalRecu || 0).toFixed(2)).toString())
                 setEditMoisIndex(modalDetail.moisIndex)
                 setEditAnnee(modalDetail.annee)
@@ -4140,7 +4260,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     setHistorique(novoHist)
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
                     const histCal = appState.histCal ?? []
-                    const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
+                    const novoPadrao = await analisarPadraoSeguro(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     actualizarCampo('histSal', novoHist)
                     await recarregarApp({ origem: 'gravacao' })
@@ -4271,7 +4391,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(novoHist))
 
                     const histCal = appState.histCal ?? []
-                    const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
+                    const novoPadrao = await analisarPadraoSeguro(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     actualizarCampo('histSal', novoHist)
                     await recarregarApp({ origem: 'gravacao' })
@@ -4375,6 +4495,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 if (!modalDetail) return
                 const netEdit = parseFloat(editNetPaye) || 0
                 const fraisEdit = parseFloat(editFraisBoletim) || 0
+                const vp = validarEdicaoPagamentoLigado(historique, modalDetail, fraisEdit)
+                if (!vp.ok) {
+                  // Preserva os dados anteriores: nada é gravado até o motorista corrigir ou cancelar.
+                  log.warn('fiche', 'edição de pagamento associado a zero — recusada', { periode: modalDetail.periode })
+                  Alert.alert('Paiement associé', 'mensagem' in vp ? vp.mensagem : '')
+                  return
+                }
                 const totalEdit = (parseFloat(editNetPaye) || 0) + (parseFloat(editFraisBoletim) || 0)
                 const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
                 const novePeriode = `${moisNoms[editMoisIndex]} ${editAnnee}`
@@ -4391,18 +4518,13 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   anoFiche: editAnnee,
                   netPaye: netEdit,
                   salairebrut: parseFloat(editSalairebrut.replace(',','.')) || modalDetail?.salairebrut || 0,
-                  fraisBoletim: fraisEdit,
-                  remboursementFrais: fraisEdit > 0 ? fraisEdit : modalDetail.remboursementFrais,
-                  fraisRecuConfirme: fraisEdit > 0 ? fraisEdit : modalDetail.fraisRecuConfirme,
+                  ...camposFraisDaEdicao(modalDetail, fraisEdit, editMoisIndex, editAnnee),
                   montantTotalRecu: totalEdit,
                   interessement: interessEdit,
                   salarioConfirmado: netEdit > 0,
-                  fraisConfirmado: fraisEdit > 0,
                   moisAtipico: editMoisAtipico,
                   pagamentoSalMesIndex: modalDetail.pagamentoSalMesIndex ?? editMoisIndex,
                   pagamentoSalAno: modalDetail.pagamentoSalAno ?? editAnnee,
-                  pagamentoFraisMesIndex: modalDetail.pagamentoFraisMesIndex ?? editMoisIndex,
-                  pagamentoFraisAno: modalDetail.pagamentoFraisAno ?? editAnnee,
                   mesFraisTrabalhoIndex: mesFraisTrabalhoEdit,
                   anoFraisTrabalho: anoFraisTrabalhoEdit,
                 }
@@ -4414,7 +4536,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   setHistorique(nova)
                   await AsyncStorage.setItem('monSalaire_v2', JSON.stringify(nova))
                   const histCal = appState.histCal ?? []
-                  const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
+                  const novoPadrao = await analisarPadraoSeguro(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
                   actualizarCampo('histSal', nova)
                   await recarregarApp({ origem: 'gravacao' })

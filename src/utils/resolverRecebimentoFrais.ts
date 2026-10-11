@@ -61,7 +61,8 @@ const temPagamento = (d: MoisData) => !!d.fraisConfirmado && (d.fraisRecuConfirm
 // Linha disponível como portadora de dinheiro: tem pagamento, não é só documento ligado a outro,
 // e não respondeu «por_receber/desconhecido».
 const podeSerPagamento = (d: MoisData) =>
-  temPagamento(d) && !d.fraisContabilizadoEm && (d.fraisRecebimento === undefined || d.fraisRecebimento === 'recebido')
+  temPagamento(d) && !d.fraisContabilizadoEm && !d.fraisContabilizadoId
+  && (d.fraisRecebimento === undefined || d.fraisRecebimento === 'recebido')
 
 export function resolverRecebimentoFrais(e: EntradaResolver): ResultadoRecebimento {
   const { historico, fiche, resposta } = e
@@ -71,6 +72,7 @@ export function resolverRecebimentoFrais(e: EntradaResolver): ResultadoRecebimen
   }
 
   const reclamados = new Set(historico.map(h => h.fraisContabilizadoEm).filter(Boolean) as string[])
+  const idsReclamados = new Set(historico.map(h => h.fraisContabilizadoId).filter(Boolean) as string[])
   const outras = historico.filter(h => h.periode !== fiche.periode)
 
   // Confirmação explícita: o motorista escolheu o pagamento. Só se a linha existir e tiver dinheiro.
@@ -89,7 +91,7 @@ export function resolverRecebimentoFrais(e: EntradaResolver): ResultadoRecebimen
   const valorAlvo = resposta.valor && resposta.valor > 0 ? resposta.valor : fiche.valorDocumental
   const candidatos: Candidato[] = []
   for (const h of outras) {
-    if (!podeSerPagamento(h) || reclamados.has(h.periode)) continue
+    if (!podeSerPagamento(h) || reclamados.has(h.periode) || (h.fraisPagamentoId && idsReclamados.has(h.fraisPagamentoId))) continue
     if (!(valorAlvo > 0) || Math.abs((h.fraisRecuConfirme || 0) - valorAlvo) > TOLERANCIA_EUROS) continue
     const c = descrever(h, fiche, resposta)
     // Mês bancário indicado: pagamento sem data bancária ou com outro mês não corresponde.

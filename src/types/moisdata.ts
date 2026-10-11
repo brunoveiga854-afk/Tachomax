@@ -34,5 +34,9 @@ export type MoisData = {
   fraisRecebimento?: 'recebido' | 'por_receber' | 'desconhecido'
   // periode da linha que já guarda o dinheiro destes frais (esta linha só os documenta).
   fraisContabilizadoEm?: string
+  // Identidade estável (independente de `periode`): `fraisPagamentoId` marca a linha que guarda o dinheiro;
+  // `fraisContabilizadoId` (na fiche) aponta para ela. Atribuídos só numa confirmação explícita do motorista.
+  fraisPagamentoId?: string
+  fraisContabilizadoId?: string
   estimativaSnapshot?: number
 }

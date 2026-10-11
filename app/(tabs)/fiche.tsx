@@ -3,6 +3,7 @@ import { TachoLogo } from '../../src/TachoLogo'
 import * as Haptics from 'expo-haptics'
 import Svg, { Rect, Circle, Line, Path } from 'react-native-svg'
 import { Swipeable } from 'react-native-gesture-handler'
+import { totalHeuresInicial } from '../../src/utils/totalHeuresFicha'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler, Linking } from 'react-native'
@@ -1155,6 +1156,7 @@ export default function MonSalaireScreen() {
     parteUmSal: string; parteUmFrais: string; dataParteUm: string; mesToTrabalho: number
     montantSal: string; montantFrais: string; interessement: string; primeNonAcc: string
     moisAtipico: boolean; fonte: 'banco' | 'fiche'
+    totalHeures?: string
   }
   const [historialInputs, setHistorialInputs] = useState<InputsSnapshot[]>([])
   const [inputValor, setInputValor] = useState('')
@@ -2248,8 +2250,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     setShowParteUm(true)
     setInputParteUmSal(netPayeZero > 0 ? String(netPayeZero) : '')
     setInputParteUmFrais(fraisZero > 0 ? String(fraisZero) : '')
-    const totalHeuresZero = (fichaZero?.dados?.totalHeures || (fichaZero as any)?.totalHeures || 0)
-    setInputTotalHeures(totalHeuresZero > 0 ? String(totalHeuresZero) : '')
+    setInputTotalHeures(totalHeuresInicial(fichaZero as any))
     setFonteEscolhida('banco')
     setInputDataParteUm('')
     setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
@@ -2333,6 +2334,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         montantSal: inputMontantSalQ, montantFrais: inputMontantFraisQ,
         interessement: inputInteressementQ, primeNonAcc: inputPrimeNonAccQ,
         moisAtipico: inputMoisAtipico, fonte: fonteEscolhida,
+        totalHeures: inputTotalHeures,
       }
       return novo
     })
@@ -2362,6 +2364,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputInteressementQ(temRascunho ? (rascunhoActual.interessementQ > 0 ? String(Math.round((rascunhoActual.interessementQ || 0) * 100) / 100) : '') : ((pf?.interessement || 0) > 0 ? String(Math.round((pf?.interessement || 0) * 100) / 100) : ''))
       setInputPrimeNonAccQ(temRascunho ? (rascunhoActual.primeNonAccQ > 0 ? String(Math.round((rascunhoActual.primeNonAccQ || 0) * 100) / 100) : '') : ((pf?.primeNonAccident || 0) > 0 ? String(Math.round((pf?.primeNonAccident || 0) * 100) / 100) : ''))
       setInputMoisAtipico(temRascunho ? rascunhoActual.moisAtipico : false)
+      setInputTotalHeures(totalHeuresInicial(fichaProx as any))
       if (temRascunho) setRascunhoActual(null)
       setShowParteUm(true)
       setInputParteUmSal(netPayeProx > 0 ? String(Math.round(netPayeProx * 100) / 100) : '')
@@ -2393,6 +2396,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setInputMoisAtipico(snap.moisAtipico)
       setFonteEscolhida(snap.fonte)
     }
+    // Horas: as da ficha anterior (snapshot) ou, sem snapshot, as da própria ficha — nunca as da ficha de onde se recua
+    setInputTotalHeures(snap?.totalHeures ?? totalHeuresInicial(fiches[prevIndex] as any))
   }
 
   const guardarTudo = async (resps: any[]) => {

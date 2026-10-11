@@ -274,7 +274,7 @@ export default function AujourdhuiScreen() {
       const anoRec = m.pagamentoSalAno ?? m.anoPagamento ?? m.annee
       return mesRec === mesActivo && anoRec === anoActual
     })
-    const mediasAnuais = calcMediasDiasTrabalho(histSal, histCal, padrao)
+    const mediasAnuais = calcMediasDiasTrabalho(histSal, histCal, padrao, appState.padraoAprendido)
     const syntheticM: MoisData = {
       periode: '', moisIndex: mesActivo, annee: anoActual, fichePages: 0,
       mesPagamentoIndex: mesActivo, anoPagamento: anoActual,
@@ -283,7 +283,7 @@ export default function AujourdhuiScreen() {
       jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
       analysedAt: '', entreprise: '', conducteur: '',
     }
-    const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
+    const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais, appState.padraoAprendido)
     if (estimativa === 0 && !mHist) return
     const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
     setProjDetail({ mesIdx: mesActivo, estimativa, isConfirmed, isActive: !isConfirmed, isFuture: false, mHist })
@@ -1849,7 +1849,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const mesActual = new Date().getMonth()
     const diaRolloverPills = Math.max(padrao.diaSalario || 5, padrao.diaFrais || 10)
     const [, mesBase] = shiftMois(anoActual, mesActual, new Date().getDate() > diaRolloverPills ? 1 : 0)
-    const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao)
+    const mediasAnuais: Medias | null = calcMediasDiasTrabalho(histSal, histCal, padrao, appState.padraoAprendido)
     const mesesComReal = new Set(
       histSal
         .filter(m => (m.pagamentoSalAno ?? m.anoPagamento ?? m.annee) === anoActual && (m.montantTotalRecu || 0) > 0)
@@ -1874,7 +1874,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         jourPaiement1: padrao.diaSalario || 5, jourPaiement2: padrao.diaFrais || 10,
         analysedAt: '', entreprise: '', conducteur: '',
       }
-      const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais)
+      const estimativa = calcEstimativaMes(mHist ?? syntheticM, histSal, histCal, padrao, mediasAnuais, appState.padraoAprendido)
       if (estimativa === 0 && !mHist) return null
       const isConfirmed = !!(mHist && (mHist.montantTotalRecu || 0) > 0)
       const isActive = mesIdx === mesActivo && !isConfirmed
@@ -1884,7 +1884,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     if (pills.length === 0) return null
     const ABBR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
     return { pills, mediasAnuais, padrao, anoActual, mesActivo, mesActual, ABBR, histCal }
-  }, [appState.histSal, appState.histCal, appState.padrao])
+  }, [appState.histSal, appState.histCal, appState.padrao, appState.padraoAprendido])
 
   // Centra o chip do mês seleccionado na ScrollView (posição no array pills, não mesIdx*largura)
   const centrarPill = useCallback((mesIdx: number, larg: number, animated: boolean) => {
@@ -3864,7 +3864,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                         </>
                                       )}
                                       {mHist && (mHist.totalHeures || 0) > 0 && (() => {
-                                        const [aH, mH] = mesTrabalhoDe(mHist, padrao)
+                                        const [aH, mH] = mesTrabalhoDe(mHist, padrao, appState.padraoAprendido)
                                         const diasTrabMes = histCal.filter((j: any) => {
                                           const parts = j.date?.split('/')
                                           if (!parts || parts.length < 2) return false

@@ -18,6 +18,7 @@ import type { MoisData as _MoisData } from '../../src/types/moisdata'
 import {
   mesPagamentoSalDe, mesPagamentoFraisDe,
   mesTrabalhoDe, mesFraisTrabalhoDe,
+  lagEfectivo, mesTrabalhoParaGravar, type TimingAprendido,
   fraisRealConfirme, contaParaSalarioAprendizagem,
   joursOuvresMois, joursOuvresRestantes,
   calcEstimativaMes as _calcEstimativaMes,
@@ -351,13 +352,19 @@ function aplicarConfirmacaoSalarioPorValor(
   totalRecu: number,
   padraoAtual: Padrao,
   fallback: { entreprise: string; frais: number },
+  aprendido?: TimingAprendido,
 ): MoisData[] {
   const match = trouverSourceParValeur(dados, valor, anoPagamento, mesPagamento, d => [d.netPaye || 0], true)
   const next = [...dados]
   if (match) {
-    const [anoFiche, mesFiche] = mesFicheDe(match.source)
     const idx = next.findIndex(h => h === match.source)
     if (idx >= 0) {
+      // Preserva mês de trabalho já gravado; só grava um novo se o mês bancário (dado agora) e o hlag confirmado o permitirem.
+      // O rótulo da ficha-fonte NÃO é mês de trabalho.
+      const src = next[idx]
+      const trab = (src.anoTrabalho != null && src.mesTrabalhoIndex != null)
+        ? null
+        : mesTrabalhoParaGravar({ ano: anoPagamento, mes: mesPagamento, bancoExplicito: true }, padraoAtual, aprendido, 'horas')
       next[idx] = {
         ...next[idx],
         netPaye: valor,
@@ -365,8 +372,7 @@ function aplicarConfirmacaoSalarioPorValor(
         salarioConfirmado: true,
         pagamentoSalMesIndex: mesPagamento,
         pagamentoSalAno: anoPagamento,
-        mesTrabalhoIndex: mesFiche,
-        anoTrabalho: anoFiche,
+        ...(trab ? { anoTrabalho: trab[0], mesTrabalhoIndex: trab[1] } : {}),
       }
       return next
     }
@@ -424,6 +430,7 @@ function aplicarConfirmacaoFraisPorValor(
   mesPagamento: number,
   padraoAtual: Padrao,
   fallback: { periode: string; moisIndex: number; annee: number; entreprise: string },
+  aprendido?: TimingAprendido,
 ): MoisData[] {
   const match = trouverSourceParValeur(dados, valor, anoPagamento, mesPagamento, d => [
     d.fraisRecuConfirme || 0,
@@ -432,10 +439,13 @@ function aplicarConfirmacaoFraisPorValor(
   ], true)
   const next = [...dados]
   if (match) {
-    const [anoFiche, mesFiche] = mesFicheDe(match.source)
     const idx = next.findIndex(h => h === match.source)
     if (idx >= 0) {
       const netPaye = next[idx].netPaye || 0
+      // Preserva mês de frais já gravado; o rótulo da ficha-fonte NÃO é mês de trabalho dos frais.
+      const trabF = (next[idx].anoFraisTrabalho != null && next[idx].mesFraisTrabalhoIndex != null)
+        ? null
+        : mesTrabalhoParaGravar({ ano: anoPagamento, mes: mesPagamento, bancoExplicito: true }, padraoAtual, aprendido, 'frais')
       next[idx] = {
         ...next[idx],
         fraisRecuConfirme: valor,
@@ -443,8 +453,7 @@ function aplicarConfirmacaoFraisPorValor(
         montantTotalRecu: netPaye > 0 ? netPaye + valor : next[idx].montantTotalRecu,
         pagamentoFraisMesIndex: mesPagamento,
         pagamentoFraisAno: anoPagamento,
-        mesFraisTrabalhoIndex: mesFiche,
-        anoFraisTrabalho: anoFiche,
+        ...(trabF ? { anoFraisTrabalho: trabF[0], mesFraisTrabalhoIndex: trabF[1] } : {}),
       }
       return next
     }
@@ -1468,10 +1477,15 @@ export default function MonSalaireScreen() {
     }
     // Merge timing confirmado do motor de aprendizagem
     const ap = padraoAprendido
-    if (ap.hlagConfirmado && ap.hlag != null) atual.hlag = ap.hlag
+    const lagH = lagEfectivo(atual, ap, 'horas'), lagF = lagEfectivo(atual, ap, 'frais')
+    atual.hlag = lagH.lag
     if (ap.hlagConfirmado && ap.diaSalario != null) atual.diaSalario = ap.diaSalario
-    if (ap.flagConfirmado && ap.flag != null) atual.flag = ap.flag
+    atual.flag = lagF.lag
     if (ap.flagConfirmado && ap.diaFrais != null) atual.diaFrais = ap.diaFrais
+    log.debug('MES_TRABALHO', 'desfasamentos efectivos', {
+      hlag: lagH.lag, hlagOrigem: lagH.confirmado ? 'confirmado' : 'padrao',
+      flag: lagF.lag, flagOrigem: lagF.confirmado ? 'confirmado' : 'padrao',
+    })
     return atual
   }
 
@@ -1709,14 +1723,14 @@ export default function MonSalaireScreen() {
   // ── Thin wrappers — delegam para src/utils/projecoes.ts ──────────────────
   // Memoizado: só recalcula quando historique/histCal/padrao mudam (evita N chamadas por render)
   const mediasGlobais = useMemo(
-    () => _calcMediasDiasTrabalho(historique, histCal, padrao),
-    [historique, histCal, padrao]
+    () => _calcMediasDiasTrabalho(historique, histCal, padrao, padraoAprendido),
+    [historique, histCal, padrao, padraoAprendido]
   )
 
   const calcEstimativaMes = useCallback(
     (m: MoisData, mediasPreComp?: Medias | null): number =>
-      _calcEstimativaMes(m, historique, histCal, padrao, mediasPreComp ?? mediasGlobais),
-    [historique, histCal, padrao, mediasGlobais]
+      _calcEstimativaMes(m, historique, histCal, padrao, mediasPreComp ?? mediasGlobais, padraoAprendido),
+    [historique, histCal, padrao, mediasGlobais, padraoAprendido]
   )
 
   // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
@@ -2212,7 +2226,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     if (sal <= 0 && fraisReel <= 0) { setShowModalValorInvalido(true); return }
     const mesFicheIndex = fichaActual.moisIndex
     const anoFiche = fichaActual.annee
-    const [anoTrabalho, mesTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
+    // Rótulo da ficha ≠ mês bancário confirmado: não grava mês de trabalho incerto (resolve-se dinamicamente)
+    const mesTrab = mesTrabalhoParaGravar({ ano: anoFiche, mes: mesFicheIndex, bancoExplicito: false }, padrao, padraoAprendido, 'horas')
+    const anoTrabalho = mesTrab ? mesTrab[0] : undefined
+    const mesTrabalhoIndex = mesTrab ? mesTrab[1] : undefined
     const [anoFraisTrabalho, mesFraisTrabalhoIndex] = shiftMois(anoFiche, mesFicheIndex, -flagEfectivo)
     const novaResposta = {
       fiche: fichaActual,
@@ -2325,7 +2342,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       const fraisFiche = fiche.remboursementFrais || 0
       const mesFicheIndex = resp.mesFicheIndex ?? resp.fiche.moisIndex ?? 0
       const anoFiche = resp.anoFiche ?? resp.fiche.annee ?? new Date().getFullYear()
-      const [anoTrabalhoCalc, mesTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -padrao.hlag)
+      // Rótulo da ficha ≠ mês bancário confirmado: não grava mês de trabalho incerto (resolve-se dinamicamente)
+      const mesTrabCalc = mesTrabalhoParaGravar({ ano: anoFiche, mes: mesFicheIndex, bancoExplicito: false }, padrao, padraoAprendido, 'horas')
+      const anoTrabalhoCalc = mesTrabCalc ? mesTrabCalc[0] : undefined
+      const mesTrabalhoCalc = mesTrabCalc ? mesTrabCalc[1] : undefined
       const [anoFraisTrabalhoCalc, mesFraisTrabalhoCalc] = shiftMois(anoFiche, mesFicheIndex, -flagEfectivo)
       const fonte = resp.autoDetectado ? 'ia' : 'confirmado'
       const novoDado: MoisData = {
@@ -4035,7 +4055,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                         moisIndex: mesPagamento,
                         annee: anoPagamento,
                         entreprise: calcResult?.empresa || '',
-                      }
+                      },
+                      padraoAprendido,
                     )
                     if (snapshotF > 0)
                       novoHist = novoHist.map(h =>
@@ -4162,6 +4183,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       novoTotal,
                       { ...padrao, flag: flagEfectivo },
                       { entreprise: calcResult?.empresa || '', frais: calcResult?.totalFrais || 0 },
+                      padraoAprendido,
                     )
                     // Add extras + snapshot to the confirmed entry
                     novoHist = novoHist.map(h => {

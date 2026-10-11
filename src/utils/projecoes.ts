@@ -29,16 +29,93 @@ export const mesPagamentoFraisDe = (d: MoisData): [number, number] => [
   d.pagamentoFraisMesIndex ?? d.mesPagamentoIndex ?? d.moisIndex,
 ]
 
-export const mesTrabalhoDe = (d: MoisData, p: PadraoSalario): [number, number] => {
-  if (d.anoTrabalho != null && d.mesTrabalhoIndex != null) return [d.anoTrabalho, d.mesTrabalhoIndex]
-  const [anoPay, mesPay] = mesPagamentoSalDe(d)
-  return shiftMois(anoPay, mesPay, -p.hlag)
+// ── Resolução do mês de trabalho (fonte única) ──────────────────────────────
+// Conceitos distintos (não confundir):
+//   • mês de TRABALHO  – quando as horas/frais foram feitos;
+//   • mês do BOLETIM   – mês a que o boletim pertence (sem campo próprio em MoisData);
+//   • mês BANCÁRIO     – quando o dinheiro foi recebido.
+// hlag/flag = desfasamento (mês bancário − mês de trabalho) do salário/frais.
+// O rótulo da ficha (moisIndex/annee) pode ser boletim, banco ou nenhum dos dois:
+// só se trata como mês bancário "explícito" quando os campos de pagamento DIFEREM do rótulo
+// (prova de que vieram de uma data bancária e não de uma cópia do rótulo).
+
+/** Subconjunto estrutural de PadraoAprendido (evita dependência circular). */
+export type TimingAprendido = {
+  hlag?: number | null; flag?: number | null
+  hlagConfirmado?: boolean; flagConfirmado?: boolean
+} | null | undefined
+
+export type TipoMes = 'horas' | 'frais'
+export type OrigemMes = 'gravado' | 'lag-confirmado' | 'lag-padrao'
+export type AncoraMes = 'gravado' | 'banco-explicito' | 'rotulo'
+export type FiabilidadeMes = 'gravada' | 'declarada' | 'media' | 'inferida' | 'nao-confirmada'
+
+export type MesTrabalhoResolvido = {
+  ano: number; mes: number
+  lag: number | null          // null quando o mês está gravado
+  origem: OrigemMes
+  ancora: AncoraMes
+  fiabilidade: FiabilidadeMes
 }
 
-export const mesFraisTrabalhoDe = (d: MoisData, p: PadraoSalario): [number, number] => {
-  if (d.anoFraisTrabalho != null && d.mesFraisTrabalhoIndex != null) return [d.anoFraisTrabalho, d.mesFraisTrabalhoIndex]
-  const [anoPay, mesPay] = mesPagamentoFraisDe(d)
-  return shiftMois(anoPay, mesPay, -p.flag)
+/**
+ * Desfasamento efectivo: o confirmado (hlagConfirmado/flagConfirmado) prevalece sobre o do padrão.
+ * "confirmado" = marcado como tal em PadraoAprendido; NÃO prova que veio de um boletim
+ * (o onboarding também o marca) — por isso a fiabilidade resultante é 'declarada', não 'alta'.
+ */
+export function lagEfectivo(p: PadraoSalario, ap: TimingAprendido, tipo: TipoMes = 'horas'): { lag: number; confirmado: boolean } {
+  const conf = tipo === 'horas' ? ap?.hlagConfirmado : ap?.flagConfirmado
+  const v = tipo === 'horas' ? ap?.hlag : ap?.flag
+  if (conf === true && typeof v === 'number' && Number.isFinite(v)) return { lag: v, confirmado: true }
+  return { lag: tipo === 'horas' ? p.hlag : p.flag, confirmado: false }
+}
+
+export function resolverMesTrabalho(
+  d: MoisData, p: PadraoSalario, ap?: TimingAprendido, tipo: TipoMes = 'horas',
+): MesTrabalhoResolvido {
+  const gAno = tipo === 'horas' ? d.anoTrabalho : d.anoFraisTrabalho
+  const gMes = tipo === 'horas' ? d.mesTrabalhoIndex : d.mesFraisTrabalhoIndex
+  if (gAno != null && gMes != null) {
+    return { ano: gAno, mes: gMes, lag: null, origem: 'gravado', ancora: 'gravado', fiabilidade: 'gravada' }
+  }
+  const [anoPay, mesPay] = tipo === 'horas' ? mesPagamentoSalDe(d) : mesPagamentoFraisDe(d)
+  const bancoExplicito = anoPay !== d.annee || mesPay !== d.moisIndex
+  const { lag, confirmado } = lagEfectivo(p, ap, tipo)
+  const [ano, mes] = shiftMois(anoPay, mesPay, -lag)
+  const fiabilidade: FiabilidadeMes = bancoExplicito
+    ? (confirmado ? 'declarada' : 'media')
+    : (confirmado ? 'inferida' : 'nao-confirmada')
+  return {
+    ano, mes, lag,
+    origem: confirmado ? 'lag-confirmado' : 'lag-padrao',
+    ancora: bancoExplicito ? 'banco-explicito' : 'rotulo',
+    fiabilidade,
+  }
+}
+
+/**
+ * Para ESCRITORES: devolve o mês de trabalho a gravar, ou null se a associação for incerta.
+ * Só grava quando o mês bancário é explícito E o desfasamento está confirmado.
+ * null = não gravar (o mês resolve-se dinamicamente com resolverMesTrabalho).
+ */
+export function mesTrabalhoParaGravar(
+  ancora: { ano: number; mes: number; bancoExplicito: boolean },
+  p: PadraoSalario, ap?: TimingAprendido, tipo: TipoMes = 'horas',
+): [number, number] | null {
+  if (!ancora.bancoExplicito) return null
+  const { lag, confirmado } = lagEfectivo(p, ap, tipo)
+  if (!confirmado) return null
+  return shiftMois(ancora.ano, ancora.mes, -lag)
+}
+
+export const mesTrabalhoDe = (d: MoisData, p: PadraoSalario, ap?: TimingAprendido): [number, number] => {
+  const r = resolverMesTrabalho(d, p, ap, 'horas')
+  return [r.ano, r.mes]
+}
+
+export const mesFraisTrabalhoDe = (d: MoisData, p: PadraoSalario, ap?: TimingAprendido): [number, number] => {
+  const r = resolverMesTrabalho(d, p, ap, 'frais')
+  return [r.ano, r.mes]
 }
 
 export const fraisRealConfirme = (d: MoisData): number =>
@@ -77,12 +154,13 @@ export function calcMediasDiasTrabalho(
   historique: MoisData[],
   histCal: any[],
   padrao: PadraoSalario,
+  ap?: TimingAprendido,
 ): Medias | null {
   const anoActual = new Date().getFullYear()
   const amostras: { nDias: number; totalH: number; fraisDia: number }[] = []
   for (const m of historique) {
     if (m.moisAtipico || !contaParaSalarioAprendizagem(m)) continue
-    const [aH, mH] = mesTrabalhoDe(m, padrao)
+    const [aH, mH] = mesTrabalhoDe(m, padrao, ap)
     if (aH < anoActual - 1) continue
     const diasTrab = histCal.filter((j: any) => {
       const parts = j.date?.split('/')
@@ -112,7 +190,7 @@ export function calcMediasDiasTrabalho(
       continue  // sem dados suficientes
     }
 
-    const [aF, mF] = mesFraisTrabalhoDe(m, padrao)
+    const [aF, mF] = mesFraisTrabalhoDe(m, padrao, ap)
     const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, padrao)
     const fraisReal = fraisRealConfirme(m) > 0 ? fraisRealConfirme(m) : (m.fraisBoletim || fraisCalc.total)
     amostras.push({ nDias, totalH, fraisDia: fraisReal / nDias })
@@ -134,11 +212,12 @@ export function calcEstimativaMes(
   histCal: any[],
   padrao: PadraoSalario,
   mediasPreComp?: Medias | null,
+  ap?: TimingAprendido,
 ): number {
   const p = padrao
 
   // Mês de TRABALHO
-  const [aH, mH] = mesTrabalhoDe(m, p)
+  const [aH, mH] = mesTrabalhoDe(m, p, ap)
 
   // Todos os dias do mês de trabalho
   const todosDoMes = histCal.filter((j: any) => {
@@ -151,7 +230,7 @@ export function calcEstimativaMes(
   const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
 
   if (diasTrab.length === 0) {
-    const medias = mediasPreComp ?? calcMediasDiasTrabalho(historique, histCal, p)
+    const medias = mediasPreComp ?? calcMediasDiasTrabalho(historique, histCal, p, ap)
     if (!medias) return 0
     const nDias = joursOuvresMois(aH, mH)
     const salEstimado = p.taxaHorariaNetaMedia > 0
@@ -195,13 +274,13 @@ export function calcEstimativaMes(
   }
 
   // Frais — mês de trabalho dos frais
-  const [aF, mF] = mesFraisTrabalhoDe(m, p)
+  const [aF, mF] = mesFraisTrabalhoDe(m, p, ap)
 
   // 1ª prioridade: fraisBoletim confirmado para este mês de frais
   const FRAIS_SANIDADE_MAX = 3000  // acima disto = valor corrompido (AI scan / bug)
 
   const ficheComFrais = historique.find(f => {
-    const [anoFrais, mesFrais] = mesFraisTrabalhoDe(f, p)
+    const [anoFrais, mesFrais] = mesFraisTrabalhoDe(f, p, ap)
     return mesFrais === mF && anoFrais === aF && !!f.fraisConfirmado && ((f.fraisRecuConfirme || 0) > 0 || (f.fraisBoletim || 0) > 0)
   })
   const fraisCalc = calcFraisMesPorHorarios(histCal, aF, mF, p)

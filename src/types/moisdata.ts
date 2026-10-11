@@ -30,5 +30,9 @@ export type MoisData = {
   // Origem da data bancária dos frais: 'declarado' = confirmada pelo motorista; 'inferido' = calculada/atribuída
   // automaticamente. Ausente = origem desconhecida (registos antigos; não migrado).
   pagamentoFraisOrigem?: 'declarado' | 'inferido'
+  // Resposta do motorista sobre os frais desta fiche. Ausente = nunca perguntado (não é zero nem «não recebido»).
+  fraisRecebimento?: 'recebido' | 'por_receber' | 'desconhecido'
+  // periode da linha que já guarda o dinheiro destes frais (esta linha só os documenta).
+  fraisContabilizadoEm?: string
   estimativaSnapshot?: number
 }

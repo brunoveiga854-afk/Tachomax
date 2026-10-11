@@ -27,5 +27,8 @@ export type MoisData = {
   fraisRecuConfirme?: number
   pagamentoSalMesIndex?: number; pagamentoSalAno?: number
   pagamentoFraisMesIndex?: number; pagamentoFraisAno?: number
+  // Origem da data bancária dos frais: 'declarado' = confirmada pelo motorista; 'inferido' = calculada/atribuída
+  // automaticamente. Ausente = origem desconhecida (registos antigos; não migrado).
+  pagamentoFraisOrigem?: 'declarado' | 'inferido'
   estimativaSnapshot?: number
 }

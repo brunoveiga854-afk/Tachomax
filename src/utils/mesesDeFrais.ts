@@ -9,11 +9,12 @@ import type { MoisData } from '../types/moisdata'
 
 export type MesAno = { ano: number; mes: number } // mes: 0–11
 
-// 'conhecida'  → data bancária gravada e DIFERENTE do rótulo da fiche (não pode ser o fallback).
-// 'inferida'   → data bancária gravada mas IGUAL ao rótulo: a gravação normal usa o rótulo como
-//                fallback (fiche.tsx responderPergunta), por isso não prova que o banco foi esse mês.
-// 'ausente'    → sem data bancária dos frais gravada (não se recorre a mesPagamento* de salário).
-export type OrigemBanco = 'conhecida' | 'inferida' | 'ausente'
+// 'declarado'   → data bancária confirmada explicitamente pelo motorista (pagamentoFraisOrigem).
+// 'inferido'    → data calculada ou atribuída automaticamente (pagamentoFraisOrigem).
+// 'desconhecida'→ há data bancária mas pagamentoFraisOrigem está ausente (registos antigos); mesmo que a
+//                 data difira do rótulo da fiche, não se assume que foi o motorista a indicá-la.
+// 'ausente'     → sem data bancária dos frais gravada (não se recorre a mesPagamento* de salário).
+export type OrigemBanco = 'declarado' | 'inferido' | 'desconhecida' | 'ausente'
 
 export type MesesDeFrais = {
   trabalho: MesAno | null
@@ -21,7 +22,7 @@ export type MesesDeFrais = {
   fiche: MesAno | null
   origemBanco: OrigemBanco
   // Diferenças em meses (destino − origem). null quando falta um dos extremos
-  // ou, no caso do banco, quando a data bancária não é 'conhecida'.
+  // ou, no caso do banco, quando a data bancária não é 'declarado'.
   trabalhoParaBanco: number | null
   bancoParaFiche: number | null
   trabalhoParaFiche: number | null
@@ -31,7 +32,7 @@ export type EntradaMesesDeFrais = Pick<MoisData, 'moisIndex' | 'annee'> &
   Partial<Pick<MoisData,
     | 'mesFicheIndex' | 'anoFiche'
     | 'mesFraisTrabalhoIndex' | 'anoFraisTrabalho'
-    | 'pagamentoFraisMesIndex' | 'pagamentoFraisAno'>>
+    | 'pagamentoFraisMesIndex' | 'pagamentoFraisAno' | 'pagamentoFraisOrigem'>>
 
 const mesValido = (m: unknown): m is number => typeof m === 'number' && Number.isInteger(m) && m >= 0 && m <= 11
 const anoValido = (a: unknown): a is number => typeof a === 'number' && Number.isInteger(a) && a >= 2000 && a <= 2100
@@ -46,16 +47,15 @@ const diff = (de: MesAno | null, para: MesAno | null): number | null =>
 
 export function mesesDeFrais(d: EntradaMesesDeFrais): MesesDeFrais {
   const fiche = par(d.anoFiche, d.mesFicheIndex) ?? par(d.annee, d.moisIndex)
-  const rotulo = par(d.annee, d.moisIndex)
   const trabalho = par(d.anoFraisTrabalho, d.mesFraisTrabalhoIndex)
   const banco = par(d.pagamentoFraisAno, d.pagamentoFraisMesIndex)
 
-  let origemBanco: OrigemBanco = 'ausente'
-  if (banco) {
-    const igualRotulo = (rotulo && indice(banco) === indice(rotulo)) || (fiche && indice(banco) === indice(fiche))
-    origemBanco = igualRotulo ? 'inferida' : 'conhecida'
-  }
-  const bancoFiavel = origemBanco === 'conhecida' ? banco : null
+  const origemBanco: OrigemBanco = !banco
+    ? 'ausente'
+    : d.pagamentoFraisOrigem === 'declarado' || d.pagamentoFraisOrigem === 'inferido'
+      ? d.pagamentoFraisOrigem
+      : 'desconhecida'
+  const bancoFiavel = origemBanco === 'declarado' ? banco : null
 
   return {
     trabalho,

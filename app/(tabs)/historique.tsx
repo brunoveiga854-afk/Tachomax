@@ -273,7 +273,7 @@ export default function HistoriqueScreen() {
     setTutorialFolhe(true)
     AsyncStorage.setItem('tutorial_visto_folhe', '1')
   }
-  useFocusEffect(useCallback(() => { recarregarApp(); setSemaine(0); setAcoesAbertas(false); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
+  useFocusEffect(useCallback(() => { recarregarApp({ origem: 'focus-historique' }); setSemaine(0); setAcoesAbertas(false); if (!scrollToId) setMoisOffset(0); chargerHistorique() }, [scrollToId]))
 
   // Fecha o resumo da fiche e resolve a promessa de gerarFicheHebdo. Limpa sempre o pendente.
   const fecharResumo = (ok: boolean) => {
@@ -420,7 +420,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
-    await recarregarApp()
+    await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
     log.info('historique', 'dia eliminado', { id })
   }
@@ -431,7 +431,7 @@ const getJoursMois = () => {
     setHistorique(nova)
     await AsyncStorage.setItem('historique', JSON.stringify(nova))
     if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
-    await recarregarApp()
+    await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
     setSelecionados(new Set())
     setModoSelecao(false)
@@ -1079,7 +1079,7 @@ const getJoursMois = () => {
                         setHistorique(nova)
                         await AsyncStorage.setItem('historique', JSON.stringify(nova))
                         if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
-                        await recarregarApp()
+                        await recarregarApp({ origem: 'gravacao' })
                         showToast('✓ Modifications appliquées')
                       }},
                     ]

@@ -1061,6 +1061,40 @@ function analisarPadraoV2(dados: MoisData[], hist: any[], padrao: Padrao): Padra
   return base
 }
 
+// Contador animado isolado: só este componente re-renderiza durante a contagem (antes: o ecrã inteiro).
+type ContagemAlvo = { alvo: number; id: number; instantaneo: boolean; mesAberto: boolean }
+function ContadorAnimado({ contagem, concluidaRef, onFim, style }: {
+  contagem: ContagemAlvo
+  concluidaRef: React.MutableRefObject<number>
+  onFim: (mesAberto: boolean) => void
+  style: any
+}) {
+  const [val, setVal] = useState(0)
+  useEffect(() => {
+    const { alvo, id, instantaneo, mesAberto } = contagem
+    if (instantaneo || concluidaRef.current === id) {
+      setVal(Math.round(alvo))
+      concluidaRef.current = id
+      return
+    }
+    setVal(0)
+    const duracao = 2400, intervalo = 30, passos = duracao / intervalo
+    let atual = 0
+    const iv = setInterval(() => {
+      atual += alvo / passos
+      if (atual >= alvo) {
+        atual = alvo
+        clearInterval(iv)
+        concluidaRef.current = id
+        onFim(mesAberto)
+      }
+      setVal(Math.round(atual))
+    }, intervalo)
+    return () => clearInterval(iv)
+  }, [contagem.id])
+  return <Text style={style}>{val.toLocaleString('fr-FR')}€</Text>
+}
+
 export default function MonSalaireScreen() {
   const { themeSombre } = useTheme()
   const { state: appState, recarregarApp, actualizarCampo } = useApp()
@@ -1093,7 +1127,16 @@ export default function MonSalaireScreen() {
   const [conflitHbase, setConflitHbase] = useState<{extraido: number; onboarding: number} | null>(null)
   const [editHbaseVisible, setEditHbaseVisible] = useState(false)
   const [editHbaseVal, setEditHbaseVal] = useState('')
-  const [countingVal, setCountingVal] = useState(0)
+  const [contagem, setContagem] = useState<ContagemAlvo>({ alvo: 0, id: 0, instantaneo: true, mesAberto: false })
+  const contagemIdRef = useRef(0)
+  const contagemConcluidaRef = useRef(0)
+  const loopAnimRef = useRef<{ stop: () => void } | null>(null)
+  const calcEmCursoRef = useRef(false)
+  const calcPendenteRef = useRef(false)
+  const mostrarContagem = (alvo: number, instantaneo: boolean, mesAberto = false) => {
+    contagemIdRef.current += 1
+    setContagem({ alvo, id: contagemIdRef.current, instantaneo, mesAberto })
+  }
   const [modalDetail, setModalDetail] = useState<MoisData | null>(null)
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null)
   const calcResultRef = useRef<CalcResult | null>(null)
@@ -1101,6 +1144,7 @@ export default function MonSalaireScreen() {
   const showPrevisionRef = useRef(false)
   useEffect(() => { showPrevisionRef.current = showPrevision }, [showPrevision])
   const calcularSalarioRef = useRef<() => Promise<void>>(async () => {})
+  useEffect(() => () => { loopAnimRef.current?.stop() }, [])
   const [documentosAnalisados, setDocumentosAnalisados] = useState<DocumentoAnalysado[]>([])
   const [showPerguntas, setShowPerguntas] = useState(false)
   const [tutorialCharger, setTutorialCharger] = useState(true)
@@ -1203,7 +1247,6 @@ export default function MonSalaireScreen() {
 
   const breathAnim = useRef(new Animated.Value(1)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
-  const countRef = useRef<any>(null)
 
   const c = useMemo(() => ({
     bg: themeSombre ? '#0f1117' : '#f0f2f8',
@@ -1275,7 +1318,7 @@ export default function MonSalaireScreen() {
     const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
     await persistirPadrao(novoPadrao)
     actualizarCampo('histSal', nova)
-    await recarregarApp()
+    await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
     setSelMeses(new Set())
     setModoSelMeses(false)
@@ -1295,7 +1338,7 @@ export default function MonSalaireScreen() {
   // (ex: após editar nas Réglages ou adicionar dia no Historique)
   useFocusEffect(useCallback(() => {
     const sincronizar = async () => {
-      await recarregarApp()
+      await recarregarApp({ origem: 'focus-fiche' })
       // monSalaire_padrao: AppContext se disponível, senão AsyncStorage
       if (appState.padrao) {
         setPadrao(appState.padrao)
@@ -1490,7 +1533,7 @@ export default function MonSalaireScreen() {
   }
 
   // CÁLCULO PRINCIPAL
-  const calcularSalario = async () => {
+  const calcularSalarioInterno = async (silencioso: boolean) => {
     if (camposOk !== 'true') return
     setCalculando(true)
     setCalculandoMsg('⚡ Recalcul en cours...')
@@ -1705,7 +1748,7 @@ export default function MonSalaireScreen() {
         })
       setDriftAlert(detectarDrift(tuplosParaDrift))
       setShowAnalyse(false)
-      animarContagem(Math.round(totalLiq), mesAberto)
+      animarContagem(Math.round(totalLiq), mesAberto, silencioso)
       log.info('fiche', 'calcularSalario concluído', { temTotal: totalLiq > 0 })
       perfLog.timeEnd('fiche', 'calcularSalario')
       setCalculando(false)
@@ -1718,7 +1761,24 @@ export default function MonSalaireScreen() {
       mostrarErro('Erreur: ' + String(e))
     }
   }
-  useEffect(() => { calcularSalarioRef.current = calcularSalario })
+  // Uma só execução de cada vez; pedidos que chegam durante uma execução juntam-se numa repetição
+  // final (com os dados mais recentes). 'silencioso' (foco do separador) não reinicia a contagem.
+  const executarCalculo = async (silencioso: boolean) => {
+    if (calcEmCursoRef.current) { calcPendenteRef.current = true; return }
+    calcEmCursoRef.current = true
+    try {
+      let sil = silencioso
+      do {
+        calcPendenteRef.current = false
+        await calcularSalarioInterno(sil)
+        sil = false
+      } while (calcPendenteRef.current)
+    } finally {
+      calcEmCursoRef.current = false
+    }
+  }
+  const calcularSalario = () => executarCalculo(false)
+  useEffect(() => { calcularSalarioRef.current = () => executarCalculo(true) })
 
   // ── Thin wrappers — delegam para src/utils/projecoes.ts ──────────────────
   // Memoizado: só recalcula quando historique/histCal/padrao mudam (evita N chamadas por render)
@@ -1733,6 +1793,12 @@ export default function MonSalaireScreen() {
     [historique, histCal, padrao, mediasGlobais, padraoAprendido]
   )
 
+  // Estimativa por cartão memorizada (índice = posição em `historique`); mesmos valores que o cálculo inline anterior.
+  const estimativasCartao = useMemo(
+    () => historique.map(m => m.estimativaSnapshot || calcEstimativaMes(m)),
+    [historique, calcEstimativaMes]
+  )
+
   // BackHandler Android — fecha modais por ordem de prioridade (mais interno primeiro)
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1744,33 +1810,34 @@ export default function MonSalaireScreen() {
   }, [showModalEdit, modalDetail])
 
   const animarRespiracao = () => {
-    Animated.loop(Animated.sequence([
+    loopAnimRef.current?.stop()
+    const loop = Animated.loop(Animated.sequence([
       Animated.timing(breathAnim, { toValue: 1.03, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       Animated.timing(breathAnim, { toValue: 0.98, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       Animated.timing(breathAnim, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ])).start()
+    ]))
+    loopAnimRef.current = loop
+    loop.start()
   }
 
   const animarPulse = () => {
-    Animated.loop(Animated.sequence([
+    loopAnimRef.current?.stop()
+    const loop = Animated.loop(Animated.sequence([
       Animated.timing(pulseAnim, { toValue: 1.04, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       Animated.timing(pulseAnim, { toValue: 0.97, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ])).start()
+    ]))
+    loopAnimRef.current = loop
+    loop.start()
   }
 
-  const animarContagem = (alvo: number, mesAberto: boolean) => {
-    setCountingVal(0); setShowPrevision(true)
-    const duracao = 2400, intervalo = 30, passos = duracao / intervalo
-    let atual = 0
-    countRef.current = setInterval(() => {
-      atual += alvo / passos
-      if (atual >= alvo) {
-        atual = alvo; clearInterval(countRef.current)
-        if (mesAberto) animarPulse()
-        else animarRespiracao()
-      }
-      setCountingVal(Math.round(atual))
-    }, intervalo)
+  const iniciarAnimacaoFim = (mesAberto: boolean) => {
+    if (mesAberto) animarPulse()
+    else animarRespiracao()
+  }
+
+  const animarContagem = (alvo: number, mesAberto: boolean, instantaneo = false) => {
+    setShowPrevision(true)
+    mostrarContagem(alvo, instantaneo, mesAberto)
   }
 
   const mostrarErro = (msg: string) => { setModalErroMsg(msg); setShowModalErro(true) }
@@ -2470,7 +2537,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     await persistirPadrao(novoPadrao)
     perfLog.timeEnd('fiche', 'guardarTudo:persistirPadrao')
     actualizarCampo('histSal', novoHist)
-    await recarregarApp()
+    await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
     const faltas = diagnosticarDadosFaltantes(novoHist, histCal, novoPadrao)
     const alertasFrais = alertasFraisIncoerentes(novoHist, histCal, novoPadrao)
@@ -2530,7 +2597,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                 {calcResult.mesAberto && (
                   <Text style={{ fontSize: 28, color: 'rgba(255,255,255,0.8)', fontWeight: '800', marginTop: 8, marginRight: 4 }}>≈</Text>
                 )}
-                <Text style={st.previsionMontant}>{countingVal.toLocaleString('fr-FR')}€</Text>
+                <ContadorAnimado contagem={contagem} concluidaRef={contagemConcluidaRef} onFim={iniciarAnimacaoFim} style={st.previsionMontant} />
               </View>
             )}
             <Text style={st.previsionConfianca}>
@@ -3269,7 +3336,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               )}
 
               {historique.slice().reverse().map((m, i) => {
-                const estimativa = m.estimativaSnapshot || calcEstimativaMes(m)
+                const estimativa = estimativasCartao[historique.length - 1 - i] ?? 0
                 const rateCard = (m.salairebrut || 0) > 0 && (m.netPaye || 0) > 0
                   ? (m.netPaye || 0) / (m.salairebrut || 0)
                   : null
@@ -3397,7 +3464,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                                 const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                                 await persistirPadrao(novoPadrao)
                                 actualizarCampo('histSal', nova)
-                                await recarregarApp()
+                                await recarregarApp({ origem: 'gravacao' })
                                 showToast('✓ Modifications appliquées')
                               }
                             }
@@ -3870,7 +3937,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       </Modal>
 
       {/* MODAL DETALHE */}
-      <Modal visible={!!modalDetail} transparent animationType="slide">
+      <Modal visible={!!modalDetail} transparent animationType="slide" onRequestClose={() => setModalDetail(null)}>
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => setModalDetail(null)}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: c.cardBorder }} onPress={() => {}}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 4, textAlign: 'center' }}>📄 {modalDetail?.periode}</Text>
@@ -4037,7 +4104,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   if (fraisReel > 0 && calcResult) {
                     const novoTotal = calcResult.salLiq + fraisReel
                     setCalcResult({ ...calcResult, totalFrais: fraisReel, totalLiq: novoTotal })
-                    setCountingVal(Math.round(novoTotal))
+                    mostrarContagem(Math.round(novoTotal), true)
 
                     // Guardar frais confirmado no histórico para persistir entre cálculos
                     const mesPagamento = modalFraisMoisSel.mois
@@ -4071,7 +4138,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     actualizarCampo('histSal', novoHist)
-                    await recarregarApp()
+                    await recarregarApp({ origem: 'gravacao' })
                     showToast('✓ Modifications appliquées')
                     log.info('fiche', 'frais reels guardados', { periode: `${MOIS_NOMS[modalFraisMoisSel.mois]} ${modalFraisMoisSel.annee}` })
                   }
@@ -4169,7 +4236,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   if (salReel > 0) {
                     const novoTotal = salReel + (calcResult?.totalFrais || 0) + totalExtras
                     if (calcResult) setCalcResult({ ...calcResult, salLiq: salReel, totalLiq: novoTotal, salConfirmado: true })
-                    setCountingVal(Math.round(novoTotal))
+                    mostrarContagem(Math.round(novoTotal), true)
 
                     const mesIdx = modalSalMoisSel.mois
                     const ano = modalSalMoisSel.annee
@@ -4202,7 +4269,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                     const novoPadrao = analisarPadraoV2(novoHist, histCal, padrao)
                     await persistirPadrao(novoPadrao)
                     actualizarCampo('histSal', novoHist)
-                    await recarregarApp()
+                    await recarregarApp({ origem: 'gravacao' })
                     showToast('✓ Modifications appliquées')
                     log.info('fiche', 'extras guardados', { periode: modalDetail?.periode })
                   }
@@ -4221,7 +4288,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       </Modal>
 
       {/* MODAL EDITAR */}
-      <Modal visible={showModalEdit} transparent animationType="slide">
+      <Modal visible={showModalEdit} transparent animationType="slide" onRequestClose={() => setShowModalEdit(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
         <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
@@ -4345,7 +4412,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                   const novoPadrao = analisarPadraoV2(nova, histCal, padrao)
                   await persistirPadrao(novoPadrao)
                   actualizarCampo('histSal', nova)
-                  await recarregarApp()
+                  await recarregarApp({ origem: 'gravacao' })
                   showToast('✓ Modifications appliquées')
                   setModalDetail(updated)
                   log.info('fiche', 'fiche editada', { periode: updated.periode, temNet: (updated.netPaye || 0) > 0, temBrut: (updated.salairebrut || 0) > 0, moisAtipico: updated.moisAtipico })

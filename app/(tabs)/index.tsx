@@ -714,7 +714,7 @@ export default function AujourdhuiScreen() {
       const hoje = new Date()
       setCalMes(hoje.getMonth())
       setCalAno(hoje.getFullYear())
-      recarregarApp()
+      recarregarApp({ origem: 'focus-home' })
       // Verificar se a pausa expirou enquanto o ecrã estava bloqueado
       if (emPausa && pausaFimTimestamp && Date.now() >= pausaFimTimestamp) {
         log.info('index', 'pausa expirou em background — a retomar', { pausaFimTimestamp })
@@ -1983,7 +1983,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true)
-              try { await recarregarApp() } finally { setRefreshing(false) }
+              try { await recarregarApp({ origem: 'refresh-home' }) } finally { setRefreshing(false) }
             }}
             colors={['#f5a623']}
             tintColor={'#f5a623'}
@@ -2792,7 +2792,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   await AsyncStorage.setItem('historique', JSON.stringify(nova))
                   if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
                   setDiasHistorique(nova)
-                  await recarregarApp()
+                  await recarregarApp({ origem: 'gravacao' })
                   showToast('✓ Modifications appliquées')
                   setEditandoDiaId(null)
                   setShowAddDia(false)

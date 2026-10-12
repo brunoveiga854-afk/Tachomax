@@ -1,4 +1,5 @@
 import { TachoLogo } from '../../src/TachoLogo'
+import { AssistenteFab } from '../../src/AssistenteFab'
 import { COR_RC, COR_RC_BG_MD, COR_OFF, COR_OFF_BG_MD, COR_STOP, COR_STOP_BG, COR_FRAIS } from '../../src/constants/cores'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, router } from 'expo-router'
@@ -2585,6 +2586,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <AssistenteFab />
 
       <Modal visible={showCalendario} transparent animationType="fade">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 }} activeOpacity={1} onPress={() => setShowCalendario(false)}>

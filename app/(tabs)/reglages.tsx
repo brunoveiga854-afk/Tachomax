@@ -20,14 +20,20 @@ import { log, LogEntry, perfLog } from '../../src/utils/logger'
 import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
 import { kmFimDoDia } from '../../src/utils/camioes'
 import { useAssistenteAtivo } from '../../src/assistente/useAssistenteAtivo'
+import { comFilaHistorico } from '../../src/utils/filaHistorico'
+import { CHAVE_SUBSTITUIDOS, validarSubstituidosImportados, mesclarArquivoSubstituidos, type ResultadoMescla } from '../../src/utils/backupSubstituidos'
 
 // Chaves a exportar/importar (AsyncStorage)
 // monSalaire_padrao/aprendizagem_padrao omitidos: recalculados automaticamente
 // pelo motor (analisarPadraoV2) ao abrir o separador Fiche após import
+// historique_substituidos (serviços substituídos por decisão do motorista) é EXPORTADO; na importação NÃO se substitui:
+// mescla-se com o arquivo do telemóvel e nunca volta ao histórico principal (backups antigos sem a chave importam-se como antes).
 const BACKUP_KEYS = [
   'historique',
   'monSalaire_v2',
+  CHAVE_SUBSTITUIDOS,
 ]
+const IMPORT_DIRETO_KEYS = BACKUP_KEYS.filter(k => k !== CHAVE_SUBSTITUIDOS)
 
 // Carimbo com hora LOCAL do telemóvel (não UTC): AAAA-MM-DD_HHhMM — usado nos nomes dos backups
 function carimboLocal(d: Date = new Date()): string {
@@ -177,7 +183,7 @@ export default function ReglagesScreen() {
   const apagaHistorique = async () => {
     const backupPath = await criarBackupSilencioso(`TachoOffice_auto_avant_suppression_${carimboLocal()}.json`)
     log.warn('reglages', 'historique apagado pelo utilizador', { backupCriado: !!backupPath })
-    await AsyncStorage.removeItem('historique')
+    await comFilaHistorico(() => AsyncStorage.removeItem('historique'))   // na fila: não se cruza com uma gravação em curso (os substituídos ficam)
     await recarregarApp()
     showToast('✓ Modifications appliquées')
     setShowModalHistorique(false)
@@ -328,25 +334,46 @@ export default function ReglagesScreen() {
       }
       log.info('reglages', 'confirmarImport: backup prévio criado', { nJours: importData.nJours, nFiches: importData.nFiches })
       // escrita atómica: tudo serializado ANTES de escrever; multiSet numa só operação; rollback dos valores anteriores se falhar
+      let mesclaSubstituidos: ResultadoMescla | null = null
       const pares: [string, string][] = []
-      for (const key of BACKUP_KEYS) {
+      for (const key of IMPORT_DIRETO_KEYS) {
         if (backup.data[key] !== undefined) pares.push([key, JSON.stringify(backup.data[key])])
       }
-      const anteriores = await AsyncStorage.multiGet(pares.map(p => p[0]))
-      try {
-        await AsyncStorage.multiSet(pares)
-      } catch (eEscrita) {
-        log.error('reglages', 'confirmarImport: multiSet falhou — a restaurar valores anteriores', { tipo: (eEscrita as any)?.name, nChaves: pares.length })
-        for (const [k, v] of anteriores) {
-          try { if (v === null) await AsyncStorage.removeItem(k); else await AsyncStorage.setItem(k, v) }
-          catch (eRb) { log.error('reglages', 'confirmarImport: rollback falhou', { chave: k, tipo: (eRb as any)?.name }) }
+      // arquivo dos substituídos: MESCLA (nunca substitui nem toca no histórico principal); tudo dentro da fila do histórico
+      const valSub = validarSubstituidosImportados(backup.data[CHAVE_SUBSTITUIDOS])
+      if (valSub.estado === 'invalido') log.warn('reglages', 'import: historique_substituidos não é um array — ignorado (o resto segue)')
+      mesclaSubstituidos = await comFilaHistorico(async () => {
+        let mescla: ResultadoMescla | null = null
+        const todos: [string, string][] = [...pares]
+        if (valSub.estado === 'ok' && valSub.lista.length > 0) {
+          const rawAtual = await AsyncStorage.getItem(CHAVE_SUBSTITUIDOS)
+          let atual: unknown[] = []
+          let legivel = true
+          if (rawAtual) { try { const p = JSON.parse(rawAtual); if (Array.isArray(p)) atual = p; else legivel = false } catch { legivel = false } }
+          if (!legivel) log.warn('reglages', 'import: arquivo de substituídos do telemóvel ilegível — não foi tocado nem mesclado')
+          else {
+            mescla = mesclarArquivoSubstituidos(atual, valSub.lista)
+            log.info('reglages', 'import: substituídos mesclados', { adicionados: mescla.adicionados, repetidos: mescla.repetidos, ignorados: mescla.ignorados })
+            if (mescla.adicionados > 0) todos.push([CHAVE_SUBSTITUIDOS, JSON.stringify(mescla.lista)])
+          }
         }
-        throw eEscrita
-      }
+        const anteriores = await AsyncStorage.multiGet(todos.map(p => p[0]))
+        try {
+          await AsyncStorage.multiSet(todos)
+        } catch (eEscrita) {
+          log.error('reglages', 'confirmarImport: multiSet falhou — a restaurar valores anteriores', { tipo: (eEscrita as any)?.name, nChaves: todos.length })
+          for (const [k, v] of anteriores) {
+            try { if (v === null) await AsyncStorage.removeItem(k); else await AsyncStorage.setItem(k, v) }
+            catch (eRb) { log.error('reglages', 'confirmarImport: rollback falhou', { chave: k, tipo: (eRb as any)?.name }) }
+          }
+          throw eEscrita
+        }
+        return mescla
+      })
       log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
       await recarregarApp()
       showToast('✓ Modifications appliquées')
-      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
+      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.${mesclaSubstituidos && mesclaSubstituidos.adicionados > 0 ? `\n${mesclaSubstituidos.adicionados} service(s) remplacé(s) ajouté(s) aux archives (pas dans l'historique).` : ''}\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {
       log.error('reglages', 'confirmarImport falhou', e)

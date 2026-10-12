@@ -60,6 +60,7 @@ describe('confirmação explícita dos frais', () => {
     })
     const importadores = ['app', 'context', 'src'].flatMap(d => percorrer(path.join(raiz, d)))
       .filter(f => !/confirmacaoFrais\.(test\.)?ts$/.test(f))
+      .filter(f => !/\.(test|spec)\.tsx?$/.test(f))   // ficheiros de teste não são consumidores funcionais
       .filter(f => /from ['"][./]*(src\/utils\/)?confirmacaoFrais['"]/.test(fs.readFileSync(f, 'utf8')))
       .map(f => path.basename(f)).sort()
     expect(importadores).toEqual(['fiche.tsx', 'index.tsx'])

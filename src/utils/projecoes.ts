@@ -8,6 +8,7 @@ import type { PadraoSalario } from '../engine/migracoes'
 import { shiftMois, calcFraisMesPorHorarios } from './calculos'
 import { log } from './logger'
 import { anoDoDia } from './dataDia'
+import { colapsarServicosDoDia } from './diasServicos'
 
 // ── Tipo público das médias ───────────────────────────────────────────────────
 
@@ -162,13 +163,14 @@ export function calcMediasDiasTrabalho(
     if (m.moisAtipico || !contaParaSalarioAprendizagem(m)) continue
     const [aH, mH] = mesTrabalhoDe(m, padrao, ap)
     if (aH < anoActual - 1) continue
-    const diasTrab = histCal.filter((j: any) => {
+    // dias (não serviços): vários serviços no mesmo dia contam como um dia; as horas somam-se na mesma
+    const diasTrab = colapsarServicosDoDia(histCal.filter((j: any) => {
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
       const mes = parseInt(parts[1]) - 1
       const ano = j.id ? anoDoDia(j) : aH
       return mes === mH && ano === aH && ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')
-    })
+    }))
     const totalHCal = diasTrab.reduce((a: number, j: any) => a + (j.segServico || 0), 0) / 3600
     const totalHFiche = m.totalHeures || 0
 
@@ -227,7 +229,7 @@ export function calcEstimativaMes(
     const ano = j.id ? anoDoDia(j) : aH
     return mes === mH && ano === aH
   })
-  const diasTrab = todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || ''))
+  const diasTrab = colapsarServicosDoDia(todosDoMes.filter((j: any) => ['TRAB', 'DEC', 'work', 'dec'].includes(j.type || '')))
 
   if (diasTrab.length === 0) {
     const medias = mediasPreComp ?? calcMediasDiasTrabalho(historique, histCal, p, ap)

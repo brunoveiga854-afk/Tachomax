@@ -27,6 +27,9 @@ export type MoisData = {
   fraisRecuConfirme?: number
   pagamentoSalMesIndex?: number; pagamentoSalAno?: number
   pagamentoFraisMesIndex?: number; pagamentoFraisAno?: number
+  // Mês da fiche futura onde o motorista PREVÊ que estes frais apareçam documentados. Informação NÃO confirmada: não é um documento
+  // nem um segundo pagamento; deixa de contar assim que a fiche desse mês existir.
+  fraisDocPrevistoMes?: number; fraisDocPrevistoAno?: number
   // Origem da data bancária dos frais: 'declarado' = confirmada pelo motorista; 'inferido' = calculada/atribuída
   // automaticamente. Ausente = origem desconhecida (registos antigos; não migrado).
   pagamentoFraisOrigem?: 'declarado' | 'inferido'

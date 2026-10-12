@@ -9,12 +9,14 @@
 import { kmFimDoDia } from './camioes'
 import { anoDoDia } from './dataDia'
 
-type DiaKm = { id: string; date: string; kmFim?: number | null; troca?: { b: { kmFim: number } } | null }
+type DiaKm = { id: string; date: string; debut?: string; kmFim?: number | null; troca?: { b: { kmFim: number } } | null }
 
 const tsDia = (j: DiaKm): number => {
   const p = j.date.split('/')
   const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
-  return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
+  // vários serviços no mesmo dia: desempata pela hora de início (o mais tarde é o «último»)
+  const hm = /^(\d{1,2})[h:](\d{2})$/.exec(String(j.debut ?? ''))
+  return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime() + (hm ? (parseInt(hm[1]) * 60 + parseInt(hm[2])) * 60000 : 0)
 }
 
 const maisRecenteComKm = <T extends DiaKm>(lista: T[]): T | null =>

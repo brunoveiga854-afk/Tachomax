@@ -3,6 +3,7 @@
 
 import { calcularFraisJour, isJourTravailFrais, isJourSansFrais } from '../frais'
 import { anoDoDia } from './dataDia'
+import { colapsarServicosDoDia } from './diasServicos'
 
 /** Subconjunto do Padrao necessário para calcular frais por horários */
 export type PadraoFrais = {
@@ -50,7 +51,8 @@ export function calcFraisMesPorHorarios(
   mes: number,
   p: PadraoFrais
 ): { total: number; ptd: number; dej: number; din: number; nui: number } {
-  const diasMes = hist
+  // vários serviços no mesmo dia contam como UM dia (frais calculados uma só vez; um dia de serviço único não muda)
+  const diasMes = colapsarServicosDoDia(hist
     .filter((j: any) => {
       const parts = j.date?.split('/')
       if (!parts || parts.length < 2) return false
@@ -59,7 +61,7 @@ export function calcFraisMesPorHorarios(
         ? parseInt(parts[2])
         : (j.id ? anoDoDia(j) : ano)
       return m === mes && a === ano
-    })
+    }), { regles: p.regles, valeurs: { ptDej: p.ptd, dej: p.dej, diner: p.din, nuit: p.nui }, anoFallback: ano })
     .sort((a: any, b: any) => {
       const da = parseInt(a.date?.split('/')[0] || '0')
       const db = parseInt(b.date?.split('/')[0] || '0')
@@ -79,7 +81,9 @@ export function calcFraisMesPorHorarios(
       const fin = normTime(j.fin || j.fim || '')
       if (debut && fin) {
         const f = calcFraisHorario(type, debut, fin, prevDec, p, j.segServico || 0, !!j.decouche)
-        total += f.total; ptd += f.ptd; dej += f.dej; din += f.din; nui += f.nui
+        // ajuste manual confirmado pelo motorista (marca `fraisManual`): o TOTAL do dia é o dele; as contagens ficam as do horário
+        const manual = j.fraisManual === true && Number.isFinite(Number(j.frais))
+        total += manual ? Number(j.frais) : f.total; ptd += f.ptd; dej += f.dej; din += f.din; nui += f.nui
       } else if (j.frais != null && j.frais > 0) {
         total += j.frais
         ptd += 1

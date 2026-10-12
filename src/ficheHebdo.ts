@@ -3,6 +3,8 @@
 // Police : Montserrat (saisie machine), bleu foncé #1a3a8f
 // Jours sans saisie : raye en diagonale
 
+import type { ResumoMultiPdf } from './utils/fichePdfDia'
+
 export interface JourFiche {
   date: string          // "DD/MM/YYYY"
   jourLabel: string     // "LUNDI" etc.
@@ -22,6 +24,8 @@ export interface JourFiche {
   vehicule: string
   remorque: string
   commentaire: string
+  /** só em dias com VÁRIOS serviços: reconciliação explícita dos tempos, km por camião e frais do dia */
+  multi?: ResumoMultiPdf
 }
 
 export interface InfoFiche {
@@ -55,6 +59,32 @@ function chk(v: boolean): string {
 function val(v: string): string {
   if (!v) return ''
   return `<span class="filled">${v}</span>`
+}
+
+function esc(v: string): string {
+  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Bloco de um dia com vários serviços. Não assume que o intervalo entre serviços é pausa:
+ * Amplitude = Service cumulé + Pauses (dans les services) + Intervalles (+ écart, se os dados não fecharem).
+ */
+function multiBlock(m: ResumoMultiPdf | undefined): string {
+  if (!m) return ''
+  const eq = `Amplitude ${esc(m.amplitude)} = Service cumulé ${esc(m.service)} + Pauses dans les services ${esc(m.pauses)} + Intervalles entre services ${esc(m.intervalles)}`
+    + (m.residu ? ` + écart non réconcilié ${esc(m.residu)}` : '')
+  const intervalles = m.intervallesDetail.length
+    ? `<div>Intervalles (non classés — ni pause ni repos confirmé) : ${m.intervallesDetail.map(esc).join(' ; ')}</div>`
+    : ''
+  const km = m.kmParCamion.length ? `Km par camion : ${m.kmParCamion.map(esc).join(' ; ')}${m.kmTotal ? ` — total ${esc(m.kmTotal)} km` : ''}` : (m.kmTotal ? `Km total : ${esc(m.kmTotal)}` : '')
+  return `
+      <div style="border-top:1px solid #bbb;padding:2px 3mm;font-size:8px;line-height:1.35;color:#222;">
+        <div><b>${m.nServicos} services</b> · 1er début ${esc(m.premierDebut)} · dernière fin ${esc(m.dernierFin)}</div>
+        <div>${eq}</div>
+        ${intervalles}
+        ${km ? `<div>${km}</div>` : ''}
+        <div>Frais du jour : <b>${esc(m.frais)}</b>${m.fraisManuel ? ' (ajusté manuellement)' : ''}</div>
+      </div>`
 }
 
 function underline(label: string, content: string, minWidth = '60px'): string {
@@ -114,6 +144,7 @@ function dayBlock(j: JourFiche): string {
         </div>
 
       </div>
+      ${multiBlock(j.multi)}
     </div>`
 
   return `

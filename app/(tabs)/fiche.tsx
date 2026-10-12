@@ -10,6 +10,7 @@ import {
   aplicarConfirmacoesFrais, camposFraisDaEdicao, desligarOrfas, estaLigada,
   listarPagamentosCandidatos, pagamentoLigado, validarEdicaoPagamentoLigado,
 } from '../../src/utils/confirmacaoFrais'
+import { resolverMesesModal, limitarOffsetBanco, limitarOffsetDoc, rotuloMes, BANCO_MAX_ANTES, BANCO_MAX_DEPOIS, DOC_MAX_DEPOIS } from '../../src/utils/mesesRecebimentoFrais'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler, Linking } from 'react-native'
@@ -21,6 +22,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useApp } from '../../context/AppContext'
 import { useToast } from '../../context/ToastContext'
 import { shiftMois, calcFraisMesPorHorarios } from '../../src/utils/calculos'
+import { colapsarServicosDoDia } from '../../src/utils/diasServicos'
 import type { MoisData as _MoisData } from '../../src/types/moisdata'
 import {
   mesPagamentoSalDe, mesPagamentoFraisDe,
@@ -1145,7 +1147,7 @@ export default function MonSalaireScreen() {
     montantSal: string; montantFrais: string; interessement: string; primeNonAcc: string
     moisAtipico: boolean; fonte: 'banco' | 'fiche'
     totalHeures?: string
-    frais?: { resposta: FraisResposta; mesOffset: number; pagamento: string | null }
+    frais?: { resposta: FraisResposta; mesOffset: number; docOffset?: number; pagamento: string | null }
   }
   const [historialInputs, setHistorialInputs] = useState<InputsSnapshot[]>([])
   const [inputValor, setInputValor] = useState('')
@@ -1178,9 +1180,10 @@ export default function MonSalaireScreen() {
   const [inputMontantFraisQ, setInputMontantFraisQ] = useState('')
   // Resposta EXPLÍCITA do motorista sobre os frais da fiche (null = não respondeu → comportamento antigo)
   const [fraisResposta, setFraisResposta] = useState<FraisResposta>(null)
-  const [fraisMesOffset, setFraisMesOffset] = useState(0)            // meses antes do rótulo da fiche (0–2)
+  const [fraisMesOffset, setFraisMesOffset] = useState(0)            // meses antes do rótulo da fiche em que o dinheiro entrou no banco (negativo = depois)
   const [fraisPagamentoEscolhido, setFraisPagamentoEscolhido] = useState<string | null>(null)
-  const limparRespostaFrais = () => { setFraisResposta(null); setFraisMesOffset(0); setFraisPagamentoEscolhido(null) }
+  const [fraisDocOffset, setFraisDocOffset] = useState(0)            // meses DEPOIS do rótulo da fiche onde os frais aparecem documentados (0 = esta fiche)
+  const limparRespostaFrais = () => { setFraisResposta(null); setFraisMesOffset(0); setFraisDocOffset(0); setFraisPagamentoEscolhido(null) }
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
@@ -1594,6 +1597,8 @@ export default function MonSalaireScreen() {
 
       const totalSeg = diasHoras.reduce((a: number, j: any) => a + (j.segServico || 0), 0)
       let totalH = totalSeg / 3600
+      // contagem de DIAS trabalhados (vários serviços no mesmo dia = um dia); as horas somam-se na mesma
+      const nDiasHoras = colapsarServicosDoDia(diasHoras).length
 
       // Dias de férias, feriados e RC no mês das horas
       const diasConges = hist.filter((j: any) => {
@@ -1626,7 +1631,8 @@ export default function MonSalaireScreen() {
         const a = parts.length >= 3 ? parseInt(parts[2]) : (j.id ? anoDoDia(j) : anoFrais)
         return m === mesFrais && a === anoFrais && ['TRAB', 'DEC'].includes(j.type || '')
       })
-      const fraisCalDireto = diasFrais.reduce((a: number, j: any) => a + (j.frais || 0), 0)
+      // por DIA: vários serviços no mesmo dia não duplicam os frais
+      const fraisCalDireto = colapsarServicosDoDia(diasFrais).reduce((a: number, j: any) => a + (j.frais || 0), 0)
       // Só para o breakdown ptd/dej/din/nui usado em fraisDetail — o total não é usado
       const fraisHorario = calcFraisMesPorHorarios(hist, anoFrais, mesFrais, p)
       const fichesFrais = histSal.filter(f => {
@@ -1654,7 +1660,7 @@ export default function MonSalaireScreen() {
       logSeMudou('frais_card', 'DEBUG_FRAIS_CARD', `frais card ${mesReceber}/${anoReceber}`, {
         flag: p.flag,
         anoFrais, mesFrais,
-        nDiasFrais: diasFrais.length,
+        nDiasFrais: colapsarServicosDoDia(diasFrais).length,
         temFraisCal: fraisCalDireto > 0,
         temFraisHorario: fraisHorario.total > 0,
         fichesFraisFound: fichesFrais.length,
@@ -1716,7 +1722,7 @@ export default function MonSalaireScreen() {
       }
 
       const totalLiq = salLiq + totalFrais
-      const impactoConges = diasHoras.length > 0 ? Math.round((diasConges.length + diasFeries.length) * (totalLiq / diasHoras.length)) : 0
+      const impactoConges = nDiasHoras > 0 ? Math.round((diasConges.length + diasFeries.length) * (totalLiq / nDiasHoras)) : 0
       const empresa = histSal.length > 0 ? histSal[0].entreprise : ''
 
       // Precisão real: compara estimativas passadas vs valores confirmados
@@ -1730,7 +1736,7 @@ export default function MonSalaireScreen() {
 
       setCalcResult({
         totalH, totalFrais, salBrut, salLiq, totalLiq,
-        jours: diasHoras.length,
+        jours: nDiasHoras,
         hExtra25, hExtra50,
         mesReceber: `${MOIS_NOMS[mesReceber]} ${anoReceber}`,
         diaReceber: p.diaSalario,
@@ -2344,8 +2350,17 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       fraisConfirmacao: (() => {
         if (fraisResposta === 'por_receber' || fraisResposta === 'desconhecido') return { estado: fraisResposta }
         if (fraisResposta === 'recebido' && fraisReelInput > 0) {
-          const [anoB, mesB] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -fraisMesOffset)
-          return { estado: 'recebido' as const, mesBanco: { ano: anoB, mes: mesB }, valor: fraisReelInput, pagamentoPeriode: fraisPagamentoEscolhido ?? undefined }
+          // três meses independentes: trabalho (derivado) · banco (escolhido) · documento (esta fiche, outra já importada ou uma prevista)
+          const mm = resolverMesesModal({
+            fiche: { ano: fichaActual.annee, mes: fichaActual.moisIndex },
+            bancoOffset: fraisMesOffset, docOffset: fraisDocOffset,
+            periodosExistentes: historique.map(h => h.periode),
+          })
+          log.info('fiche', 'frais: meses escolhidos', { banco: rotuloMes(mm.banco), documento: rotuloMes(mm.documento), docEstado: mm.documentoEstado })
+          return {
+            estado: 'recebido' as const, mesBanco: mm.banco, valor: fraisReelInput, pagamentoPeriode: fraisPagamentoEscolhido ?? undefined,
+            ...(mm.docPrevistoParaGravar !== undefined ? { docPrevisto: mm.docPrevistoParaGravar } : {}),
+          }
         }
         return undefined
       })(),
@@ -2360,7 +2375,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         interessement: inputInteressementQ, primeNonAcc: inputPrimeNonAccQ,
         moisAtipico: inputMoisAtipico, fonte: fonteEscolhida,
         totalHeures: inputTotalHeures,
-        frais: { resposta: fraisResposta, mesOffset: fraisMesOffset, pagamento: fraisPagamentoEscolhido },
+        frais: { resposta: fraisResposta, mesOffset: fraisMesOffset, docOffset: fraisDocOffset, pagamento: fraisPagamentoEscolhido },
       }
       return novo
     })
@@ -2426,6 +2441,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setFonteEscolhida(snap.fonte)
       setFraisResposta(snap.frais?.resposta ?? null)
       setFraisMesOffset(snap.frais?.mesOffset ?? 0)
+      setFraisDocOffset(snap.frais?.docOffset ?? 0)
       setFraisPagamentoEscolhido(snap.frais?.pagamento ?? null)
     } else {
       limparRespostaFrais()
@@ -3676,8 +3692,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       {/* MODAL PERGUNTAS */}
       <Modal visible={showPerguntas} transparent animationType="slide">
         <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: 1 }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
+          {/* teclado: 'padding' nas duas plataformas (com edge-to-edge o Android não redimensiona a janela; 'height' provocava saltos) */}
+          <KeyboardAvoidingView behavior="padding" style={{ width: '100%', maxHeight: '100%' }}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="none" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
             {fichaActual && (() => {
               const dadosFicha = (fichaActual.dados || fichaActual) as any
@@ -3791,7 +3808,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             keyboardType="decimal-pad"
                             placeholder={dadosFicha.netPaye > 0 ? String(dadosFicha.netPaye) : '0'}
                             placeholderTextColor={c.textSub}
-                            autoFocus={true}
+                            blurOnSubmit={false}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -3893,7 +3910,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             keyboardType="decimal-pad"
                             placeholder="0"
                             placeholderTextColor={c.textSub}
-                            autoFocus={true}
+                            blurOnSubmit={false}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -3935,16 +3952,52 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                             </View>
                             {fraisResposta === 'recebido' && (
                               <View style={{ marginTop: 12 }}>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 6 }}>Mois de réception</Text>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                  {[0, 1, 2].map(off => {
-                                    const [aOff, mOff] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -off)
-                                    return bouton(`${MOIS_NOMS[mOff]} ${aOff}`, fraisMesOffset === off, () => setFraisMesOffset(off))
-                                  })}
-                                </View>
-                                <Text style={{ fontSize: 12, color: c.textSub, marginTop: 8 }}>
-                                  Montant réellement reçu : {valeurFraisQ > 0 ? `${valeurFraisQ}€` : '—'} (champ « Frais reçus » ci-dessus ; la fiche ne fait que le documenter).
-                                </Text>
+                                {(() => {
+                                  const fichaMA = { ano: fichaActual.annee, mes: fichaActual.moisIndex }
+                                  const [anoTr, mesTr] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -(padraoAprendido.flag ?? padrao.flag))
+                                  const mm = resolverMesesModal({ fiche: fichaMA, trabalho: { ano: anoTr, mes: mesTr }, bancoOffset: fraisMesOffset, docOffset: fraisDocOffset, periodosExistentes: historique.map(h => h.periode) })
+                                  const seta = (txt: string, ativo: boolean, onPress: () => void) => (
+                                    <TouchableOpacity disabled={!ativo} onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                      style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, opacity: ativo ? 1 : 0.35 }}>
+                                      <Text style={{ fontSize: 20, fontWeight: '800', color: c.text }}>{txt}</Text>
+                                    </TouchableOpacity>
+                                  )
+                                  const passo = (rotulo: string, menosOk: boolean, maisOk: boolean, menos: () => void, mais: () => void) => (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                      {seta('‹', menosOk, menos)}
+                                      <View style={{ flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1.5, borderColor: '#2980b9', paddingHorizontal: 8 }}>
+                                        <Text style={{ fontSize: 15, fontWeight: '800', color: '#2980b9', textAlign: 'center' }}>{rotulo}</Text>
+                                      </View>
+                                      {seta('›', maisOk, mais)}
+                                    </View>
+                                  )
+                                  const titulo = (txt: string) => <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, marginTop: 14, marginBottom: 6, letterSpacing: 0.3 }}>{txt}</Text>
+                                  const bOff = limitarOffsetBanco(fraisMesOffset)
+                                  const dOff = limitarOffsetDoc(fraisDocOffset)
+                                  return (
+                                    <>
+                                      {titulo('1 · TRAVAIL')}
+                                      <Text style={{ fontSize: 13, color: c.textSub }}>Frais de {rotuloMes(mm.trabalho ?? { ano: anoTr, mes: mesTr })}</Text>
+
+                                      {titulo('2 · PAIEMENT (banque)')}
+                                      <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6 }}>Mois où l'argent est arrivé sur ton compte</Text>
+                                      {passo(rotuloMes(mm.banco), bOff < BANCO_MAX_ANTES, bOff > -BANCO_MAX_DEPOIS, () => setFraisMesOffset(bOff + 1), () => setFraisMesOffset(bOff - 1))}
+                                      <Text style={{ fontSize: 12, color: c.textSub, marginTop: 6 }}>
+                                        Montant reçu : {valeurFraisQ > 0 ? `${valeurFraisQ}€` : '—'} (champ « Frais reçus » ci-dessus)
+                                      </Text>
+
+                                      {titulo('3 · DOCUMENT (fiche)')}
+                                      <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6 }}>Fiche où ces frais apparaissent</Text>
+                                      {passo(rotuloMes(mm.documento), dOff > 0, dOff < DOC_MAX_DEPOIS, () => setFraisDocOffset(dOff - 1), () => setFraisDocOffset(dOff + 1))}
+                                      <Text style={{ fontSize: 12, color: mm.documentoEstado === 'prevista' ? '#f5a623' : c.textSub, marginTop: 6 }}>
+                                        {mm.documentoEstado === 'esta_fiche' ? 'C\'est la fiche en cours.'
+                                          : mm.documentoEstado === 'ja_importada' ? 'Fiche déjà importée : ouvre-la pour y lier ce paiement.'
+                                          : 'Fiche prévue — pas encore importée (non confirmé).'}
+                                      </Text>
+                                      <Text style={{ fontSize: 11, color: c.textSub, marginTop: 4 }}>La fiche documente le paiement ; ce n'est pas un second paiement.</Text>
+                                    </>
+                                  )
+                                })()}
                                 {candidatsFrais.length > 0 && (
                                   <>
                                     <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginTop: 10, marginBottom: 6 }}>Paiement déjà enregistré ?</Text>

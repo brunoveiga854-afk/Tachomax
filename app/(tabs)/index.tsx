@@ -27,6 +27,11 @@ import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { gravarKmCamiao, lerMapaKm } from '../../src/utils/kmPorCamiao'
 import { lerUltimoCamiao, gravarUltimoCamiao } from '../../src/utils/ultimoCamiao'
 import { chaveDia, anoDoDia } from '../../src/utils/dataDia'
+import { gravarServico, atualizarHistorico, type ResultadoGravar } from '../../src/utils/gravarServico'
+import { colapsarServicosDoDia, type ServicoReg } from '../../src/utils/diasServicos'
+import { classificarServicoCurto, decidirFimServico, type ClassificacaoCurto, type EscolhaServicoCurto } from '../../src/utils/servicoCurto'
+import { decidirFraisManualForm } from '../../src/utils/fraisManual'
+import { registarEfeitoKm, registarEfeitoTracteur, desfazerEfeitosDeTroca, limparDiario } from '../../src/utils/desfazerTroca'
 import { lerTrocaPendente, gravarTrocaPendente, limparTrocaPendente, completarTrocaPendente, trocaDoDia, type TrocaPendente } from '../../src/utils/trocaPendente'
 import { mesmoCamiao, ultimoKmDoCamiao, reclassificar, kmTotalDoDia, kmFimDoDia, decidirTrocaNoDemarrer, campoKmIntocado, segServicoDe, normalizarMatricula, kmDoCamiao, type TrocaCamiao } from '../../src/utils/camioes'
 import {
@@ -63,7 +68,7 @@ const LIMITE_RECUPERACAO_H = 24                              // arranque a frio:
 const MAX_HISTORIQUE = 1500
 const HISTORIQUE_ARQUIVO_KEY = 'historique_arquivo'   // salvaguarda: excedente acima de MAX_HISTORIQUE (nada o lê; não entra em export/import)
 const HISTORIQUE_AVISO = 1400                         // log.warn a partir daqui
-const HISTORIQUE_SUBSTITUIDOS_KEY = 'historique_substituidos'   // salvaguarda: registos substituídos por outro do mesmo dia (nada o lê; não entra em export/import)
+const HISTORIQUE_SUBSTITUIDOS_KEY = 'historique_substituidos'   // salvaguarda: registos substituídos por outro do mesmo dia (nada o lê; entra no export e é MESCLADO no import — ver backupSubstituidos.ts — nunca volta ao histórico)
 
 // Guarda cópia dos registos que vão ser substituídos por um novo do mesmo dia. Nunca lança nem bloqueia:
 // se falhar, só regista um aviso e a substituição segue como sempre.
@@ -88,6 +93,50 @@ async function arquivarSubstituidos(removidos: any[], idNovo: string, origem: 'g
   } catch (e) {
     log.warn('index', 'arquivo de substituídos falhou — substituição segue sem cópia', { origem, tipo: (e as any)?.name, removidos: removidos.length })
   }
+}
+
+// Conflito de identidade ao gravar um serviço: NUNCA se substitui sem o motorista decidir.
+function perguntarConflitoServico(motivo: 'mesmo_inicio' | 'sobreposicao' | 'dia_com_servicos', conflitos: ServicoReg[]): Promise<'manter_ambos' | 'substituir' | 'cancelar'> {
+  const desc = conflitos.map(c => `${c.debut ?? '?'}→${c.fin ?? '?'}`).join(', ')
+  return new Promise(resolve => {
+    if (motivo === 'dia_com_servicos') {
+      Alert.alert('Jour déjà rempli', "Ce jour contient déjà des services. Supprime-les d'abord depuis l'historique pour y mettre un jour de repos.",
+        [{ text: 'OK', onPress: () => resolve('cancelar') }], { cancelable: true, onDismiss: () => resolve('cancelar') })
+      return
+    }
+    const msg = motivo === 'sobreposicao'
+      ? `Ce service chevauche un autre service du même jour (${desc}).`
+      : `Un service qui commence à la même heure existe déjà ce jour-là (${desc}).`
+    Alert.alert('Service déjà présent ?', `${msg}\n\nRien n'est remplacé sans ton accord.`, [
+      { text: 'Garder les deux', onPress: () => resolve('manter_ambos') },
+      { text: "Remplacer l'ancien (archivé)", style: 'destructive', onPress: () => resolve('substituir') },
+      { text: 'Annuler', style: 'cancel', onPress: () => resolve('cancelar') },
+    ], { cancelable: true, onDismiss: () => resolve('cancelar') })
+  })
+}
+
+// Serviço muito curto ao terminar: o motorista escolhe guardar ou não (nunca é invalidado só pela duração).
+function perguntarServicoCurto(c: ClassificacaoCurto): Promise<EscolhaServicoCurto> {
+  return new Promise(resolve => {
+    Alert.alert(c.titulo, `${c.mensagem}\n\n« Annuler » : le service continue.`, [
+      { text: 'Enregistrer', onPress: () => resolve('guardar') },
+      { text: 'Ne pas enregistrer', style: 'destructive', onPress: () => resolve('nao_guardar') },
+      { text: 'Annuler', style: 'cancel', onPress: () => resolve('cancelar') },
+    ], { cancelable: true, onDismiss: () => resolve('cancelar') })
+  })
+}
+
+// Descarte de um serviço curto com troca de camião cujos km gravados NÃO se conseguem repor com segurança
+// (o valor mudou entretanto). Nunca se apaga nada às cegas: o motorista decide, com os dados preservados.
+function perguntarDescarteSemDesfazer(): Promise<'descartar_mantendo' | 'continuar'> {
+  return new Promise(resolve => {
+    Alert.alert('Km déjà enregistrés',
+      "Ce service comprend un changement de camion et les km des camions ont déjà été mis à jour. Je ne peux pas les remettre comme avant en toute sécurité.\n\nSi tu ne l'enregistres pas, les km des camions restent tels quels (rien d'autre n'est modifié).",
+      [
+        { text: 'Ne pas enregistrer (garder les km tels quels)', style: 'destructive', onPress: () => resolve('descartar_mantendo') },
+        { text: 'Annuler (le service continue)', style: 'cancel', onPress: () => resolve('continuar') },
+      ], { cancelable: true, onDismiss: () => resolve('continuar') })
+  })
 }
 
 // Corta o histórico em MAX_HISTORIQUE, mas arquiva o excedente ANTES de o descartar.
@@ -208,6 +257,9 @@ export default function AujourdhuiScreen() {
   const [showKmFimInput, setShowKmFimInput] = useState(false)
   const [trocaPendente, setTrocaPendente] = useState<TrocaPendente | null>(null)
   const continuandoRef = useRef(false)
+  // frais do formulário manual: último cálculo automático mostrado + valor/estado do registo aberto (para distinguir ajuste manual)
+  const addFraisAutoRef = useRef<number | null>(null)
+  const addFraisOrigRef = useRef<{ frais: number; manual: boolean } | null>(null)
   const [showTrocaB, setShowTrocaB] = useState(false)
   const [trocaBPasso, setTrocaBPasso] = useState<1 | 2>(1)
   const [trocaBTipo, setTrocaBTipo] = useState<'immat' | 'parc'>('immat')
@@ -864,17 +916,9 @@ export default function AujourdhuiScreen() {
         lundi: lundi.toISOString(),
         domingo: domingo.toISOString()
       })
-      // Deduplicar por data — se houver 2 entradas para o mesmo dia, fica só a mais recente
-      const vistoPorData = new Map<string, any>()
-      for (const j of semaineRaw) {
-        const partes = j.date.split('/')
-        const chave = partes.length >= 3 ? j.date : `${j.date}/${maintenant.getFullYear()}`
-        const existente = vistoPorData.get(chave)
-        if (!existente || (j.id && existente.id && parseInt(j.id) > parseInt(existente.id))) {
-          vistoPorData.set(chave, j)
-        }
-      }
-      const semaine = Array.from(vistoPorData.values())
+      // Vários serviços no mesmo dia SOMAM-SE (um registo do dia: horas somadas, frais do dia uma só vez). Antes ficava só
+      // o mais recente de cada data, o que escondia os outros serviços. Cópias idênticas do mesmo serviço contam uma vez.
+      const semaine = colapsarServicosDoDia(semaineRaw, { regles: appState.fraisRegles, valeurs: appState.fraisValores })
       setStatsSemaine({
         heures: semaine.filter((j: any) => ['TRAB','DEC','work','dec'].includes(j.type || 'TRAB')).reduce((a: number, j: any) => a + (j.segServico || 0), 0),
         decouche: semaine.filter((j: any) => j.decouche).length,
@@ -964,6 +1008,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     })
     log.debug('index', 'frais auto calculado', { debut, fin, type, temTotal: result.total > 0 })
     setAddFrais(result.total.toFixed(2))
+    addFraisAutoRef.current = Number(result.total.toFixed(2))
   }
 
   const abrirPicker = (field: 'debut'|'fin'|'servico') => {
@@ -995,6 +1040,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const jour = diasSemana[dataJour.getDay()]
     const horasMin = addServico.replace('h', ':').split(':')
     const novoSeg = (parseInt(horasMin[0]) * 3600) + ((parseInt(horasMin[1]) || 0) * 60)
+    const valorFraisForm = parseFloat(addFrais) || 0
+    const fraisManualForm = (addType === 'TRAB' || addType === 'DEC') && decidirFraisManualForm(valorFraisForm, addFraisOrigRef.current, addFraisAutoRef.current)
+    log.debug('index', 'frais do formulário', { manual: fraisManualForm, editando: !!editandoDiaId })
     // Campos que o formulário realmente mostra/edita
     const camposForm = {
       date: `${addDiaStr}/${calAno}`,
@@ -1004,55 +1052,69 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       fin: addFin,
       segServico: novoSeg,
       decouche: addType === 'DEC',
-      frais: parseFloat(addFrais) || 0,
+      frais: valorFraisForm,
+      // ajuste manual do motorista (≠ cálculo automático): fica marcado para nunca ser recalculado em silêncio
+      fraisManual: fraisManualForm ? true : undefined,
     }
     // Só para dia NOVO (ou dia que passa a tipo sem trabalho): o formulário não os mostra
     const camposNovoDia = { segPausa: 0, modeNuit: false, kmDiarios: 0 }
     const eDiaTrabalho = addType === 'TRAB' || addType === 'DEC'
     try {
-      const existente = await AsyncStorage.getItem('historique')
-      let lista: any[] = []
-      if (existente) {
-        let parsed: unknown = null
-        try { parsed = JSON.parse(existente) } catch { parsed = null }
-        if (!Array.isArray(parsed)) {
-          const msgIlegivel = "Historique illisible — jour NON sauvegardé, rien n'a été modifié."
-          log.error('index', 'guardarNovoDia: historique ilegível — gravação abortada', { tamanho: existente.length })
-          setStorageErro(msgIlegivel)
-          Alert.alert('Jour non sauvegardé', msgIlegivel)
-          return   // formulário fica aberto; a chave 'historique' não é tocada
-        }
-        lista = parsed
+      const msgIlegivel = "Historique illisible — jour NON sauvegardé, rien n'a été modifié."
+      const avisarIlegivel = () => {
+        log.error('index', 'guardarNovoDia: historique ilegível — gravação abortada')
+        setStorageErro(msgIlegivel)
+        Alert.alert('Jour non sauvegardé', msgIlegivel)   // formulário fica aberto; a chave 'historique' não é tocada
       }
-      if (editandoDiaId) {
-        // EDITAR — substituir o dia existente
-        // preserva segPausa/modeNuit/kmDiarios/pausasDetalhe (o formulário não os mostra); tipo sem trabalho repõe-os a zero
-        lista = lista.map((j: any) => j.id === editandoDiaId
-          ? { ...j, ...camposForm, ...(eDiaTrabalho ? {} : { ...camposNovoDia, pausasDetalhe: undefined }) }
-          : j)
-        log.debug('index', 'edição pela Home: campos fora do formulário preservados', { tipoTrabalho: eDiaTrabalho })
-      } else {
-        // ADICIONAR — inserir novo (sem duplicados por data)
-        const novoDiaManual = { id: Date.now().toString(), ...camposForm, ...camposNovoDia }
-        await arquivarSubstituidos(lista.filter((j: any) => chaveDia(j, calAno) === chaveDia(novoDiaManual, calAno)), novoDiaManual.id, 'manual')
-        lista = lista.filter((j: any) => chaveDia(j, calAno) !== chaveDia(novoDiaManual, calAno))
-        lista.unshift(novoDiaManual)
-      }
-      lista.sort((a: any, b: any) => {
+      const ordenarPorData = (l: ServicoReg[]): ServicoReg[] => [...l].sort((a: any, b: any) => {
         const pa = a.date.split('/'); const pb = b.date.split('/')
         const da = new Date(parseInt(pa[2] || calAno), parseInt(pa[1])-1, parseInt(pa[0]))
         const db = new Date(parseInt(pb[2] || calAno), parseInt(pb[1])-1, parseInt(pb[0]))
         return db.getTime() - da.getTime()
       })
-      const listaValida = lista.filter((entry: any) => {
-        const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
-        const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
-        if (!ok) log.error('index', 'entrada inválida ignorada', entry)
-        return ok
-      })
-      const listaGravar = await cortarHistoricoComArquivo(listaValida)
-      await AsyncStorage.setItem('historique', JSON.stringify(listaGravar))
-      setDiasHistorique(listaValida)
+      let listaValida: ServicoReg[] = []
+      if (editandoDiaId) {
+        // EDITAR — altera SÓ o registo escolhido (os outros serviços do mesmo dia ficam intactos); leitura-escrita em fila
+        const r = await atualizarHistorico<ServicoReg[]>(AsyncStorage, async lista => {
+          // preserva segPausa/modeNuit/kmDiarios/pausasDetalhe (o formulário não os mostra); tipo sem trabalho repõe-os a zero
+          const editada = lista.map((j: any) => j.id === editandoDiaId
+            ? { ...j, ...camposForm, ...(eDiaTrabalho ? {} : { ...camposNovoDia, pausasDetalhe: undefined }) }
+            : j) as ServicoReg[]
+          log.debug('index', 'edição pela Home: campos fora do formulário preservados', { tipoTrabalho: eDiaTrabalho })
+          const valida = ordenarPorData(editada).filter((entry: any) => {
+            const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
+            const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
+            if (!ok) log.error('index', 'entrada inválida ignorada', entry)
+            return ok
+          })
+          return { gravar: await cortarHistoricoComArquivo(valida) as ServicoReg[], extra: valida }
+        })
+        if (r.estado === 'ilegivel') { avisarIlegivel(); return }
+        if (r.estado !== 'ok') throw new Error('edição do histórico falhou')
+        listaValida = r.extra
+      } else {
+        // ADICIONAR — acrescenta um serviço/dia; NUNCA substitui outro serviço do mesmo dia sem decisão explícita
+        const novoDiaManual = { id: Date.now().toString(), ...camposForm, ...camposNovoDia } as unknown as ServicoReg
+        const opcoesManual = {
+          arquivar: (rem: ServicoReg[], idNovo: string) => arquivarSubstituidos(rem, idNovo, 'manual'),
+          cortar: (l: ServicoReg[]) => cortarHistoricoComArquivo(l) as Promise<ServicoReg[]>,
+          filtrarValidas: true,
+          ordenar: ordenarPorData,
+          aoIgnorarInvalida: (e: ServicoReg) => log.error('index', 'entrada inválida ignorada', e),
+          anoFallback: calAno,
+        }
+        let res: ResultadoGravar = await gravarServico(AsyncStorage, novoDiaManual, opcoesManual)
+        if (res.estado === 'ambiguo') {
+          const escolha = await perguntarConflitoServico(res.motivo, res.conflitos)
+          if (escolha === 'cancelar') { log.info('index', 'dia manual: conflito de identidade — cancelado, nada gravado', { motivo: res.motivo }); return }   // formulário fica aberto
+          res = await gravarServico(AsyncStorage, novoDiaManual, { ...opcoesManual, resolucao: escolha })
+        }
+        if (res.estado === 'ambiguo') return
+        if (res.estado === 'ilegivel') { avisarIlegivel(); return }
+        if (res.estado === 'erro') throw new Error('gravação do histórico falhou')
+        listaValida = res.lista
+      }
+      setDiasHistorique(listaValida as unknown as Jour[])
       setEditandoDiaId(null)
       setShowAddDia(false)
       log.info('index', 'dia manual guardado', { date: camposForm.date, type: camposForm.type, editando: !!editandoDiaId })
@@ -1195,6 +1257,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     if (rappelAtivo !== 'false' && notifOk) await agendarRappelSaisie(20, 0)
 
     await limparTrocaPendente(); setTrocaPendente(null)
+    await limparDiario(AsyncStorage)   // serviço novo: o diário de efeitos de troca do serviço anterior já não se aplica
 
     // 2. Calcular hora e modo noturno
     const agora = new Date()
@@ -1461,7 +1524,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     }
   }
 
-  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico, snapPausaTotal = segPausaTotal): Promise<'ok' | 'falhou' | 'sem-inicio'> => {
+  const guardarDia = async (fim: Date, kmManual = kmDiarios, snapService = segServico, snapPausaTotal = segPausaTotal, curtoConfirmado = false): Promise<'ok' | 'falhou' | 'sem-inicio' | 'cancelado'> => {
     if (!dateInicio) {
       log.error('index', 'guardarDia: dateInicio em falta — nada gravado')
       return 'sem-inicio'
@@ -1505,6 +1568,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     const kmFimGuardado = parseKmInput(kmFimInput)
     const tp = await lerTrocaPendente()
     const troca = trocaDoDia(tp, kmFimGuardado)
+    // camião do serviço (ao fim): com troca = B; sem troca = o dos Réglages. Só se houver matrícula.
+    let camiaoServico: { type: 'immat' | 'parc'; value: string } | null = null
+    try {
+      if (troca) camiaoServico = { type: troca.b.camiao.type, value: troca.b.camiao.value }
+      else {
+        const [tt, tv] = await Promise.all([AsyncStorage.getItem('tracteur_type'), AsyncStorage.getItem('tracteur_value')])
+        if (normalizarMatricula(tv) !== '') camiaoServico = { type: tt === 'parc' ? 'parc' : 'immat', value: tv ?? '' }
+      }
+    } catch (e) { log.warn('index', 'guardarDia: camião do serviço indisponível (não bloqueante)', { tipo: (e as any)?.name }) }
     const novoDia: Jour = {
       id: Date.now().toString(), date, jour,
       type: decouche ? 'DEC' : 'TRAB',
@@ -1514,22 +1586,36 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       kmInicio: troca ? troca.a.kmInicio : kmInicioGuardado,
       kmFim: troca ? troca.a.kmFim : kmFimGuardado,   // com troca: par do camião A (o fim de B vai em troca.b.kmFim)
       ...(troca ? { troca } : {}),
+      ...(camiaoServico ? { camiao: camiaoServico } : {}),
+      ...(curtoConfirmado ? { curtoConfirmado: true } : {}),
       ...(pausasDiaRef.current.length ? { pausasDetalhe: pausasDiaRef.current } : {}),
     }
     try {
-      await arquivarSubstituidos(lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) === chaveDia(novoDia, dateInicio.getFullYear())), novoDia.id, 'guardarDia')
-      const semDuplicadoT = lista.filter((j: any) => chaveDia(j, dateInicio.getFullYear()) !== chaveDia(novoDia, dateInicio.getFullYear()))
-      semDuplicadoT.unshift(novoDia)
-      const listaValidaT = semDuplicadoT.filter((entry: any) => {
-        const isTrab = entry.type === 'TRAB' || entry.type === 'DEC'
-        const ok = entry.date && entry.type && (!isTrab || (entry.debut && entry.fin))
-        if (!ok) log.error('index', 'entrada inválida ignorada', entry)
-        return ok
-      })
-      const listaGuardada = await cortarHistoricoComArquivo(listaValidaT)
-      await AsyncStorage.setItem('historique', JSON.stringify(listaGuardada))
+      // Vários serviços no mesmo dia: o novo é ACRESCENTADO (nunca substitui outro serviço). Leitura-modificação-escrita em fila.
+      const opcoesGravar = {
+        arquivar: (rem: ServicoReg[], idNovo: string) => arquivarSubstituidos(rem, idNovo, 'guardarDia'),
+        cortar: (l: ServicoReg[]) => cortarHistoricoComArquivo(l) as Promise<ServicoReg[]>,
+        filtrarValidas: true,
+        aoIgnorarInvalida: (e: ServicoReg) => log.error('index', 'entrada inválida ignorada', e),
+        anoFallback: dateInicio.getFullYear(),
+      }
+      let res: ResultadoGravar = await gravarServico(AsyncStorage, novoDia as unknown as ServicoReg, opcoesGravar)
+      if (res.estado === 'ambiguo') {
+        const escolha = await perguntarConflitoServico(res.motivo, res.conflitos)
+        if (escolha === 'cancelar') { log.info('index', 'guardarDia: conflito de identidade — cancelado pelo motorista, nada gravado', { motivo: res.motivo }); return 'cancelado' }
+        res = await gravarServico(AsyncStorage, novoDia as unknown as ServicoReg, { ...opcoesGravar, resolucao: escolha })
+      }
+      if (res.estado === 'ambiguo') return 'cancelado'
+      if (res.estado === 'ilegivel') {
+        log.error('index', 'guardarDia: historique ilegível — gravação abortada')
+        setStorageErro("Impossible de lire l'historique — service NON enregistré, rien n'a été modifié. Réessaie.")
+        return 'falhou'
+      }
+      if (res.estado === 'erro') throw new Error('gravação do histórico falhou')
+      const listaValidaT = res.lista
+      const listaGuardada = res.listaGuardada
       historicoGravado = true
-      setDiasHistorique(listaValidaT)
+      setDiasHistorique(listaValidaT as unknown as Jour[])
       await AsyncStorage.setItem('km_ultimo_fim', kmFimInput)
       actualizarCampo('kmUltimoFim', parseInt(kmFimInput) || 0)
       actualizarCampo('histCal', listaGuardada)
@@ -1597,7 +1683,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       }
       if (await gravarTrocaPendente(troca)) {
         setTrocaPendente(troca)
-        void gravarKmCamiao(troca.camiaoA.value, kmFimA)   // não escreve km_ultimo_fim
+        // diário ANTES da escrita: se o serviço for descartado, o km de A volta ao que era (não escreve km_ultimo_fim)
+        void (async () => {
+          await registarEfeitoKm(AsyncStorage, troca.camiaoA.value, kmFimA)
+          await gravarKmCamiao(troca.camiaoA.value, kmFimA)
+        })()
       }
       setKmFimInput('')
       log.info('index', 'continuer le jour', { estado: troca.estadoAoContinuar })
@@ -1683,11 +1773,15 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       // 2) reclassificação serviço → pausa (só se a resposta foi 'pause' e houve serviço a mover)
       if (r.movido > 0) await aplicarPausaDaTroca(r.movido, tp.ts)
       // 3) camião B passa a ser o camião actual (km_ultimo_fim NÃO se escreve)
+      await registarEfeitoTracteur(AsyncStorage, tipo, valor)   // diário ANTES: permite repor o camião A se o serviço for descartado
       await AsyncStorage.setItem('tracteur_type', tipo)
       await AsyncStorage.setItem('tracteur_value', valor)
       actualizarCampo('tracteurType', tipo)
       actualizarCampo('tracteurValue', valor)
-      void gravarKmCamiao(valor, kmB)
+      void (async () => {
+        await registarEfeitoKm(AsyncStorage, valor, kmB)
+        await gravarKmCamiao(valor, kmB)
+      })()
       setShowTrocaB(false)
       log.info('index', 'camion B enregistré', { resposta: trocaBResposta, movido: r.movido })
     } catch (e) {
@@ -1748,15 +1842,46 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
       valeurs: fv,
     }).total
 
-    let resultado: 'ok' | 'falhou' | 'sem-inicio' = 'falhou'
-    try { resultado = await guardarDia(fim, snapKm, snapService, snapPausaTotal) }
-    catch (e) {
-      log.error('index', 'confirmarTerminer: guardarDia lançou exceção', { tipo: (e as any)?.name })
-      setStorageErro("Enregistrement impossible — service NON enregistré. Réessaie.")
+    // Serviço muito curto (iniciado por engano ou para testar): pergunta antes de gravar. Nunca é invalidado só pela duração;
+    // a duração avaliada é a do serviço TOTAL (uma troca de camião dentro do serviço não conta como serviço curto).
+    let curtoConfirmado = false
+    let descartar = false
+    const classCurto = classificarServicoCurto(snapService)
+    if (classCurto.nivel !== 'normal') {
+      const decCurto = decidirFimServico(snapService, await perguntarServicoCurto(classCurto))
+      if (decCurto.accao === 'manter_em_curso') { setDecouche(decoucheAntes); setDemarrando(false); return }   // o serviço continua, nada muda
+      if (decCurto.accao === 'descartar') {
+        // descartar = o serviço de teste não pode deixar rasto: repõe km dos camiões e camião actual (se houve troca)
+        const des = await desfazerEfeitosDeTroca(AsyncStorage)
+        if (des.estado === 'bloqueado' || des.estado === 'erro') {
+          log.warn('index', 'descarte: km da troca NÃO repostos com segurança — a pedir confirmação', { estado: des.estado, bloqueios: des.estado === 'bloqueado' ? des.bloqueios : undefined })
+          const esc = await perguntarDescarteSemDesfazer()
+          if (esc === 'continuar') { setDecouche(decoucheAntes); setDemarrando(false); return }   // nada mudou; o serviço continua
+          log.warn('index', 'descarte confirmado pelo motorista com km da troca mantidos tal como estão')
+        } else {
+          if (des.estado === 'desfeito') {
+            log.info('index', 'descarte: efeitos da troca desfeitos', { revertidos: des.revertidos })
+            if (des.tracteur) { actualizarCampo('tracteurType', des.tracteur.tipo === 'parc' ? 'parc' : 'immat'); actualizarCampo('tracteurValue', des.tracteur.valor ?? '') }
+          }
+        }
+        descartar = true
+      }
+      if (decCurto.accao === 'guardar') curtoConfirmado = decCurto.curtoConfirmado
     }
-    if (resultado === 'falhou') { setDecouche(decoucheAntes); setDemarrando(false); return }   // serviço mantém-se em curso, nada é apagado
+
+    let resultado: 'ok' | 'falhou' | 'sem-inicio' | 'cancelado' | 'descartado' = 'falhou'
+    if (descartar) resultado = 'descartado'   // não toca em histórico, frais, km nem totais
+    else {
+      try { resultado = await guardarDia(fim, snapKm, snapService, snapPausaTotal, curtoConfirmado) }
+      catch (e) {
+        log.error('index', 'confirmarTerminer: guardarDia lançou exceção', { tipo: (e as any)?.name })
+        setStorageErro("Enregistrement impossible — service NON enregistré. Réessaie.")
+      }
+    }
+    if (resultado === 'falhou' || resultado === 'cancelado') { setDecouche(decoucheAntes); setDemarrando(false); return }   // serviço mantém-se em curso, nada é apagado
     if (resultado === 'sem-inicio') setStorageErro("Date de début introuvable — service NON enregistré.")
-    log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, temFrais: snapFrais > 0, km: snapKm })
+    if (resultado === 'descartado') log.info('index', 'serviço curto NÃO guardado (a pedido do motorista)', { segServico: snapService })
+    else log.info('index', 'serviço terminado', { comDecouche: comDecouche || decouche, temFrais: snapFrais > 0, km: snapKm, curtoConfirmado })
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     try {
       await cancelarAlertaAmplitude()
@@ -1764,6 +1889,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     } catch (e) { log.warn('index', 'terminar: notificações falharam (não bloqueante)', e) }
     await AsyncStorage.removeItem(STORAGE_KEY)
     await limparTrocaPendente(); setTrocaPendente(null)
+    await limparDiario(AsyncStorage)   // serviço fechado (gravado ou descartado): o diário de efeitos de troca acaba aqui
     const terminadoTs = Date.now()
     // Só actualizar o timestamp de repouso se o serviço durou pelo menos 30 min
     // (evita que serviços teste/erro reiniciem o contador de repos)
@@ -1785,7 +1911,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
     setDemarrando(false)
 
     // Show rich summary instead of simple Alert
-    if (resultado === 'sem-inicio') return   // sem resumo: o banner explica que não foi gravado
+    if (resultado === 'sem-inicio' || resultado === 'descartado') return   // sem resumo: não foi gravado
     setSummaryData({
       service: snapService,
       conduite: 0,
@@ -2249,7 +2375,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                                 setAddDiaStr(diaStr)
                                 setAddDiaLabel(label)
                                 setAddDebut('06h00'); setAddFin('14h00'); setAddServico('08h00'); setAddType('TRAB')
-                                setAddFrais('0.00'); setEditandoDiaId(null)
+                                setAddFrais('0.00'); setEditandoDiaId(null); addFraisOrigRef.current = null; addFraisAutoRef.current = null
                                 calcularFraisAuto('06h00', '14h00', '08h00', 'TRAB')
                                 setShowAddDia(true)
                               }
@@ -2667,11 +2793,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                             setAddServico(`${String(horasMin).padStart(2,'0')}h${String(minsMin).padStart(2,'0')}`)
                             setAddType(registo.type || 'TRAB')
                             setAddFrais((registo.frais || 0).toFixed(2))
+                            addFraisOrigRef.current = { frais: Number(registo.frais) || 0, manual: (registo as any).fraisManual === true }
+                            addFraisAutoRef.current = null
                             setEditandoDiaId(registo.id)
                             setShowCalendario(false)
                             setTimeout(() => setShowAddDia(true), 300)
                           } else if (!registo && !isFuturo && !isHoje) {
                             // ADICIONAR dia novo
+                            addFraisOrigRef.current = null; addFraisAutoRef.current = null
                             setAddDiaStr(diaStr)
                             setAddDiaLabel(label)
                             setAddDebut('06h00'); setAddFin('14h00'); setAddServico('08h00'); setAddType('TRAB')
@@ -2777,25 +2906,28 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               <TouchableOpacity
                 style={{ marginTop: 10, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(231,76,60,0.4)', backgroundColor: 'rgba(231,76,60,0.06)' }}
                 onPress={async () => {
-                  const existente = await AsyncStorage.getItem('historique')
-                  let lista: any[] = []
-                  if (existente) {
-                    let parsed: unknown = null
-                    try { parsed = JSON.parse(existente) } catch { parsed = null }
-                    if (!Array.isArray(parsed)) {
-                      const msgIlegivelDel = "Historique illisible — jour NON supprimé, rien n'a été modifié."
-                      log.error('index', 'apagar dia: historique ilegível — abortado', { tamanho: existente.length })
-                      setStorageErro(msgIlegivelDel)
-                      Alert.alert('Jour non supprimé', msgIlegivelDel)
-                      return   // formulário fica aberto; a chave 'historique' não é tocada
-                    }
-                    lista = parsed
+                  // apagar UM serviço: leitura-escrita na fila (nunca anula gravações concorrentes) e SÓ pelo id do registo aberto
+                  const idApagar = editandoDiaId
+                  const r = await atualizarHistorico<{ nova: ServicoReg[]; km: number | null }>(AsyncStorage, async lista => {
+                    if (!lista.some((j: any) => j.id === idApagar)) return null
+                    const km = kmUltimoFimAposApagar(lista as any[], [idApagar], await AsyncStorage.getItem('km_ultimo_fim'))
+                    const nova = lista.filter((j: any) => j.id !== idApagar)
+                    return { gravar: nova, extra: { nova, km } }
+                  })
+                  if (r.estado === 'ilegivel' || r.estado === 'erro') {
+                    const msgDel = r.estado === 'ilegivel'
+                      ? "Historique illisible — jour NON supprimé, rien n'a été modifié."
+                      : "Suppression impossible — rien n'a été modifié. Réessaie."
+                    log.error('index', 'apagar dia falhou — abortado', { estado: r.estado })
+                    setStorageErro(msgDel)
+                    Alert.alert('Jour non supprimé', msgDel)
+                    return   // formulário fica aberto
                   }
-                  const km = kmUltimoFimAposApagar(lista, [editandoDiaId], await AsyncStorage.getItem('km_ultimo_fim'))
-                  const nova = lista.filter((j: any) => j.id !== editandoDiaId)
-                  await AsyncStorage.setItem('historique', JSON.stringify(nova))
-                  if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
-                  setDiasHistorique(nova)
+                  if (r.estado === 'ok') {
+                    if (r.extra.km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(r.extra.km))
+                    setDiasHistorique(r.extra.nova as unknown as Jour[])
+                    log.info('index', 'serviço apagado pela Home (por id)', { restantes: r.extra.nova.length })
+                  } else log.info('index', 'apagar: registo já não existe — nada alterado')
                   await recarregarApp({ origem: 'gravacao' })
                   showToast('✓ Modifications appliquées')
                   setEditandoDiaId(null)
@@ -2803,7 +2935,12 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   carregarStatsSemaine()
                 }}
               >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#e74c3c' }}>🗑️ Supprimer ce jour</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#e74c3c' }}>{(() => {
+                  const ed = (diasHistorique as any[]).find(j => j.id === editandoDiaId)
+                  const k = ed ? chaveDia(ed, calAno) : ''
+                  const n = ed ? (diasHistorique as any[]).filter(j => (j.type === 'TRAB' || j.type === 'DEC') && chaveDia(j, calAno) === k).length : 0
+                  return n > 1 ? '🗑️ Supprimer ce service (les autres du jour restent)' : '🗑️ Supprimer ce jour'
+                })()}</Text>
               </TouchableOpacity>
             )}
           </TouchableOpacity>
@@ -3134,7 +3271,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1
                   const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear
 
-                  const qualifying = diasHistorique.filter(j => (j.segServico || 0) > 7200 && ['TRAB','DEC'].includes(j.type))
+                  // Estatísticas POR DIA: vários serviços do mesmo dia = um dia (horas somadas, frais do dia uma só vez)
+                  const diasHist: Jour[] = colapsarServicosDoDia(diasHistorique as any, { regles: appState.fraisRegles, valeurs: appState.fraisValores }) as any
+                  const qualifying = diasHist.filter(j => (j.segServico || 0) > 7200 && ['TRAB','DEC'].includes(j.type))
                   const sortedQ = [...qualifying].sort((a, b) => {
                     const da = parseDate(a.date, a.id), db = parseDate(b.date, b.id)
                     return (db?.getTime() ?? 0) - (da?.getTime() ?? 0)
@@ -3163,7 +3302,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const last3 = sortedQ.slice(0, Math.min(4, sortedQ.length))
 
                   // ── SECTION 2 — REPOS HEBDO ───────────────────────────────
-                  const lastFriday = [...diasHistorique].reverse().find(j => j.jour === 'Vendredi')
+                  const lastFriday = [...diasHist].reverse().find(j => j.jour === 'Vendredi')
                   const hebdoSec = (() => {
                     if (!lastFriday) return null
                     const d = parseDate(lastFriday.date, lastFriday.id)
@@ -3177,7 +3316,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   // ── SECTION 3 — 90H / 2 SEM ──────────────────────────────
                   const cutoff14 = new Date(today); cutoff14.setDate(today.getDate() - 14)
-                  const last14 = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d >= cutoff14 && ['TRAB','DEC'].includes(j.type) })
+                  const last14 = diasHist.filter(j => { const d = parseDate(j.date, j.id); return d && d >= cutoff14 && ['TRAB','DEC'].includes(j.type) })
                   const tot14Seg = last14.reduce((a, j) => a + (j.segServico || 0), 0)
                   const max90h = 90 * 3600
                   const pct90 = Math.min((tot14Seg / max90h) * 100, 100)
@@ -3189,9 +3328,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const JABBR = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
                   const barDetail = statsBarDetail; const setBarDetail = setStatsBarDetail
 
-                          const semaineDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d >= monday && ['TRAB','DEC'].includes(j.type) })
-                  const moisDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['TRAB','DEC'].includes(j.type) })
-                  const lastMoisDays = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === lastMonth && d?.getFullYear() === lastMonthYear && ['TRAB','DEC'].includes(j.type) })
+                          const semaineDays = diasHist.filter(j => { const d = parseDate(j.date, j.id); return d && d >= monday && ['TRAB','DEC'].includes(j.type) })
+                  const moisDays = diasHist.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['TRAB','DEC'].includes(j.type) })
+                  const lastMoisDays = diasHist.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === lastMonth && d?.getFullYear() === lastMonthYear && ['TRAB','DEC'].includes(j.type) })
 
                   // ── SECTION 6 — PAUSES ────────────────────────────────────
                   // Approximate valid pauses from historique: pauseTotal >= 45min = valid
@@ -3217,11 +3356,11 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const fraisNavLastDate = new Date(fraisNavYear, fraisNavMonth - 1, 1)
                   const fraisNavLastMonth = fraisNavLastDate.getMonth()
                   const fraisNavLastYear  = fraisNavLastDate.getFullYear()
-                  const fraisNavMoisDays = diasHistorique.filter(j => {
+                  const fraisNavMoisDays = diasHist.filter(j => {
                     const d = parseDate(j.date, j.id)
                     return d && d.getMonth() === fraisNavMonth && d.getFullYear() === fraisNavYear && ['TRAB','DEC'].includes(j.type)
                   })
-                  const fraisNavLastDays = diasHistorique.filter(j => {
+                  const fraisNavLastDays = diasHist.filter(j => {
                     const d = parseDate(j.date, j.id)
                     return d && d.getMonth() === fraisNavLastMonth && d.getFullYear() === fraisNavLastYear && ['TRAB','DEC'].includes(j.type)
                   })
@@ -3238,7 +3377,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   const fraisNavLabel = `${MOIS_FR_NAV[fraisNavMonth]} ${fraisNavYear}`
 
                   // ── SECTION 8 — AMPLITUDE ─────────────────────────────────
-                  const allTravDays = diasHistorique.filter(j => ['TRAB','DEC'].includes(j.type) && j.debut && j.fin)
+                  const allTravDays = diasHist.filter(j => ['TRAB','DEC'].includes(j.type) && j.debut && j.fin)
                   const ampOf = (j: any) => { let a = parseHM(j.fin) - parseHM(j.debut); if (a < 0) a += 24*60; return a * 60 }
                   const ampSemDays = semaineDays.filter(j => j.debut && j.fin)
                   const avgAmpSem = ampSemDays.length > 0 ? ampSemDays.reduce((a,j) => a + ampOf(j),0) / ampSemDays.length : 0
@@ -3247,8 +3386,8 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
 
                   // ── SECTION 9 — ASSIDUITÉ ─────────────────────────────────
                   const travMois = moisDays.length
-                  const reposMois = diasHistorique.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['OFF','RC','FERIE','FER'].includes(j.type) }).length
-                  const sortedAll = [...diasHistorique].sort((a,b) => { const da=parseDate(a.date, a.id),db=parseDate(b.date, b.id); return (db?.getTime()??0)-(da?.getTime()??0) })
+                  const reposMois = diasHist.filter(j => { const d = parseDate(j.date, j.id); return d && d?.getMonth() === thisMonth && d?.getFullYear() === thisYear && ['OFF','RC','FERIE','FER'].includes(j.type) }).length
+                  const sortedAll = [...diasHist].sort((a,b) => { const da=parseDate(a.date, a.id),db=parseDate(b.date, b.id); return (db?.getTime()??0)-(da?.getTime()??0) })
                   let streak = 0
                   for (let i = 0; i < sortedAll.length; i++) {
                     if (['TRAB','DEC'].includes(sortedAll[i].type)) streak++
@@ -3256,9 +3395,9 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                   }
 
                   // ── SECTION 10 — RECORDS ──────────────────────────────────
-                  const longestServ = diasHistorique.reduce((best: any, j: any) => (!best || (j.segServico||0) > (best.segServico||0)) ? j : best, null)
+                  const longestServ = diasHist.reduce((best: any, j: any) => (!best || (j.segServico||0) > (best.segServico||0)) ? j : best, null)
                   const weeklyTotals: Record<string,number> = {}
-                  diasHistorique.forEach(j => {
+                  diasHist.forEach(j => {
                     const d = parseDate(j.date, j.id); if (!d || !['TRAB','DEC'].includes(j.type)) return
                     const mon = new Date(d); mon.setDate(d.getDate() - (d.getDay()+6)%7); mon.setHours(0,0,0,0)
                     const k = mon.toISOString(); weeklyTotals[k] = (weeklyTotals[k]||0) + (j.segServico||0)
@@ -3267,14 +3406,14 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                     ([bk, bv], [k, v]) => v > bv ? [k, v] : [bk, bv], ['', 0]
                   )
                   const monthlyFrais: Record<string,number> = {}
-                  diasHistorique.forEach(j => {
+                  diasHist.forEach(j => {
                     const d = parseDate(j.date, j.id); if (!d) return
                     const k = `${d.getFullYear()}-${d.getMonth()}`; monthlyFrais[k] = (monthlyFrais[k]||0) + (j.frais||0)
                   })
                   const [bestMonthFraisKey, bestMonthFrais] = Object.entries(monthlyFrais).reduce<[string, number]>(
                     ([bk, bv], [k, v]) => v > bv ? [k, v] : [bk, bv], ['', 0]
                   )
-                  const mostKmDay = diasHistorique.reduce((best: any, j: any) => (!best || (j.kmDiarios||0) > (best.kmDiarios||0)) ? j : best, null)
+                  const mostKmDay = diasHist.reduce((best: any, j: any) => (!best || (j.kmDiarios||0) > (best.kmDiarios||0)) ? j : best, null)
 
                   return (
                     <>
@@ -3369,7 +3508,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
                               {last7Days.map((day, i) => {
                                 const dStr = `${String(day.getDate()).padStart(2,'0')}/${String(day.getMonth()+1).padStart(2,'0')}`
                                 const dStrComAno = `${dStr}/${day.getFullYear()}`
-                                const entry = diasHistorique.find(j => {
+                                const entry = diasHist.find(j => {
                                   const jDate = j.date || ''
                                   if (jDate.includes('/') && jDate.split('/').length === 3) {
                                     return jDate === dStrComAno

@@ -24,7 +24,7 @@
 //     `confirmado:false`. Mudança de hora (DST) não é tratada.
 //  6. Reduções entre semanais: só se contam com uma referência de descanso semanal (declarada, ou um intervalo
 //     ≥24h nos últimos 14 dias, NÃO confirmado). Sem referência → `reducoes` = null (desconhecido).
-import { anoDoDia } from '../../utils/dataDia'
+import { anoDoDia, chaveDia } from '../../utils/dataDia'
 import { contarReducoes, classificarDescansoDiario, type DescansoRegistado, type TipoDescanso } from './descansos'
 import type { EntradaMotor } from './orquestrador'
 import type { DescansoSeguinte } from './amplitude'
@@ -183,7 +183,39 @@ export function entradaMotorDeJour(
     }
     anteriores.sort((a, b) => a.inicioMs - b.inicioMs)
   }
-  const prev = anteriores.length > 0 ? anteriores[anteriores.length - 1] : null
+  // VÁRIOS SERVIÇOS NO MESMO DIA: serviços anteriores do MESMO dia com intervalo <9h continuam o mesmo período de trabalho.
+  // O intervalo entre eles NÃO é pausa nem descanso: a amplitude e o tempo de serviço contam desde o início do 1.º serviço
+  // do dia (nunca se reinicia o limite ao começar o 2.º). Dias diferentes mantêm o comportamento de sempre.
+  const anoFb = Number.isFinite(ano as number) ? (ano as number) : new Date().getFullYear()
+  const periodo: Intervalo[] = []
+  if (inicioMs !== null) {
+    const chaveAtual = chaveDia(servico as any, anoFb)
+    let limite = inicioMs
+    for (let i = anteriores.length - 1; i >= 0; i--) {
+      const a = anteriores[i]
+      if (chaveDia(a.j as any, anoFb) !== chaveAtual) break
+      if ((limite - a.fimMs) / 1000 >= 9 * 3600) break
+      periodo.unshift(a)
+      limite = Math.min(limite, a.inicioMs)
+    }
+  }
+  const inicioPeriodoMs: number | null = periodo.length > 0 ? periodo[0].inicioMs : inicioMs
+  const anterioresRepouso = anteriores.slice(0, anteriores.length - periodo.length)
+  const segPeriodoAnterior = periodo.reduce((acc, a) => acc + seg(a.j.segServico), 0)
+  if (periodo.length > 0) {
+    avisos.push(`${periodo.length} serviço(s) anterior(es) no mesmo dia: a amplitude e o tempo de serviço contam desde o início do primeiro; o intervalo entre serviços não é pausa nem descanso.`)
+    const pausasAnt: PausaRegistada[] = []
+    for (const a of periodo) {
+      for (const p of Array.isArray(a.j.pausasDetalhe) ? a.j.pausasDetalhe : []) {
+        if (!p || !fin(p.inicio) || p.inicio <= 0 || !fin(p.dur) || p.dur < 0) continue
+        const ini = relogio(p.inicio)
+        if (ini < a.inicioMs - 60_000 || ini + p.dur * 1000 > a.fimMs + 60_000) continue
+        pausasAnt.push(p.origem ? { inicioMs: ini, durSeg: p.dur, origem: p.origem } : { inicioMs: ini, durSeg: p.dur })
+      }
+    }
+    pausas.unshift(...pausasAnt)
+  }
+  const prev = anterioresRepouso.length > 0 ? anterioresRepouso[anterioresRepouso.length - 1] : null
 
   let fimDescansoAnterior: EntradaMotor['fimDescansoAnterior'] = null
   let gapSeg: number | null = null
@@ -191,12 +223,12 @@ export function entradaMotorDeJour(
   if (dec.fimDescansoAnterior) {
     fimDescansoAnterior = dec.fimDescansoAnterior
   }
-  if (prev && inicioMs !== null) {
-    gapSeg = Math.round((inicioMs - prev.fimMs) / 1000)
+  if (prev && inicioPeriodoMs !== null) {
+    gapSeg = Math.round((inicioPeriodoMs - prev.fimMs) / 1000)
     tipoAnterior = classificarDescansoDiario(gapSeg)
     if (!dec.fimDescansoAnterior) {
       if (gapSeg >= 9 * 3600) {
-        fimDescansoAnterior = { ms: inicioMs, confirmado: false }
+        fimDescansoAnterior = { ms: inicioPeriodoMs, confirmado: false }
         avisos.push('Fim do descanso anterior assumido igual ao início do serviço (hipótese mais permissiva; não confirmado).')
       } else {
         avisos.push('Intervalo <9h desde o serviço anterior: não é um descanso diário válido; fim do descanso anterior desconhecido.')
@@ -210,12 +242,12 @@ export function entradaMotorDeJour(
   let reducoes: EntradaMotor['reducoes'] = null
   let refSemanal: number | null = null
   if (inicioMs !== null) {
-    const cadeia = [...anteriores.map(a => ({ inicioMs: a.inicioMs, fimMs: a.fimMs })), { inicioMs, fimMs: inicioMs }]
+    const cadeia = [...anterioresRepouso.map(a => ({ inicioMs: a.inicioMs, fimMs: a.fimMs })), { inicioMs: inicioPeriodoMs as number, fimMs: inicioPeriodoMs as number }]
     const gaps: DescansoRegistado[] = []
     for (let i = 1; i < cadeia.length; i++) gaps.push({ inicioMs: cadeia[i - 1].fimMs, fimMs: cadeia[i].inicioMs })
     if (fin(dec.fimUltimoDescansoSemanalMs)) refSemanal = dec.fimUltimoDescansoSemanalMs
     else {
-      const candidatos = gaps.filter(g => g.fimMs - g.inicioMs >= MS_DIA && g.fimMs >= inicioMs - 14 * MS_DIA)
+      const candidatos = gaps.filter(g => g.fimMs - g.inicioMs >= MS_DIA && g.fimMs >= (inicioPeriodoMs as number) - 14 * MS_DIA)
       if (candidatos.length > 0) {
         refSemanal = candidatos[candidatos.length - 1].fimMs
         avisos.push('Descanso semanal deduzido de um intervalo ≥24h nos últimos 14 dias (não confirmado).')
@@ -258,9 +290,9 @@ export function entradaMotorDeJour(
       categoria: dec.categoria ?? 'desconhecida',
       ...(dec.equipagem !== undefined ? { equipagem: dec.equipagem } : {}),
     },
-    inicioServicoMs: inicioMs,
+    inicioServicoMs: inicioPeriodoMs,
     referenciaMs,
-    servicoAcumuladoSeg: segServico,
+    servicoAcumuladoSeg: segServico + segPeriodoAnterior,
     ...(dec.pausaPrevistaSeg !== undefined ? { pausaPrevistaSeg: dec.pausaPrevistaSeg } : {}),
     pausas,
     fimDescansoAnterior,

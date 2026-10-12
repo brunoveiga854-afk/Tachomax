@@ -23,6 +23,8 @@ export type ConfirmacaoFrais = {
       mesBanco: MesAno          // mês indicado pelo motorista
       valor: number             // valor realmente recebido
       pagamentoPeriode?: string // linha que já guarda o dinheiro (escolha explícita); ausente = o pagamento é desta linha
+      /** Mês PREVISTO da fiche onde os frais vão aparecer (ainda inexistente). null = limpar previsão; ausente = não tocar. Só informativo. */
+      docPrevisto?: MesAno | null
     }
 )
 
@@ -42,6 +44,22 @@ const recusa = (historico: readonly MoisData[], motivo: MotivoRecusa): Resultado
   ({ aplicado: false, motivo, historico })
 
 const mesmoMes = (a: MesAno, b: MesAno) => a.ano === b.ano && a.mes === b.mes
+
+/** Campos da previsão do mês documental. undefined = não toca; null = limpa; MesAno válido = grava (se a fiche prevista ainda não existe
+ *  e não é esta própria fiche). Nunca altera valores, mês bancário nem o pagamento confirmado. */
+function camposDocPrevisto(
+  historico: readonly MoisData[], fiche: MoisData, docPrevisto: MesAno | null | undefined,
+): Partial<MoisData> {
+  if (docPrevisto === undefined) return {}
+  if (docPrevisto === null) return { fraisDocPrevistoMes: undefined, fraisDocPrevistoAno: undefined }
+  if (!mesValido(docPrevisto)) return {}
+  const propria = { ano: fiche.anoFiche ?? fiche.annee, mes: fiche.mesFicheIndex ?? fiche.moisIndex }
+  if (mesmoMes(docPrevisto, propria)) return { fraisDocPrevistoMes: undefined, fraisDocPrevistoAno: undefined }
+  const label = `${MESES[docPrevisto.mes]} ${docPrevisto.ano}`
+  if (historico.some(h => h.periode === label)) return {}   // a fiche já existe: não é «prevista»
+  return { fraisDocPrevistoMes: docPrevisto.mes, fraisDocPrevistoAno: docPrevisto.ano }
+}
+const MESES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 const mesValido = (m: MesAno | undefined): m is MesAno =>
   !!m && Number.isInteger(m.ano) && m.ano >= 2000 && m.ano <= 2100 && Number.isInteger(m.mes) && m.mes >= 0 && m.mes <= 11
 const temPagamento = (d: MoisData) => !!d.fraisConfirmado && (d.fraisRecuConfirme || 0) > 0
@@ -207,7 +225,7 @@ export function aplicarConfirmacaoRecebimentoFrais(
     if (!temPagamento(fiche) || estaLigada(fiche)) return recusa(historico, 'sem_pagamento_na_linha')
     if (Math.abs((fiche.fraisRecuConfirme || 0) - valor) > TOLERANCIA_EUROS) return recusa(historico, 'valor_diferente')
     const copia = [...historico]
-    copia[idx] = { ...fiche, ...banco, fraisRecebimento: 'recebido' }
+    copia[idx] = { ...fiche, ...banco, ...camposDocPrevisto(historico, fiche, rec.docPrevisto), fraisRecebimento: 'recebido' }
     return { aplicado: true, historico: copia }
   }
 
@@ -235,7 +253,13 @@ export function aplicarConfirmacaoRecebimentoFrais(
   }
   const copia = [...historico]
   const idPagamento = pagamento.fraisPagamentoId ?? opcoes.novoId()
-  if (!pagamento.fraisPagamentoId) copia[pIdx] = { ...pagamento, fraisPagamentoId: idPagamento }
+  // esta fiche É o documento previsto do pagamento: a previsão deixa de ser «prevista» (passa a documento real)
+  const eraPrevista = pagamento.fraisDocPrevistoMes === (fiche.mesFicheIndex ?? fiche.moisIndex)
+    && pagamento.fraisDocPrevistoAno === (fiche.anoFiche ?? fiche.annee)
+  if (!pagamento.fraisPagamentoId || eraPrevista) {
+    const { fraisDocPrevistoMes: _m, fraisDocPrevistoAno: _a, ...semPrev } = pagamento
+    copia[pIdx] = { ...(eraPrevista ? semPrev : pagamento), fraisPagamentoId: idPagamento }
+  }
   // Documental preservado (remboursementFrais). O dinheiro fica só na linha do pagamento.
   copia[idx] = {
     ...fiche,

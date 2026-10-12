@@ -21,6 +21,10 @@ import { log } from '../../src/utils/logger'
 import { kmUltimoFimAposApagar } from '../../src/utils/kmUltimoFim'
 import { kmTotalDoDia, kmFimDoDia, textoTroca, juntarComentario, type TrocaCamiao } from '../../src/utils/camioes'
 import { anoDoDia } from '../../src/utils/dataDia'
+import { agruparPorDia, resumoDia, itensPorDia, fraisTotalDoGrupo, fraisDetalheDoGrupo, repousosEntreDias, intervaloServico, kmDoServico, ehTrabalho, type DiaGrupo, type ResumoDia, type ServicoReg } from '../../src/utils/diasServicos'
+import { atualizarHistorico } from '../../src/utils/gravarServico'
+import { decidirFraisEdicao } from '../../src/utils/fraisManual'
+import { montarDiaPdfMulti } from '../../src/utils/fichePdfDia'
 type JourType = 'TRAB' | 'DEC' | 'FER' | 'FERIE' | 'RC' | 'OFF' | 'work' | 'dec'
 type Jour = {
   id: string
@@ -40,6 +44,9 @@ type Jour = {
   troca?: TrocaCamiao
   nota?: { categoria: string; emoji: string; texto?: string }
   pausasDetalhe?: { inicio: number; dur: number; origem?: string }[]
+  camiao?: { type: 'immat' | 'parc'; value: string } | null
+  curtoConfirmado?: boolean
+  fraisManual?: boolean
 }
 type LinhaFiche = { entry: Jour; label: string; horas: string; km: string; problema: string | null; nota: string }
 const TYPE_CONFIG: Partial<Record<JourType, { label: string, color: string, bg: string, bgLight: string, emoji: string }>> = {
@@ -79,6 +86,12 @@ const lundiDaSemana = (offset: number, ref: Date = new Date()): Date => {
   return l
 }
 const MAX_SEMAINE = 56 * 3600
+// Registo «inválido» (<2 min), a menos que o condutor o tenha confirmado como serviço curto real (curtoConfirmado).
+const ehInvalido = (j: Jour) => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC') && !j.curtoConfirmado
+// Item da lista: um registo (como sempre) ou UM cartão de dia com vários serviços dentro.
+type ItemLista =
+  | { tipo: 'um'; jour: Jour }
+  | { tipo: 'dia'; chave: string; grupo: DiaGrupo; resumo: ResumoDia; ids: string[] }
 function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onDeleteNota, index, modoSelecao, selecionado, onToggle, onLongPress }: {
   jour: Jour, themeSombre: boolean, c: any, onDelete: () => void, onEdit: () => void, onNote: () => void, onDeleteNota: () => void, index: number,
   modoSelecao: boolean, selecionado: boolean, onToggle: () => void, onLongPress: () => void
@@ -211,6 +224,141 @@ function JourCardSwipeable({ jour, themeSombre, c, onDelete, onEdit, onNote, onD
     </SwipeableGH>
   )
 }
+// Cartão ÚNICO de um dia com VÁRIOS serviços: totais do dia no topo, serviços (editáveis/apagáveis um a um) ao expandir.
+function DiaMultiCard({ grupo, resumo, c, modoSelecao, selecionado, onToggle, onLongPress, onEditServico, onDeleteServico, onNote }: {
+  grupo: DiaGrupo, resumo: ResumoDia, c: any, modoSelecao: boolean, selecionado: boolean,
+  onToggle: () => void, onLongPress: () => void, onEditServico: (s: Jour) => void, onDeleteServico: (s: Jour) => void, onNote: (s: Jour) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const cfg = (resumo.decouche ? TYPE_CONFIG.DEC : TYPE_CONFIG.TRAB) as NonNullable<typeof TYPE_CONFIG.TRAB>
+  const dateParts = grupo.date.split('/')
+  const diaNum = dateParts[0] || '—'
+  const mesIdx = dateParts[1] ? parseInt(dateParts[1]) - 1 : -1
+  const mesNome = mesIdx >= 0 && mesIdx < 12 ? MOIS_COURT[mesIdx] : ''
+  const servicos = grupo.trabalho as unknown as Jour[]
+  const ampSeg = resumo.amplitudeSeg ?? calcAmplitudeDe(resumo.debut, resumo.fin)
+  const comNota = servicos.find(s => s.nota)
+  const camioesDe = (s: Jour): string[] => s.troca
+    ? [s.troca.a?.camiao?.value, s.troca.b?.camiao?.value].filter((x): x is string => !!x)
+    : (s.camiao?.value ? [s.camiao.value] : [])
+  const pedirApagar = (s: Jour) => Alert.alert(
+    '🗑️ Supprimer ce service?',
+    `${s.debut} → ${s.fin} — ${fmtHM(s.segServico)}\n\nLes autres services du jour ne sont pas touchés. Cette action est irréversible.`,
+    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => onDeleteServico(s) }]
+  )
+  return (
+    <View style={{ marginHorizontal: 12, marginBottom: 6 }}>
+      <TouchableOpacity activeOpacity={0.85} onPress={modoSelecao ? onToggle : () => setAberto(v => !v)} onLongPress={onLongPress}>
+        <View style={[
+          st.jourCard,
+          { backgroundColor: c.card, borderColor: cfg.color + '30', borderLeftColor: cfg.color, borderLeftWidth: 4 },
+          modoSelecao && selecionado && { borderColor: '#27ae60', borderWidth: 1.5 },
+        ]}>
+          <View style={st.jourHeader}>
+            <View style={st.jourDateBox}>
+              <Text style={[st.jourDayName, { color: c.textSub }]}>{grupo.jour.toUpperCase()}</Text>
+              <Text style={[st.jourDayNum, { color: '#f5a623' }]}>{diaNum}</Text>
+              <Text style={[st.jourMonth, { color: c.textSub }]}>{mesNome}</Text>
+              <View style={[st.jourDurLine, { backgroundColor: cfg.color + '30' }]} />
+            </View>
+            <View style={st.jourInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={[st.jourTypeBadge, { backgroundColor: cfg.bg }]}>
+                  <Text style={[st.jourTypeText, { color: cfg.color }]}>{cfg.emoji} {cfg.label.toUpperCase()}</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600' }}>{resumo.nServicos} services</Text>
+              </View>
+              <View style={st.jourTimesRow}>
+                <View style={st.jourTimeBlock}>
+                  <Text style={[st.jourTimeLabel, { color: c.textSub }]}>DÉBUT</Text>
+                  <Text style={[st.jourTimeVal, { color: c.text }]}>{resumo.debut}</Text>
+                </View>
+                <View style={st.jourTimeBlock}>
+                  <Text style={[st.jourTimeLabel, { color: c.textSub }]}>FIN</Text>
+                  <Text style={[st.jourTimeVal, { color: c.text }]}>{resumo.fin}</Text>
+                </View>
+              </View>
+              <View style={st.jourAmpServiceRow}>
+                <Text style={st.jourAmplitudeText}>amp. {fmtHM(ampSeg)}</Text>
+                <Text style={[st.jourAmpSep, { color: c.textSub }]}>|</Text>
+                <Text style={st.jourServiceText}>{fmtHM(resumo.servicoSeg)}</Text>
+              </View>
+              {resumo.pausaSeg > 0 && (
+                <Text style={[st.jourPauseText, { color: '#f39c12' }]}>⏸ pause {fmtHM(resumo.pausaSeg)}</Text>
+              )}
+              {!modoSelecao && <Text style={[st.swipeHint, { color: c.textSub }]}>{aberto ? '▾ masquer les services' : '▸ voir les services'}</Text>}
+            </View>
+            <View style={st.jourFrais}>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[st.jourFraisLabel, { color: c.textSub }]}>FRAIS</Text>
+                {resumo.frais > 0
+                  ? <Text style={[st.jourFraisVal, { color: '#27ae60' }]}>+{resumo.frais.toFixed(2)}€</Text>
+                  : <Text style={[st.jourFraisVal, { color: c.textSub }]}>—</Text>}
+                {resumo.fraisManual && <Text style={{ fontSize: 9, color: c.textSub, fontWeight: '600' }}>(manuel)</Text>}
+                {resumo.km > 0 && <Text style={{ fontSize: 10, color: c.textSub, fontWeight: '600', marginTop: 2 }}>📍 {Math.round(resumo.km)} km</Text>}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                {modoSelecao ? (
+                  <Text style={{ fontSize: 22, color: selecionado ? '#27ae60' : c.textSub }}>{selecionado ? '✓' : '○'}</Text>
+                ) : comNota ? (
+                  <TouchableOpacity onPress={() => onNote(comNota)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{comNota.nota!.emoji}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          </View>
+          {!modoSelecao && aberto && (
+            <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: c.cardBorder }}>
+              {resumo.kmPorCamiao.length > 0 && (
+                <Text style={{ fontSize: 11, color: c.textSub, marginTop: 8 }}>
+                  🚛 {resumo.kmPorCamiao.map(k => `${k.matricula || 'sans plaque'} ${Math.round(k.km)} km`).join('  ·  ')}
+                </Text>
+              )}
+              {servicos.map((s, i) => {
+                const ant = i > 0 ? intervaloServico(servicos[i - 1] as unknown as ServicoReg) : null
+                const act = intervaloServico(s as unknown as ServicoReg)
+                const gapSeg = ant && act ? Math.round((act.inicio - ant.fim) / 1000) : 0
+                const cams = camioesDe(s)
+                const km = kmDoServico(s as unknown as ServicoReg)
+                return (
+                  <View key={s.id}>
+                    {gapSeg > 0 && (
+                      <Text style={{ fontSize: 10, color: c.textSub, fontStyle: 'italic', marginTop: 8 }}>
+                        ↕ intervalle {fmtHM(gapSeg)} (pas une pause)
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text }}>
+                          {i + 1}. {s.debut} → {s.fin}  ·  {fmtHM(s.segServico)}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>
+                          {[
+                            s.segPausa > 0 ? `⏸ ${fmtHM(s.segPausa)}` : '',
+                            cams.length ? `🚛 ${cams.join(' → ')}` : '',
+                            km > 0 ? `📍 ${Math.round(km)} km` : '',
+                            s.curtoConfirmado ? 'court confirmé' : '',
+                          ].filter(Boolean).join('  ·  ') || '—'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => onEditServico(s)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }} style={{ paddingHorizontal: 10 }}>
+                        <Text style={{ fontSize: 18 }}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => pedirApagar(s)} hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }} style={{ paddingHorizontal: 10 }}>
+                        <Text style={{ fontSize: 18 }}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
+  )
+}
 export default function HistoriqueScreen() {
   const { themeSombre } = useTheme()
   const { state: appState, recarregarApp, actualizarCampo } = useApp()
@@ -310,7 +458,7 @@ export default function HistoriqueScreen() {
       const data = await AsyncStorage.getItem('historique')
       if (!data) { setHistorique([]); return }
       const lista = JSON.parse(data)
-      const migrada = lista.map((j: any) => {
+      const migrar = (l: any[]) => l.map((j: any) => {
         const parts = j.date.split('/')
         if (parts.length === 2) {
           const ano = anoDoDia(j)
@@ -318,8 +466,17 @@ export default function HistoriqueScreen() {
         }
         return j
       })
+      let migrada = migrar(lista)
       const mudou = migrada.some((j: any, i: number) => j.date !== lista[i].date)
-      if (mudou) await AsyncStorage.setItem('historique', JSON.stringify(migrada))
+      if (mudou) {
+        // migração gravada NA FILA, sobre o histórico MAIS RECENTE (nunca repõe uma lista lida antes de outra gravação)
+        const r = await atualizarHistorico<any[]>(AsyncStorage, async atual => {
+          const m = migrar(atual as any[])
+          return m.some((j: any, i: number) => j.date !== (atual as any[])[i].date) ? { gravar: m as any, extra: m } : null
+        })
+        if (r.estado === 'ok') migrada = r.extra
+        log.info('historique', 'migração de datas (em fila)', { estado: r.estado })
+      }
       setHistorique(migrada)
       if (scrollToId) {
         setVue('mois')
@@ -394,9 +551,12 @@ const getJoursMois = () => {
   const exportarRelatorio = async (jours: Jour[], label: string) => {
     const totalService = jours.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
     const totalPauses = jours.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segPausa || 0) : 0), 0)
-    const totalFrais = jours.reduce((a, j) => a + (j.frais || 0), 0)
-    const nbDecouche = jours.filter(j => j.decouche).length
-    const nbTrab = jours.filter(j => j.type === 'TRAB' || j.type === 'DEC').length
+    // por DIA (não por serviço): frais uma só vez, dias trabalhados e noites sem duplicar
+    const grupos = agruparPorDia(jours as unknown as ServicoReg[])
+    const optsG = (g: DiaGrupo) => ({ regles: fraisReglesResumo, prevDecouche: diaAnteriorDecouche(g.registos[0] as unknown as Jour) })
+    const totalFrais = grupos.reduce((a, g) => a + fraisTotalDoGrupo(g, optsG(g)), 0)
+    const nbDecouche = grupos.filter(g => g.registos.some(r => r.decouche)).length
+    const nbTrab = grupos.filter(g => g.trabalho.some(r => r.type === 'TRAB' || r.type === 'DEC')).length
     let texte = `🚛 TACHOOFFICE — Rapport ${label}\n`
     texte += `${'─'.repeat(30)}\n\n`
     texte += `📊 RÉSUMÉ\n`
@@ -406,30 +566,59 @@ const getJoursMois = () => {
     texte += `Découchés: ${nbDecouche}\n`
     texte += `Frais total: ${totalFrais.toFixed(2)}€\n\n`
     texte += `📅 DÉTAIL\n`
-    jours.forEach(j => {
+    const linhaServico = (j: Jour) => {
       texte += `${j.jour} ${j.date} | ${j.debut}→${j.fin} | ${fmtHM(j.segServico)} | ${j.frais.toFixed(2)}€`
       if (j.decouche) texte += ` 🌙`
       texte += `\n`
+    }
+    grupos.forEach(g => {
+      if (g.trabalho.length < 2) { (g.registos as unknown as Jour[]).forEach(linhaServico); return }
+      // vários serviços: uma linha do dia + os serviços (horas, camião, km); o intervalo não é pausa
+      const r = resumoDia(g, optsG(g))
+      texte += `${g.jour} ${g.date} | ${r.debut}→${r.fin} | ${fmtHM(r.servicoSeg)} | ${r.frais.toFixed(2)}€ | ${r.nServicos} services`
+      if (r.decouche) texte += ` 🌙`
+      texte += `\n`
+      ;(g.trabalho as unknown as Jour[]).forEach((s, i) => {
+        const cams = s.troca ? [s.troca.a?.camiao?.value, s.troca.b?.camiao?.value].filter(Boolean).join(' → ') : (s.camiao?.value || '')
+        const km = kmDoServico(s as unknown as ServicoReg)
+        texte += `   ${i + 1}) ${s.debut}→${s.fin} | ${fmtHM(s.segServico)}${cams ? ` | ${cams}` : ''}${km > 0 ? ` | ${Math.round(km)} km` : ''}\n`
+      })
+      if (r.intervaloEntreServicosSeg > 0) texte += `   intervalle entre services: ${fmtHM(r.intervaloEntreServicosSeg)} (pas une pause)\n`
+      ;(g.outros as unknown as Jour[]).forEach(linhaServico)
     })
     texte += `\n${'─'.repeat(30)}\nGénéré par TachoOffice`
     await Share.share({ message: texte, title: `Rapport TachoOffice ${label}` })
   }
+  // Escrita no histórico DENTRO da fila: lê o valor mais recente, aplica a alteração e grava. Duas gravações quase
+  // simultâneas (ex.: terminar um serviço enquanto se edita outro) executam uma de cada vez, sem se perderem.
+  const mutarHistorico = async (fn: (l: Jour[]) => Jour[]): Promise<Jour[] | null> => {
+    const r = await atualizarHistorico<Jour[]>(AsyncStorage, async lista => {
+      const nova = fn(lista as unknown as Jour[])
+      return { gravar: nova as unknown as ServicoReg[], extra: nova }
+    })
+    if (!('extra' in r)) {
+      log.error('historique', 'escrita no histórico falhou', { estado: r.estado })
+      Alert.alert('Erreur', "Impossible de modifier l'historique. Aucune donnée n'a été changée.")
+      return null
+    }
+    setHistorique(r.extra)
+    return r.extra
+  }
+  // Elimina UM serviço (só este registo; os outros serviços do mesmo dia ficam intactos).
   const eliminarJour = async (id: string) => {
     const km = kmUltimoFimAposApagar(historique, [id], await AsyncStorage.getItem('km_ultimo_fim'))
-    const nova = historique.filter(j => j.id !== id)
-    setHistorique(nova)
-    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    const nova = await mutarHistorico(l => l.filter(j => String(j.id) !== String(id)))
+    if (!nova) return
     if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
     await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
-    log.info('historique', 'dia eliminado', { id })
+    log.info('historique', 'serviço eliminado (só este registo)', { id, restantes: nova.length })
   }
   const apagaSeleccionados = async () => {
     const ids = selecionados
     const km = kmUltimoFimAposApagar(historique, [...ids], await AsyncStorage.getItem('km_ultimo_fim'))
-    const nova = historique.filter(j => !ids.has(j.id))
-    setHistorique(nova)
-    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    const nova = await mutarHistorico(l => l.filter(j => !ids.has(j.id)))
+    if (!nova) return
     if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
     await recarregarApp({ origem: 'gravacao' })
     showToast('✓ Modifications appliquées')
@@ -438,9 +627,7 @@ const getJoursMois = () => {
     log.info('historique', 'multi-select apagados', { count: ids.size })
   }
   const eliminarNota = async (id: string) => {
-    const nova = historique.map(j => j.id === id ? { ...j, nota: undefined } : j)
-    setHistorique(nova)
-    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    await mutarHistorico(l => l.map(j => j.id === id ? { ...j, nota: undefined } : j))
   }
   const calcServicoDe = (debut: string, fin: string, pausaMin: number): number => {
     const parse = (t: string) => {
@@ -514,13 +701,9 @@ const getJoursMois = () => {
     if (!noteCategoria) return
     const nota = { categoria: noteCategoria, emoji: noteEmoji, texto: noteTexto || undefined }
     if (noteJour) {
-      const nova = historique.map(j => j.id === noteJour.id ? { ...j, nota } : j)
-      setHistorique(nova)
-      await AsyncStorage.setItem('historique', JSON.stringify(nova))
+      await mutarHistorico(l => l.map(j => j.id === noteJour.id ? { ...j, nota } : j))
     } else if (notaDataSel) {
-      const nova = historique.map(j => j.date === notaDataSel ? { ...j, nota } : j)
-      setHistorique(nova)
-      await AsyncStorage.setItem('historique', JSON.stringify(nova))
+      await mutarHistorico(l => l.map(j => j.date === notaDataSel ? { ...j, nota } : j))
     }
     setShowNoteModal(false)
     setNoteJour(null)
@@ -537,13 +720,17 @@ const getJoursMois = () => {
     valeurs = sanitizeFraisValeurs(appState.fraisValores ?? {})
     const fraisCalculado = calcularFraisEdicao(editDebut, editFin, novoServicoStr, editType, diaAnteriorDecouche(jourEdit), regles, valeurs)
     const eDiaTrabalho = editType === 'TRAB' || editType === 'DEC'
+    // frais ajustados à mão pelo motorista só se recalculam se ele alterar o que os determina (início/fim/tipo/serviço)
+    const decF = decidirFraisEdicao(jourEdit, { type: editType, debut: editDebut, fin: editFin, segServico: novoSeg, decouche: editType === 'DEC' }, fraisCalculado)
+    log.info('historique', 'frais na edição', { motivo: decF.motivo })
     const jourAtualizado: Jour = {
       ...jourEdit,
       debut: editDebut,
       fin: editFin,
       decouche: editType === 'DEC',
       type: editType,
-      frais: fraisCalculado,
+      frais: decF.frais,
+      fraisManual: decF.fraisManual ? true : undefined,
       segServico: novoSeg,
       segPausa: pausaMinFinal * 60,
       // pausa editada à mão → o detalhe deixa de bater certo com o total, apaga-se (JSON.stringify ignora undefined)
@@ -566,15 +753,17 @@ const getJoursMois = () => {
             : { categoria: 'Autre', emoji: '📌', texto: editNotaTexto.trim() })
         : undefined,
     }
-    const nova = historique.map(j => j.id === jourEdit.id ? jourAtualizado : j)
-    setHistorique(nova)
-    await AsyncStorage.setItem('historique', JSON.stringify(nova))
+    // só ESTE registo muda (os outros serviços do mesmo dia ficam intactos); lê o histórico mais recente dentro da fila
+    const nova = await mutarHistorico(l => l.map(j => j.id === jourEdit.id ? jourAtualizado : j))
+    if (!nova) return
 
     // Se o dia editado é o mais recente (por data) com kmFim>0 → sincroniza km_ultimo_fim
     const tsDia = (j: Jour) => {
       const p = j.date.split('/')
       const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
-      return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
+      // desempate entre serviços do MESMO dia: a hora de início
+      const hm = /^(\d{1,2})[h:](\d{2})$/.exec(String(j.debut || ''))
+      return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime() + (hm ? (parseInt(hm[1]) * 60 + parseInt(hm[2])) * 60000 : 0)
     }
     const maisRecenteComKm = nova
       .filter(j => kmFimDoDia(j) > 0)
@@ -623,16 +812,32 @@ const getJoursMois = () => {
       const JOURS_COURTS = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI']
       const fraisVals: any = appState.fraisValores ?? {}
       const regles: any = appState.fraisRegles ?? {}
+      // registos de um dia; um serviço inválido (<2 min, não confirmado) perdido no meio não conta como «segundo serviço»
+      const baseDoDia = (d: number, m0: number, a: number): Jour[] => {
+        const todos = historique.filter(j => {
+          const parts = j.date.split('/')
+          const a2 = parts[2] ? parseInt(parts[2]) : anoDoDia(j)
+          return parseInt(parts[0]) === d && parseInt(parts[1]) - 1 === m0 && a2 === a
+        })
+        const bons = todos.filter(j => !ehInvalido(j))
+        return bons.length > 0 ? bons : todos
+      }
       const jours = JOURS_LABELS.map((label, i) => {
         const dataJour = new Date(lundi); dataJour.setDate(lundi.getDate() + i)
         const ddmmyyyy = fmt(dataJour)
-        const entry = historique.find(j => {
-          const parts = j.date.split('/')
-          const m2 = parseInt(parts[1])-1; const d2 = parseInt(parts[0])
-          const a2 = parts[2] ? parseInt(parts[2]) : anoDoDia(j)
-          return d2 === dataJour.getDate() && m2 === dataJour.getMonth() && a2 === dataJour.getFullYear()
-        })
-        const fraisJ = entry ? (() => {
+        const baseDia = baseDoDia(dataJour.getDate(), dataJour.getMonth(), dataJour.getFullYear())
+        const grupoDia = baseDia.length > 0 ? agruparPorDia(baseDia as unknown as ServicoReg[])[0] : null
+        // vários serviços no dia → uma linha do dia (totais reais + serviços no comentário); serviço único → caminho de sempre
+        const multiDia = !!grupoDia && grupoDia.trabalho.length >= 2
+        const prevDecDia = grupoDia ? diaAnteriorDecouche(grupoDia.registos[0] as unknown as Jour) : false
+        const dadosMulti = multiDia && grupoDia ? montarDiaPdfMulti(grupoDia, { fraisOpts: { regles, valeurs: fraisVals, prevDecouche: prevDecDia } }) : null
+        const entry = multiDia && grupoDia ? (grupoDia.trabalho[0] as unknown as Jour) : baseDia[0]
+        const fraisJ = multiDia && grupoDia ? (() => {
+          try {
+            const r = fraisDetalheDoGrupo(grupoDia, { regles, valeurs: fraisVals, prevDecouche: prevDecDia })
+            return { ptDej: r.ptd > 0, repas: (r.dej > 0 || r.din > 0), nuit: !!dadosMulti?.nuit }
+          } catch { return { ptDej: false, repas: false, nuit: false } }
+        })() : entry ? (() => {
           try {
             const prevDec = diaAnteriorDecouche(entry)
             const segServ = entry.segServico || 0
@@ -653,7 +858,7 @@ const getJoursMois = () => {
         const ehTrabPdf = !!entry && (entry.type === 'TRAB' || entry.type === 'DEC')
         const kmI = ehTrabPdf ? (entry?.kmInicio || 0) : 0; const kmF = ehTrabPdf ? (entry?.kmFim || 0) : 0
         const mn = entry && ehTrabPdf ? minutosDia(entry) : null
-        return {
+        const linhaBase = {
           date: entry ? ddmmyyyy : '',
           jourLabel: label, jourCourt: JOURS_COURTS[i],
           debut: ehTrabPdf ? (entry?.debut || '') : '', fin: ehTrabPdf ? (entry?.fin || '') : '',
@@ -672,6 +877,16 @@ const getJoursMois = () => {
           remorque: remorqueVal || '',
           commentaire: juntarComentario((entry as any)?.nota?.texto, textoTroca((entry as any)?.troca)),
         }
+        if (!dadosMulti) return linhaBase
+        return {
+          ...linhaBase,
+          debut: dadosMulti.debut, fin: dadosMulti.fin,
+          amplitude: dadosMulti.amplitude, pauseTotal: dadosMulti.pauseTotal, travailTotal: dadosMulti.travailTotal, travMin: dadosMulti.travMin,
+          kmDepart: dadosMulti.kmDepart, kmArrivee: dadosMulti.kmArrivee, kmTotal: dadosMulti.kmTotal,
+          nuit: dadosMulti.nuit, vehicule: dadosMulti.vehicule || linhaBase.vehicule,
+          commentaire: dadosMulti.commentaire,
+          multi: dadosMulti.multi,
+        }
       })
       const joursFinal = indicesSelecionados
         ? jours.filter((_, i) => indicesSelecionados.includes(i))
@@ -679,29 +894,36 @@ const getJoursMois = () => {
       const totalKms = joursFinal.reduce((s, j) => s + (parseInt(j.kmTotal) || 0), 0)
       const totalMin = joursFinal.reduce((s, j) => s + j.travMin, 0)
       // Resumo + aviso antes de gerar o PDF (só dias seleccionados)
-      const entriesSel = joursFinal
+      const diasSel = joursFinal
         .filter(j => j.date)
         .map(j => {
           const [dd2, mm2, yy2] = j.date.split('/')
-          return historique.find(h => {
-            const p = h.date.split('/'); const m2 = parseInt(p[1]) - 1; const d2 = parseInt(p[0])
-            const a2 = p[2] ? parseInt(p[2]) : anoDoDia(h)
-            return d2 === parseInt(dd2) && m2 === parseInt(mm2) - 1 && a2 === parseInt(yy2)
-          })
+          const base = baseDoDia(parseInt(dd2), parseInt(mm2) - 1, parseInt(yy2))
+          return base.length > 0 ? { base, grupo: agruparPorDia(base as unknown as ServicoReg[])[0] } : null
         })
-        .filter((e): e is Jour => !!e)
-      const nTrab = entriesSel.filter(e => e.type === 'TRAB' || e.type === 'DEC').length
-      const nNuits = entriesSel.filter(e => e.decouche).length
+        .filter((x): x is { base: Jour[]; grupo: DiaGrupo } => !!x)
+      // serviço único: o mesmo registo de sempre; vários serviços: UMA linha por serviço (cada um visível e editável)
+      const entriesSel: { e: Jour; sufixo: string; aviso: string | null }[] = diasSel.flatMap(({ base, grupo }) => {
+        if (grupo.trabalho.length < 2) return [{ e: base[0], sufixo: '', aviso: null }]
+        const sobrep = resumoDia(grupo).temSobreposicao
+        return (grupo.registos as unknown as Jour[]).map((e, i) => ({
+          e, sufixo: ehTrabalho(e) ? ` · S${(grupo.trabalho as unknown as Jour[]).indexOf(e) + 1}` : '',
+          aviso: sobrep && i === 0 ? 'services qui se chevauchent' : null,
+        }))
+      })
+      const nTrab = diasSel.filter(({ base, grupo }) => grupo.trabalho.length >= 2 || base[0].type === 'TRAB' || base[0].type === 'DEC').length
+      const nNuits = diasSel.filter(({ base, grupo }) => grupo.trabalho.length >= 2 ? grupo.registos.some(r => r.decouche) : base[0].decouche).length
       const TIPO_LABEL: Record<string, string> = { OFF: 'Repos', FERIE: 'Congé', FER: 'Férié', RC: 'R.C.' }
-      const linhas: LinhaFiche[] = entriesSel.map(e => {
+      const linhas: LinhaFiche[] = entriesSel.map(({ e, sufixo, aviso }) => {
         const kmI = e.kmInicio || 0; const kmF = e.kmFim || 0
         const ehTrab = e.type === 'TRAB' || e.type === 'DEC'
         const kmDia = (e as any).troca ? (parseInt(kmTotalDoDia(e as any)) || 0) : (kmI > 0 && kmF > 0) ? Math.abs(kmF - kmI) : (e.kmDiarios || 0)
         let problema: string | null = null
         if (invalidos.some(x => x.id === e.id)) problema = 'service < 2 min'
         else if (kmI > 0 && kmF > 0 && kmF < kmI) problema = 'km fin < km début'
+        else if (aviso) problema = aviso
         return {
-          entry: e, label: `${e.jour} ${e.date.slice(0, 5)}`,
+          entry: e, label: `${e.jour} ${e.date.slice(0, 5)}${sufixo}`,
           horas: ehTrab ? (fmtMin(minutosDia(e).travMin) || '0h00') : (TIPO_LABEL[e.type] || '—'),
           km: ehTrab && kmDia > 0 ? `${kmDia} km` : '',
           problema, nota: e.nota?.texto || '',
@@ -814,35 +1036,35 @@ const getJoursMois = () => {
     })
   })
   const totalService = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.segServico || 0) : 0), 0)
-  const totalFrais = joursActuels.reduce((a, j) => a + (j.frais || 0), 0)
+  // Totais POR DIA: os frais e as noites contam uma vez por dia, não por serviço (um dia de serviço único dá o mesmo de sempre)
+  const gruposAtuais = agruparPorDia(joursActuels.filter(j => !ehInvalido(j)) as unknown as ServicoReg[])
+  const optsFraisGrupo = (g: DiaGrupo) => ({ regles: fraisReglesResumo, prevDecouche: diaAnteriorDecouche(g.registos[0] as unknown as Jour) })
+  const totalFrais = gruposAtuais.reduce((a, g) => a + fraisTotalDoGrupo(g, optsFraisGrupo(g)), 0)
   const totalKm = joursActuels.reduce((a, j) => a + (['TRAB', 'DEC'].includes(j.type) ? (j.kmDiarios || 0) : 0), 0)
-  const nbDecouche = joursActuels.filter(j => j.decouche).length
-  const fraisDetalhes = joursActuels.map(j => calcularFraisJour({
-    debut: j.debut,
-    fin: j.fin,
-    type: j.type,
-    segServico: j.segServico,
-    decouche: j.decouche,
-    prevDecouche: diaAnteriorDecouche(j),
-    regles: fraisReglesResumo,
-  }))
+  const nbDecouche = gruposAtuais.filter(g => g.registos.some(r => r.decouche)).length
+  const fraisDetalhes = gruposAtuais.map(g => fraisDetalheDoGrupo(g, optsFraisGrupo(g)))
   const nbPtDej = fraisDetalhes.filter(f => f.ptd > 0).length
   const nbDej = fraisDetalhes.filter(f => f.dej > 0).length
   const nbDiner = fraisDetalhes.filter(f => f.din > 0).length
   const pctSemaine = Math.min((totalService / MAX_SEMAINE) * 100, 100)
   const barColor = pctSemaine > 90 ? '#e74c3c' : pctSemaine > 75 ? '#f39c12' : '#27ae60'
-  const invalidos = joursActuels.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC'))
-  const validos = joursActuels.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
+  const invalidos = joursActuels.filter(ehInvalido)
+  const validos = joursActuels.filter(j => !ehInvalido(j))
+  // Lista: dias de serviço único = cartões de sempre; dias com 2+ serviços = UM cartão do dia (na posição do 1.º serviço)
+  const itensLista = itensPorDia(validos as unknown as ServicoReg[], {
+    regles: fraisReglesResumo,
+    prevDecoucheDe: g => diaAnteriorDecouche(g.registos[0] as unknown as Jour),
+  }) as unknown as ItemLista[]
   useEffect(() => {
     if (!highlightId) return
-    const idx = validos.findIndex(j => j.id === highlightId)
+    const idx = itensLista.findIndex(it => it.tipo === 'dia' ? it.ids.includes(highlightId) : it.jour.id === highlightId)
     if (idx < 0 || !listRef.current) return
     const t1 = setTimeout(() => {
       listRef.current?.scrollToIndex({ index: idx, animated: true })
     }, 300)
     const t2 = setTimeout(() => setHighlightId(null), 1000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [highlightId, validos])
+  }, [highlightId, itensLista])
   const getJoursSemanaOffset = (offset: number) => {
     const lundiBase = lundiDaSemana(offset)
     return historique.filter(jour => {
@@ -865,30 +1087,69 @@ const getJoursMois = () => {
     const ano = p[2] ? parseInt(p[2]) : anoDoDia(j)
     return new Date(ano, parseInt(p[1]) - 1, parseInt(p[0])).getTime()
   }
-  const jornatasOrdenadas = [...historique]
-    .filter(j => j.type === 'TRAB' || j.type === 'DEC')
-    .filter(j => !(j.segServico < 120))
-    .sort((a, b) => parseDate(a) - parseDate(b))
+  // Repouso entre DIAS: fim do último serviço de um dia → início do primeiro serviço do dia de trabalho seguinte.
+  // O intervalo entre dois serviços do MESMO dia nunca é avaliado (não é repouso diário nem reinicia limites).
   const reposInsuficientes: { jour: string, date: string, gap: number, niveau: 'illegal' | 'reduit' }[] = []
-  for (let i = 0; i < jornatasOrdenadas.length - 1; i++) {
-    const hoje = jornatasOrdenadas[i]
-    const amanha = jornatasOrdenadas[i + 1]
-    const [hF, mF] = (hoje.fin || '00h00').replace('h', ':').split(':').map(Number)
-    const [hD, mD] = (amanha.debut || '00h00').replace('h', ':').split(':').map(Number)
-    const pF = hoje.date.split('/'), pD = amanha.date.split('/')
-    const anoF = pF[2] ? parseInt(pF[2]) : anoDoDia(hoje)
-    const anoD = pD[2] ? parseInt(pD[2]) : anoDoDia(amanha)
-    const tFim   = new Date(anoF, parseInt(pF[1])-1, parseInt(pF[0]), hF || 0, mF || 0).getTime()
-    const tDebut = new Date(anoD, parseInt(pD[1])-1, parseInt(pD[0]), hD || 0, mD || 0).getTime()
-    const gapH = (tDebut - tFim) / 3600000
-    if (gapH > 0 && gapH < 9) {
-      reposInsuficientes.push({ jour: amanha.jour, date: amanha.date, gap: gapH, niveau: 'illegal' })
-    } else if (gapH >= 9 && gapH < 11) {
-      reposInsuficientes.push({ jour: amanha.jour, date: amanha.date, gap: gapH, niveau: 'reduit' })
+  {
+    const hist = historique.filter(j => !ehInvalido(j)) as unknown as ServicoReg[]
+    const porChave = new Map(agruparPorDia(hist).map(g => [g.chave, g] as const))
+    for (const r of repousosEntreDias(hist)) {
+      const alvo = porChave.get(r.para)
+      if (!alvo) continue
+      if (r.gapH > 0 && r.gapH < 9) reposInsuficientes.push({ jour: alvo.jour, date: alvo.date, gap: r.gapH, niveau: 'illegal' })
+      else if (r.gapH >= 9 && r.gapH < 11) reposInsuficientes.push({ jour: alvo.jour, date: alvo.date, gap: r.gapH, niveau: 'reduit' })
     }
   }
   const reposVisiveis = reposInsuficientes.filter(r =>
     joursActuels.some(j => j.date === r.date)
+  )
+  const renderUm = (jour: Jour, idx: number) => (
+          <View style={jour.id === highlightId ? { borderRadius: 14, borderWidth: 2, borderColor: '#f5a623', marginHorizontal: 2, marginVertical: 2 } : undefined}>
+            <JourCardSwipeable
+              key={jour.id}
+              jour={jour}
+              themeSombre={themeSombre}
+              c={c}
+              index={idx}
+              onDelete={() => eliminarJour(jour.id)}
+              onEdit={() => abrirEdicao(jour)}
+              onNote={() => abrirNota(jour)}
+              onDeleteNota={() => eliminarNota(jour.id)}
+              modoSelecao={modoSelecao}
+              selecionado={selecionados.has(jour.id)}
+              onToggle={() => setSelecionados(prev => {
+                const next = new Set(prev)
+                next.has(jour.id) ? next.delete(jour.id) : next.add(jour.id)
+                return next
+              })}
+              onLongPress={() => {
+                setSelecionados(new Set([jour.id]))
+                setModoSelecao(true)
+              }}
+            />
+          </View>
+        
+  )
+  const renderDia = (item: Extract<ItemLista, { tipo: 'dia' }>, idx: number) => (
+    <View style={highlightId && item.ids.includes(highlightId) ? { borderRadius: 14, borderWidth: 2, borderColor: '#f5a623', marginHorizontal: 2, marginVertical: 2 } : undefined}>
+      <DiaMultiCard
+        grupo={item.grupo}
+        resumo={item.resumo}
+        c={c}
+        modoSelecao={modoSelecao}
+        selecionado={item.ids.every(i => selecionados.has(i))}
+        onToggle={() => setSelecionados(prev => {
+          const next = new Set(prev)
+          const todos = item.ids.every(i => next.has(i))
+          item.ids.forEach(i => { todos ? next.delete(i) : next.add(i) })
+          return next
+        })}
+        onLongPress={() => { setSelecionados(new Set(item.ids)); setModoSelecao(true) }}
+        onEditServico={abrirEdicao}
+        onDeleteServico={s => eliminarJour(s.id)}
+        onNote={abrirNota}
+      />
+    </View>
   )
   return (
     <SafeAreaView edges={['top']} style={[st.safe, { backgroundColor: c.bg }]}>
@@ -1073,11 +1334,10 @@ const getJoursMois = () => {
                     [
                       { text: 'Annuler', style: 'cancel' },
                       { text: 'Supprimer', style: 'destructive', onPress: async () => {
-                        const idsInvalidos = historique.filter(j => j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')).map(j => j.id)
+                        const idsInvalidos = historique.filter(ehInvalido).map(j => j.id)
                         const km = kmUltimoFimAposApagar(historique, idsInvalidos, await AsyncStorage.getItem('km_ultimo_fim'))
-                        const nova = historique.filter(j => !(j.segServico < 120 && (j.type === 'TRAB' || j.type === 'DEC')))
-                        setHistorique(nova)
-                        await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                        const nova = await mutarHistorico(l => l.filter(j => !ehInvalido(j)))
+                        if (!nova) return
                         if (km !== null) await AsyncStorage.setItem('km_ultimo_fim', String(km))
                         await recarregarApp({ origem: 'gravacao' })
                         showToast('✓ Modifications appliquées')
@@ -1095,8 +1355,8 @@ const getJoursMois = () => {
       <FlatList
         ref={listRef}
         showsVerticalScrollIndicator={false}
-        data={validos}
-        keyExtractor={(item) => item.id}
+        data={itensLista}
+        keyExtractor={(item) => item.tipo === 'dia' ? 'dia-' + item.chave : item.jour.id}
         initialNumToRender={15}
         windowSize={10}
         removeClippedSubviews={true}
@@ -1121,32 +1381,7 @@ const getJoursMois = () => {
           </View>
         }
         ListFooterComponent={<View style={{ height: 24 }} />}
-        renderItem={({ item: jour, index: idx }) => (
-          <View style={jour.id === highlightId ? { borderRadius: 14, borderWidth: 2, borderColor: '#f5a623', marginHorizontal: 2, marginVertical: 2 } : undefined}>
-            <JourCardSwipeable
-              key={jour.id}
-              jour={jour}
-              themeSombre={themeSombre}
-              c={c}
-              index={idx}
-              onDelete={() => eliminarJour(jour.id)}
-              onEdit={() => abrirEdicao(jour)}
-              onNote={() => abrirNota(jour)}
-              onDeleteNota={() => eliminarNota(jour.id)}
-              modoSelecao={modoSelecao}
-              selecionado={selecionados.has(jour.id)}
-              onToggle={() => setSelecionados(prev => {
-                const next = new Set(prev)
-                next.has(jour.id) ? next.delete(jour.id) : next.add(jour.id)
-                return next
-              })}
-              onLongPress={() => {
-                setSelecionados(new Set([jour.id]))
-                setModoSelecao(true)
-              }}
-            />
-          </View>
-        )}
+        renderItem={({ item, index: idx }) => item.tipo === 'dia' ? renderDia(item, idx) : renderUm(item.jour, idx)}
         ListHeaderComponent={modoSelecao ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
             <TouchableOpacity
@@ -1471,9 +1706,7 @@ const getJoursMois = () => {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={{ flex: 2, backgroundColor: '#e74c3c', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={async () => {
-                  const nova = historique.map(j => j.id === noteJour?.id ? { ...j, nota: undefined } : j)
-                  setHistorique(nova)
-                  await AsyncStorage.setItem('historique', JSON.stringify(nova))
+                  await mutarHistorico(l => l.map(j => j.id === noteJour?.id ? { ...j, nota: undefined } : j))
                   setShowNoteModal(false); setNoteJour(null)
                 }}>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>🗑️ Supprimer la note</Text>

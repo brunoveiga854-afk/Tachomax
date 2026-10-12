@@ -1,19 +1,25 @@
 // src/AssistenteFab.tsx
 // Botão flutuante discreto que abre o assistente (/assistente). Usado na Home.
 //
-// Componente AUTÓNOMO: tem o seu próprio estado (teclado) e não lê nem escreve dados da app. Montado como irmão do
-// ScrollView da Home, em posição absoluta no canto inferior direito da área de conteúdo — a barra de separadores fica
-// fora deste ecrã, por isso o botão fica sempre acima dela. Esconde-se com o teclado aberto.
+// Só aparece se o assistente estiver ATIVADO (preferência «Activer l'assistant» nas Réglages, ver
+// src/assistente/preferencia.ts) e sem teclado aberto. A preferência é lida do armazenamento e atualizada em
+// tempo real quando é alterada nas Réglages (sem reiniciar a app). Não lê nem escreve dados do serviço.
+//
+// Montado como irmão do ScrollView da Home, em posição absoluta no canto inferior direito da área de conteúdo — a barra
+// de separadores fica fora deste ecrã, por isso o botão fica sempre acima dela.
 import React, { useEffect, useRef, useState } from 'react'
 import { Keyboard, TouchableOpacity, StyleSheet } from 'react-native'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../context/ThemeContext'
+import { useAssistenteAtivo } from './assistente/useAssistenteAtivo'
+import { botaoFlutuanteVisivel } from './assistente/preferencia'
 
 const TAMANHO = 48
 
 export function AssistenteFab() {
   const { themeSombre } = useTheme()
+  const { ativo } = useAssistenteAtivo()
   const [teclado, setTeclado] = useState(false)
   const bloqueado = useRef(false)
 
@@ -23,7 +29,7 @@ export function AssistenteFab() {
     return () => { mostra.remove(); esconde.remove() }
   }, [])
 
-  if (teclado) return null
+  if (!botaoFlutuanteVisivel({ ativo, tecladoAberto: teclado })) return null
 
   const abrir = () => {
     if (bloqueado.current) return // evita abrir duas vezes num duplo toque

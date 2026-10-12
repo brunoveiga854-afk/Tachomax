@@ -19,6 +19,7 @@ import { pedirPermissaoNotificacoes, agendarRappelSaisie, cancelarRappelSaisie }
 import { log, LogEntry, perfLog } from '../../src/utils/logger'
 import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
 import { kmFimDoDia } from '../../src/utils/camioes'
+import { useAssistenteAtivo } from '../../src/assistente/useAssistenteAtivo'
 
 // Chaves a exportar/importar (AsyncStorage)
 // monSalaire_padrao/aprendizagem_padrao omitidos: recalculados automaticamente
@@ -56,6 +57,7 @@ export default function ReglagesScreen() {
   const [diasTrial, setDiasTrial] = useState<number | null>(null)
   const [dataExpiracao, setDataExpiracao] = useState<Date | null>(null)
   const [rappelAtivo, setRappelAtivo] = useState(true)
+  const { ativo: assistenteAtivo, definir: definirAssistente } = useAssistenteAtivo()
   const [showAbout, setShowAbout] = useState(false)
   const [tracteurType, setTracteurType] = useState<'immat' | 'parc'>('immat')
   const [tracteurValue, setTracteurValue] = useState('')
@@ -1004,6 +1006,26 @@ export default function ReglagesScreen() {
           </View>
         </View>
 
+
+        {/* ── 4b. ASSISTANT TACHOOFFICE ── */}
+        <SecSep label="🤖 ASSISTANT TACHOOFFICE" />
+
+        <View style={[st.section, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Text style={[st.sectionTitle, { color: c.textLabel }]}>Assistant TachoOffice</Text>
+          <View style={st.settingRow}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={[st.settingLabel, { color: c.text }]}>Activer l'assistant</Text>
+              <Text style={[st.settingSub, { color: c.textSub }]}>Affiche le bouton de l'assistant sur l'écran d'accueil : amplitude, temps de service et repos calculés à partir de ton service en cours.</Text>
+            </View>
+            <Switch
+              value={assistenteAtivo !== false}
+              disabled={assistenteAtivo === null}
+              onValueChange={(valor) => { void definirAssistente(valor) }}
+              trackColor={{ false: '#d0d5e8', true: '#f5a623' }}
+              thumbColor="white"
+            />
+          </View>
+        </View>
 
         {/* ── 5. PARAMÈTRES SALAIRE ── */}
         <SecSep label="💶 PARAMÈTRES SALAIRE" />

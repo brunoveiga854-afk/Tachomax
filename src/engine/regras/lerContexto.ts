@@ -140,6 +140,14 @@ export type Resposta = {
   estado: EstadoResultado
   estadoTexto: string
   linhas: Linha[]
+  /** resultado principal em destaque (null se o motor não tem dados suficientes para esta pergunta) */
+  destaque: { valor: string; legenda: string } | null
+  /** hipóteses usadas no cálculo, curtas e SEMPRE visíveis junto do resultado */
+  hipoteses: string[]
+  /** alternativas regulamentares — só as que o motor calcula */
+  alternativas: Linha[]
+  /** avisos críticos (dados aproximados/incompletos): visíveis sem abrir secções */
+  alertas: string[]
   /** dados sem os quais não há resultado */
   informationManquante: string[]
   /** dados que condicionam o resultado (simulação) */
@@ -202,6 +210,60 @@ const detalheNum = (r: { detalhe?: Record<string, number | string | boolean | nu
   return typeof v === 'number' ? v : null
 }
 
+/** Avisos críticos comuns: dados aproximados/incompletos que o motorista tem de ver SEM abrir secções. */
+function alertasComuns(c: ContextoAssistente): string[] {
+  const out: string[] = []
+  if (c.situacao !== 'em_curso' || !c.adaptador) return out
+  const d = c.adaptador.diagnostico
+  if (c.precisaoServico === 'aproximada') out.push("Temps de service approximatif : l'heure exacte d'enregistrement n'est pas disponible.")
+  if (d.segPausaSemDetalheSeg > 60) out.push(`${Math.round(d.segPausaSemDetalheSeg / 60)} min de pause sans horaire : elles ne sont pas positionnées dans le calcul.`)
+  if (d.nPausasDescartadas > 0) out.push(`${d.nPausasDescartadas} pause(s) ignorée(s) : données invalides ou hors du service.`)
+  if (!c.historicoLegivel) out.push("Historique illisible : le repos précédent n'a pas pu être déterminé.")
+  return out
+}
+
+/** Hipóteses efetivamente usadas na conta (curtas) para cada pergunta. */
+function hipotesesDe(c: ContextoAssistente, id: PerguntaId): string[] {
+  const out: string[] = []
+  if (!c.adaptador) return out
+  const e = c.adaptador.entrada
+  if ((id === 'amplitude' || id === 'repos') && !e.descansoSeguinte) out.push('Repos quotidien suivant supposé normal (11 h)')
+  if ((id === 'amplitude' || id === 'repos') && e.fimDescansoAnterior && !e.fimDescansoAnterior.confirmado) out.push("Fin du repos précédent déduite de l'historique")
+  if ((id === 'amplitude' || id === 'repos') && e.contexto.regulamento561 === 'desconhecido') out.push('Règlement 561/2006 supposé applicable')
+  if (id === 'servico' && e.contexto.enquadramentoFrances === 'desconhecido') out.push('Code des transports supposé applicable')
+  if (id === 'servico' && e.confirmacoes?.tempoServicoEquivaleServicoRegulamentar !== true) out.push("« Service » de l'app = temps de service réglementaire")
+  if ((e.pausaPrevistaSeg ?? 0) > 0) out.push(`Pause simulée de ${Math.round((e.pausaPrevistaSeg ?? 0) / 60)} min`)
+  return out
+}
+
+export type CartaoContexto = {
+  emServico: boolean
+  titulo: string
+  linhas: Linha[]
+  alertas: string[]
+}
+
+/** Cartão «contexto do serviço» com os dados REAIS lidos; nada é preenchido quando não há serviço. */
+export function prepararCartaoContexto(c: ContextoAssistente): CartaoContexto {
+  if (c.situacao !== 'em_curso' || !c.adaptador) {
+    const titulo = c.situacao === 'invalido' ? 'Service illisible'
+      : c.situacao === 'erro_leitura' ? 'Lecture impossible'
+      : c.situacao === 'transicao' ? 'Service enregistré'
+      : 'Aucun service en cours'
+    return { emServico: false, titulo, linhas: [], alertas: [] }
+  }
+  const e = c.adaptador.entrada
+  const d = c.adaptador.diagnostico
+  const linhas: Linha[] = []
+  if (typeof e.inicioServicoMs === 'number') {
+    linhas.push({ rotulo: 'Début', valor: formatarInstante(e.inicioServicoMs, true) })
+    if (typeof e.referenciaMs === 'number') linhas.push({ rotulo: 'Amplitude écoulée', valor: fmtDuracao(Math.max(0, (e.referenciaMs - e.inicioServicoMs) / 1000)) })
+  }
+  linhas.push({ rotulo: 'Service accumulé', valor: fmtDuracao(e.servicoAcumuladoSeg ?? 0) })
+  linhas.push({ rotulo: 'Pauses cumulées', valor: fmtDuracao(d.segPausa) + (d.segPausaSemDetalheSeg > 60 ? ` (dont ${Math.round(d.segPausaSemDetalheSeg / 60)} min sans horaire)` : '') })
+  return { emServico: true, titulo: c.emPausa ? 'Service en cours — en pause' : 'Service en cours', linhas, alertas: alertasComuns(c) }
+}
+
 export function prepararRespostas(c: ContextoAssistente): { situacao: Situacao; respostas: Resposta[] } {
   const faltas = levantarFaltas(c)
   const textoSituacao: Record<SituacaoServico, string> = {
@@ -218,6 +280,7 @@ export function prepararRespostas(c: ContextoAssistente): { situacao: Situacao; 
     const da = faltas.filter(f => f.perguntas.includes(id))
     const base: Resposta = {
       id, titulo, disponivel: false, estado: c.estado, estadoTexto: ESTADO_TEXTO[c.estado], linhas: [],
+      destaque: null, hipoteses: [], alternativas: [], alertas: alertasComuns(c),
       informationManquante: [...bloqueioSemServico, ...da.filter(f => f.bloqueante).map(f => f.texto)],
       aConfirmer: da.filter(f => !f.bloqueante).map(f => f.texto),
       naoVerificadas: [...NAO_VERIFICADAS_BASE], detalhesTecnicos: [], aviso: AVISO_NAO_AUTORIZACAO,
@@ -239,13 +302,16 @@ export function prepararRespostas(c: ContextoAssistente): { situacao: Situacao; 
       if (!rAmp?.avaliada || rAmp.fimMaximoMs === null) { base.informationManquante = base.informationManquante.length ? base.informationManquante : ['Données de repos précédent'] ; base.detalhesTecnicos = [...(rAmp?.pressupostos ?? []), ...(rAmp?.emFalta ?? [])]; return base }
       const fim = rAmp.fimMaximoMs
       base.disponivel = true
+      base.hipoteses = hipotesesDe(c, 'amplitude')
+      base.destaque = { valor: fim >= ref ? fmtDuracao((fim - ref) / 1000) : 'Dépassée', legenda: `Fin théorique de l'amplitude : ${formatarInstante(fim, true)}` }
+      if (fim < ref) base.alertas.push("Selon le calcul, l'amplitude maximale théorique est déjà dépassée.")
       base.linhas.push(
         { rotulo: 'Fin maximale théorique du service (amplitude)', valor: formatarInstante(fim, true) },
         { rotulo: 'Temps restant (calcul)', valor: fim >= ref ? fmtDuracao((fim - ref) / 1000) : `dépassée de ${fmtDuracao((ref - fim) / 1000)}` },
         { rotulo: 'Repos pris comme hypothèse', valor: rAmp.detalhe?.descansoUsado === 'reduzido' ? '9 h (réduit)' : '11 h (normal)' },
         { rotulo: 'Amplitude maximale correspondante', valor: fmtDuracao(detalheNum(rAmp, 'amplitudeMaximaSeg') ?? 0) },
       )
-      if (m.janelasDescanso.reduzidoMs !== null) base.linhas.push({ rotulo: 'Avec repos réduit de 9 h (si une réduction est disponible)', valor: `fin théorique ${formatarInstante(m.janelasDescanso.reduzidoMs, true)}` })
+      if (m.janelasDescanso.reduzidoMs !== null) base.alternativas.push({ rotulo: 'Avec un repos réduit de 9 h (si une réduction est disponible)', valor: `fin théorique ${formatarInstante(m.janelasDescanso.reduzidoMs, true)}` })
       base.detalhesTecnicos = [...rAmp.pressupostos, ...rAmp.emFalta]
       return base
     }
@@ -255,6 +321,8 @@ export function prepararRespostas(c: ContextoAssistente): { situacao: Situacao; 
       const restante = detalheNum(rSrv, 'restanteServicoSeg') ?? 0
       const limite = detalheNum(rSrv, 'limiteAplicadoSeg') ?? 0
       base.disponivel = true
+      base.hipoteses = hipotesesDe(c, 'servico')
+      base.destaque = { valor: fmtDuracao(restante), legenda: `Limite ${fmtDuracao(limite)}${rSrv.detalhe?.trabalhoNoturno === true ? ' (travail de nuit)' : ''} · fin théorique ${formatarInstante(rSrv.fimMaximoMs, true)}` }
       base.linhas.push(
         { rotulo: 'Service effectué', valor: fmtDuracao(c.adaptador.entrada.servicoAcumuladoSeg ?? 0) },
         { rotulo: `Limite journalière appliquée${rSrv.detalhe?.trabalhoNoturno === true ? ' (travail de nuit)' : ''}`, valor: fmtDuracao(limite) },
@@ -274,9 +342,11 @@ export function prepararRespostas(c: ContextoAssistente): { situacao: Situacao; 
     const j = m.janelasDescanso
     if (!rAmp?.avaliada || j.normalMs === null) { base.informationManquante = base.informationManquante.length ? base.informationManquante : ['Fin du repos précédent']; base.detalhesTecnicos = [...(rAmp?.pressupostos ?? []), ...(rAmp?.emFalta ?? [])]; return base }
     base.disponivel = true
+    base.hipoteses = hipotesesDe(c, 'repos')
+    base.destaque = { valor: formatarInstante(j.normalMs, true), legenda: 'Début du repos quotidien de 11 h au plus tard' }
     base.linhas.push({ rotulo: 'Repos quotidien normal : 11 h', valor: `doit commencer au plus tard à ${formatarInstante(j.normalMs, true)} pour être achevé dans les 24 h suivant la fin du repos précédent` })
-    if (j.reduzidoMs !== null) base.linhas.push({ rotulo: 'Repos quotidien réduit : 9 h (maximum 3 entre deux repos hebdomadaires)', valor: `début au plus tard à ${formatarInstante(j.reduzidoMs, true)}` })
-    else if (j.reduzidoDisponivel === false) base.linhas.push({ rotulo: 'Repos quotidien réduit : 9 h', valor: 'plus de réduction disponible' })
+    if (j.reduzidoMs !== null) base.alternativas.push({ rotulo: 'Repos quotidien réduit : 9 h (maximum 3 entre deux repos hebdomadaires)', valor: `début au plus tard à ${formatarInstante(j.reduzidoMs, true)}` })
+    else if (j.reduzidoDisponivel === false) base.alternativas.push({ rotulo: 'Repos quotidien réduit : 9 h', valor: 'plus de réduction disponible' })
     const r = c.adaptador.entrada.reducoes
     base.linhas.push({ rotulo: 'Réductions utilisées depuis le dernier repos hebdomadaire', valor: r ? `${r.utilizadas} sur 3${r.restantes === null ? ' (restantes inconnues)' : ''}` : 'inconnu' })
     if (m.pausas && m.pausas.exigidoSeg > 0) {

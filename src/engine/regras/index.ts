@@ -1,0 +1,10 @@
+// src/engine/regras/index.ts — ponto de entrada do motor de regras (isolado; sem UI, sem IA, sem storage).
+export * from './tipos'
+export { REF } from './referencias'
+export * from './tempo'
+export * from './amplitude'
+export * from './servico'
+export * from './pausas'
+export * from './descansos'
+export * from './semanal'
+export * from './orquestrador'

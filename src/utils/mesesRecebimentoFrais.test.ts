@@ -201,8 +201,9 @@ describe('modal: abrir/fechar sem perder dados (código-fonte)', () => {
     expect(src.includes('{[0, 1, 2].map(off => {')).toBe(false)
   })
   it('os três blocos aparecem separados: travail · paiement · document', () => {
-    expect(src.includes('1 · TRAVAIL')).toBe(true)
-    expect(src.includes('2 · PAIEMENT (banque)')).toBe(true)
-    expect(src.includes('3 · DOCUMENT (fiche)')).toBe(true)
+    expect(src.includes("{n} · {titulo}")).toBe(true)
+    expect(src.includes("bloco('1', 'MOIS TRAVAILLÉ'")).toBe(true)
+    expect(src.includes("bloco('2', 'MOIS DE PAIEMENT (banque)'")).toBe(true)
+    expect(src.includes("bloco('3', 'MOIS DU DOCUMENT (fiche de paie)'")).toBe(true)
   })
 })

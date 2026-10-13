@@ -2850,7 +2850,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
         <DateTimePicker value={timePickerValue} mode="time" is24Hour={true} display="spinner" onChange={onTimeChange} />
       )}
 
-      <Modal visible={showAddDia} transparent animationType="slide">
+      <Modal visible={showAddDia} transparent animationType="slide" onRequestClose={() => { setShowAddDia(false); setEditandoDiaId(null); }}>
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }} onPress={() => { setShowAddDia(false); setEditandoDiaId(null) }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
@@ -2895,7 +2895,7 @@ const calcularFraisAuto = async (debut: string, fin: string, servico: string, ty
               })}
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => setShowAddDia(false)}>
+              <TouchableOpacity style={{ flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }} onPress={() => { setShowAddDia(false); setEditandoDiaId(null); }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 2, backgroundColor: '#f5a623', borderRadius: 12, padding: 14, alignItems: 'center' }} onPress={guardarNovoDia}>

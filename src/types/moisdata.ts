@@ -30,6 +30,15 @@ export type MoisData = {
   // Mês da fiche futura onde o motorista PREVÊ que estes frais apareçam documentados. Informação NÃO confirmada: não é um documento
   // nem um segundo pagamento; deixa de contar assim que a fiche desse mês existir.
   fraisDocPrevistoMes?: number; fraisDocPrevistoAno?: number
+  // Modal da fiche (reformulado). Todos opcionais: registos antigos não os têm e continuam válidos.
+  // netPayeFiche = valor DOCUMENTAL extraído do salário (netPaye guarda o valor realmente recebido/confirmado).
+  netPayeFiche?: number
+  // Mês do documento de salário quando o motorista o corrigiu (ou disse «Pas encore connu»). Ausente = o da própria fiche.
+  salDocMesIndex?: number; salDocAno?: number; salDocEstado?: 'confirmado' | 'corrigido' | 'desconhecido'
+  // Origem dos meses: 'declarado' = confirmado EXPLICITAMENTE pelo motorista; 'inferido' = hipótese (fiche/décalage). Ausente = registo antigo.
+  pagamentoSalOrigem?: 'declarado' | 'inferido'
+  mesTrabalhoOrigem?: 'declarado'
+  mesFraisTrabalhoOrigem?: 'declarado'
   // Origem da data bancária dos frais: 'declarado' = confirmada pelo motorista; 'inferido' = calculada/atribuída
   // automaticamente. Ausente = origem desconhecida (registos antigos; não migrado).
   pagamentoFraisOrigem?: 'declarado' | 'inferido'

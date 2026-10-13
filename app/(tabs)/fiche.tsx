@@ -10,7 +10,9 @@ import {
   aplicarConfirmacoesFrais, camposFraisDaEdicao, desligarOrfas, estaLigada,
   listarPagamentosCandidatos, pagamentoLigado, validarEdicaoPagamentoLigado,
 } from '../../src/utils/confirmacaoFrais'
-import { resolverMesesModal, limitarOffsetBanco, limitarOffsetDoc, rotuloMes, BANCO_MAX_ANTES, BANCO_MAX_DEPOIS, DOC_MAX_DEPOIS } from '../../src/utils/mesesRecebimentoFrais'
+import { resolverMesesSalario, resolverMesesFrais, avaliarLag, deveGravarLag, compararValores, origemValor, verificar, fundirFicheExistente, camposExplicitosSalario, camposExplicitosFraisTrabalho, limitarDocSalario, SAL_DOC_MIN, SAL_DOC_MAX, ROTULO_INCONNU, type EstadoMes, type MesComEstado } from '../../src/utils/modalFiche'
+import { LAG_MAX } from '../../src/utils/lagsConfirmados'
+import { deslocarMes as deslocarMesFr, limitarOffsetBanco, limitarOffsetDoc, rotuloMes, BANCO_MAX_ANTES, BANCO_MAX_DEPOIS, DOC_MAX_DEPOIS } from '../../src/utils/mesesRecebimentoFrais'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, TextInput, Animated, Easing, RefreshControl, KeyboardAvoidingView, Platform, BackHandler, Linking } from 'react-native'
@@ -1148,6 +1150,9 @@ export default function MonSalaireScreen() {
     moisAtipico: boolean; fonte: 'banco' | 'fiche'
     totalHeures?: string
     frais?: { resposta: FraisResposta; mesOffset: number; docOffset?: number; pagamento: string | null }
+    novo?: { salBancoOffset: number; salBancoConf: boolean; salTrabalhoLag: number | null; salDocOffset: number | null; salTocado: boolean
+             salLagAceite: boolean; fraisDocDesconhecido: boolean; fraisTrabalhoLag: number | null; fraisLagAceite: boolean
+             salTrabConf: boolean; salDocConf: boolean; fraisBancoConf: boolean; fraisDocConf: boolean; fraisTrabConf: boolean }
   }
   const [historialInputs, setHistorialInputs] = useState<InputsSnapshot[]>([])
   const [inputValor, setInputValor] = useState('')
@@ -1183,7 +1188,15 @@ export default function MonSalaireScreen() {
   const [fraisMesOffset, setFraisMesOffset] = useState(0)            // meses antes do rótulo da fiche em que o dinheiro entrou no banco (negativo = depois)
   const [fraisPagamentoEscolhido, setFraisPagamentoEscolhido] = useState<string | null>(null)
   const [fraisDocOffset, setFraisDocOffset] = useState(0)            // meses DEPOIS do rótulo da fiche onde os frais aparecem documentados (0 = esta fiche)
-  const limparRespostaFrais = () => { setFraisResposta(null); setFraisMesOffset(0); setFraisDocOffset(0); setFraisPagamentoEscolhido(null) }
+  // modal reformulado: meses do salário/frais e consentimentos voltam ao estado neutro (abrir/fechar não grava nada)
+  const limparMesesModal = () => {
+    setSecAbertas({ sal: true, frais: false, verif: false })
+    setSalBancoOffset(0); setSalBancoConf(false); setSalTrabalhoLag(null); setSalDocOffset(0)
+    setSalTocado(false); setSalLagAceite(false)
+    setSalTrabConf(false); setSalDocConf(false); setFraisBancoConf(false); setFraisDocConf(false); setFraisTrabConf(false)
+    setFraisDocDesconhecido(false); setFraisTrabalhoLag(null); setFraisLagAceite(false)
+  }
+  const limparRespostaFrais = () => { limparMesesModal(); setFraisResposta(null); setFraisMesOffset(0); setFraisDocOffset(0); setFraisPagamentoEscolhido(null) }
   const [inputMontantSalQ, setInputMontantSalQ] = useState('')
   const [inputInteressementQ, setInputInteressementQ] = useState('')
   const [inputPrimeNonAccQ, setInputPrimeNonAccQ] = useState('')
@@ -1194,6 +1207,22 @@ export default function MonSalaireScreen() {
   const [inputDataParteUm, setInputDataParteUm] = useState('')
   const [mesToTrabalhoParteUm, setMesToTrabalhoParteUm] = useState(0)
   const [inputTotalHeures, setInputTotalHeures] = useState('')
+  // ── Modal da fiche (3 secções: Salaire · Frais · Vérification) ──
+  const [secAbertas, setSecAbertas] = useState({ sal: true, frais: false, verif: false })
+  const [salBancoOffset, setSalBancoOffset] = useState(0)            // meses ANTES do mês da fiche em que o salário entrou no banco
+  const [salBancoConf, setSalBancoConf] = useState(false)
+  const [salTrabalhoLag, setSalTrabalhoLag] = useState<number | null>(null)   // desfasamento banco→trabalho escolhido agora (null = o do padrão)
+  const [salDocOffset, setSalDocOffset] = useState<number | null>(0)          // mês do documento = fiche + n; null = «Pas encore connu»
+  const [salTocado, setSalTocado] = useState(false)                  // o motorista editou o montante do salário
+  const [salTrabConf, setSalTrabConf] = useState(false)               // mês de trabalho do salário confirmado pelo motorista nesta fiche
+  const [salDocConf, setSalDocConf] = useState(false)                 // mês do documento (lido na fiche) confirmado
+  const [fraisBancoConf, setFraisBancoConf] = useState(false)         // mês bancário dos frais confirmado
+  const [fraisDocConf, setFraisDocConf] = useState(false)
+  const [fraisTrabConf, setFraisTrabConf] = useState(false)
+  const [salLagAceite, setSalLagAceite] = useState(false)            // consentimento explícito para guardar o desfasamento do salário
+  const [fraisDocDesconhecido, setFraisDocDesconhecido] = useState(false)
+  const [fraisTrabalhoLag, setFraisTrabalhoLag] = useState<number | null>(null)
+  const [fraisLagAceite, setFraisLagAceite] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showOnboardingSalaire, setShowOnboardingSalaire] = useState(false)
   const [onbStep, setOnbStep] = useState(1)
@@ -2305,6 +2334,36 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     }
   }
 
+  // Cálculo ÚNICO (puro) do modal: usado pelo ecrã e pelo «Enregistrer». Não grava nada.
+  const calcularModal = (fa: any) => {
+    const dados = (fa?.dados || fa) as any
+    const ficheMA = { ano: fa.annee as number, mes: fa.moisIndex as number }
+    const lags = lagsParaBase(padrao, padraoAprendido, { hlag: DEF_SAL.hlag, flag: DEF_SAL.flag })
+    const sal = resolverMesesSalario({
+      fiche: ficheMA, lag: lags.hlag, lagConfirmado: lags.hlagTravado,
+      bancoOffset: salBancoOffset, bancoConfirmado: salBancoConf, trabalhoLag: salTrabalhoLag, trabalhoConfirmado: salTrabConf,
+      docOffset: salDocOffset, docConfirmado: salDocConf,
+    })
+    const fr = resolverMesesFrais({
+      fiche: ficheMA, periodosExistentes: historique.map(h => h.periode), resposta: fraisResposta,
+      bancoOffset: fraisMesOffset, bancoConfirmado: fraisBancoConf, docOffset: fraisDocOffset, docConfirmado: fraisDocConf, docDesconhecido: fraisDocDesconhecido,
+      flag: lags.flag, flagConfirmado: lags.flagTravado, trabalhoLag: fraisTrabalhoLag, trabalhoConfirmado: fraisTrabConf,
+    })
+    const salExtraido = Number(dados?.netPaye) || 0
+    const fraisExtraido = Number(dados?.remboursementFrais) || 0
+    const salRecebido = parseFloat(inputMontantSalQ.replace(',', '.')) || 0
+    const fraisRecebido = parseFloat(inputMontantFraisQ.replace(',', '.')) || 0
+    const avSal = salTrabalhoLag !== null ? avaliarLag({ escolhido: salTrabalhoLag, guardado: lags.hlag, confirmado: lags.hlagTravado }) : null
+    const avFrais = fraisTrabalhoLag !== null ? avaliarLag({ escolhido: fraisTrabalhoLag, guardado: lags.flag, confirmado: lags.flagTravado }) : null
+    const ver = verificar({
+      salario: sal, frais: fr, salExtraido, salRecebido, salTocado, fraisExtraido, fraisRecebido, fraisResposta,
+      interessement: parseFloat(inputInteressementQ.replace(',', '.')) || 0,
+      primeNonAcc: parseFloat(inputPrimeNonAccQ.replace(',', '.')) || 0,
+      moisAtipico: inputMoisAtipico, lagSalario: avSal, lagSalarioAceite: salLagAceite,
+    })
+    return { lags, sal, fr, salExtraido, fraisExtraido, salRecebido, fraisRecebido, avSal, avFrais, ver }
+  }
+
   const responderPergunta = async () => {
     const fiches = documentosAnalisados.filter(d => d.tipo === 'fiche')
     const fraisDoc = documentosAnalisados.filter(d => d.tipo === 'frais')
@@ -2314,6 +2373,8 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
     // «Pas encore reçus» / «Je ne sais pas»: o montante da fiche é só documental, não dinheiro recebido
     const fraisReel = (fraisResposta === 'por_receber' || fraisResposta === 'desconhecido') ? 0 : fraisReelInput
     if (sal <= 0 && fraisReel <= 0) { setShowModalValorInvalido(true); return }
+    const cm = calcularModal(fichaActual)
+    if (!cm.ver.podeGuardar) { Alert.alert('Vérification', cm.ver.erros.join('\n')); return }
     const mesFicheIndex = fichaActual.moisIndex
     const anoFiche = fichaActual.annee
     // Rótulo da ficha ≠ mês bancário confirmado: não grava mês de trabalho incerto (resolve-se dinamicamente)
@@ -2327,7 +2388,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       montantTotal: sal + fraisReel,
       montantSalReel: sal,
       montantFraisReel: fraisReel,
-      diaSalario: parseInt(inputDiaSal) || 5,
+      diaSalario: (inputDataParteUm ? parseInt(inputDataParteUm.slice(0, 2)) : 0) || parseInt(inputDiaSal) || 5,
       diaFrais: parseInt(inputDiaFrais) || 10,
       pagamentoSalMesIndex: fichaActual.moisIndex,
       pagamentoSalAno: fichaActual.annee,
@@ -2346,19 +2407,25 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       interessementQ: parseFloat(inputInteressementQ.replace(',','.')) || 0,
       primeNonAccQ: parseFloat(inputPrimeNonAccQ.replace(',','.')) || 0,
       totalHeuresManual: parseFloat(inputTotalHeures.replace(',', '.')) || 0,
+      // Valor DOCUMENTAL do salário (o recebido/confirmado vai em montantSalReel → netPaye)
+      netPayeFiche: cm.salExtraido > 0 ? cm.salExtraido : undefined,
+      // Meses explícitos: só existem se o motorista os declarou (senão, comportamento antigo)
+      ...camposExplicitosSalario(cm.sal),
+      ...camposExplicitosFraisTrabalho(cm.fr),
+      // Desfasamentos: SÓ com consentimento explícito (nunca por uma escolha isolada)
+      lagConfirmar: {
+        ...(cm.avSal && salTrabalhoLag !== null && deveGravarLag(cm.avSal, salLagAceite) ? { hlag: salTrabalhoLag } : {}),
+        ...(cm.avFrais && fraisTrabalhoLag !== null && deveGravarLag(cm.avFrais, fraisLagAceite) ? { flag: fraisTrabalhoLag } : {}),
+      },
       // Só existe se o motorista tocou numa resposta (guardarTudo ignora respostas sem isto)
       fraisConfirmacao: (() => {
         if (fraisResposta === 'por_receber' || fraisResposta === 'desconhecido') return { estado: fraisResposta }
         if (fraisResposta === 'recebido' && fraisReelInput > 0) {
-          // três meses independentes: trabalho (derivado) · banco (escolhido) · documento (esta fiche, outra já importada ou uma prevista)
-          const mm = resolverMesesModal({
-            fiche: { ano: fichaActual.annee, mes: fichaActual.moisIndex },
-            bancoOffset: fraisMesOffset, docOffset: fraisDocOffset,
-            periodosExistentes: historique.map(h => h.periode),
-          })
-          log.info('fiche', 'frais: meses escolhidos', { banco: rotuloMes(mm.banco), documento: rotuloMes(mm.documento), docEstado: mm.documentoEstado })
+          // três meses independentes: trabalho (derivado/declarado) · banco (escolhido) · documento (esta fiche, outra já importada, prevista ou ainda desconhecida)
+          const mm = cm.fr
+          log.info('fiche', 'frais: meses escolhidos', { banco: mm.banco.rotulo, documento: mm.documento.rotulo, docEstado: mm.documentoEstado })
           return {
-            estado: 'recebido' as const, mesBanco: mm.banco, valor: fraisReelInput, pagamentoPeriode: fraisPagamentoEscolhido ?? undefined,
+            estado: 'recebido' as const, mesBanco: mm.banco.mes!, valor: fraisReelInput, pagamentoPeriode: fraisPagamentoEscolhido ?? undefined,
             ...(mm.docPrevistoParaGravar !== undefined ? { docPrevisto: mm.docPrevistoParaGravar } : {}),
           }
         }
@@ -2376,6 +2443,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         moisAtipico: inputMoisAtipico, fonte: fonteEscolhida,
         totalHeures: inputTotalHeures,
         frais: { resposta: fraisResposta, mesOffset: fraisMesOffset, docOffset: fraisDocOffset, pagamento: fraisPagamentoEscolhido },
+        novo: { salBancoOffset, salBancoConf, salTrabalhoLag, salDocOffset, salTocado, salLagAceite, fraisDocDesconhecido, fraisTrabalhoLag, fraisLagAceite, salTrabConf, salDocConf, fraisBancoConf, fraisDocConf, fraisTrabConf },
       }
       return novo
     })
@@ -2443,6 +2511,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       setFraisMesOffset(snap.frais?.mesOffset ?? 0)
       setFraisDocOffset(snap.frais?.docOffset ?? 0)
       setFraisPagamentoEscolhido(snap.frais?.pagamento ?? null)
+      if (snap.novo) {
+        setSalBancoOffset(snap.novo.salBancoOffset); setSalBancoConf(snap.novo.salBancoConf); setSalTrabalhoLag(snap.novo.salTrabalhoLag)
+        setSalDocOffset(snap.novo.salDocOffset); setSalTocado(snap.novo.salTocado); setSalLagAceite(snap.novo.salLagAceite)
+        setSalTrabConf(!!snap.novo.salTrabConf); setSalDocConf(!!snap.novo.salDocConf); setFraisBancoConf(!!snap.novo.fraisBancoConf); setFraisDocConf(!!snap.novo.fraisDocConf); setFraisTrabConf(!!snap.novo.fraisTrabConf)
+        setFraisDocDesconhecido(snap.novo.fraisDocDesconhecido); setFraisTrabalhoLag(snap.novo.fraisTrabalhoLag); setFraisLagAceite(snap.novo.fraisLagAceite)
+      }
     } else {
       limparRespostaFrais()
     }
@@ -2516,6 +2590,12 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         joursFeries: fiche.joursFeries || 0, montantFeries: fiche.montantFeries || 0,
         joursRC: fiche.joursRC || 0, montantRC: fiche.montantRC || 0,
         totalHeures: (resp.totalHeuresManual || 0) > 0 ? resp.totalHeuresManual : (fiche.totalHeures || 0),
+        // Modal reformulado — opcionais (registos antigos não os têm). *Origem: 'declarado' = confirmado pelo motorista; 'inferido' = hipótese
+        ...(resp.pagamentoSalOrigem ? { pagamentoSalOrigem: resp.pagamentoSalOrigem } : {}),
+        ...(resp.mesTrabalhoOrigem ? { mesTrabalhoOrigem: resp.mesTrabalhoOrigem } : {}),
+        ...(resp.mesFraisTrabalhoOrigem ? { mesFraisTrabalhoOrigem: resp.mesFraisTrabalhoOrigem } : {}),
+        ...(resp.netPayeFiche > 0 ? { netPayeFiche: resp.netPayeFiche } : {}),
+        ...(resp.salDocEstado ? { salDocMesIndex: resp.salDocMesIndex, salDocAno: resp.salDocAno, salDocEstado: resp.salDocEstado } : {}),
         // Coeficientes salariais reais
         hbase: fiche.hbase || 0, hval: fiche.hval || 0,
         h25: fiche.h25 || 0, lim25: fiche.lim25 || 0, h50: fiche.h50 || 0,
@@ -2531,29 +2611,9 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
         })
       }
       if (existenteIdx >= 0) {
+        // fusão protegida (src/utils/modalFiche.ts): preserva meses/pagamentos confirmados e ligações de frais; nunca cria 2.º pagamento
         const ex = novoHist[existenteIdx]
-        const merged: MoisData = {
-          ...novoDado,
-          // salário — só substituir se NÃO confirmado antes
-          netPaye: ex.salarioConfirmado ? ex.netPaye : novoDado.netPaye,
-          salairebrut: ex.salarioConfirmado ? ex.salairebrut : novoDado.salairebrut,
-          salarioConfirmado: ex.salarioConfirmado || novoDado.salarioConfirmado,
-          // primes extras — preservar se já confirmadas
-          interessement: (ex.salarioConfirmado && (ex.interessement || 0) > 0) ? ex.interessement : novoDado.interessement,
-          primeNonAccident: (ex.salarioConfirmado && (ex.primeNonAccident || 0) > 0) ? ex.primeNonAccident : novoDado.primeNonAccident,
-          primeExceptionnelle: (ex.salarioConfirmado && (ex.primeExceptionnelle || 0) > 0) ? ex.primeExceptionnelle : novoDado.primeExceptionnelle,
-          // frais — só substituir se NÃO confirmado antes
-          fraisRecuConfirme: ex.fraisConfirmado ? (ex.fraisRecuConfirme ?? novoDado.fraisRecuConfirme) : novoDado.fraisRecuConfirme,
-          fraisBoletim: ex.fraisConfirmado ? (ex.fraisBoletim || novoDado.fraisBoletim) : novoDado.fraisBoletim,
-          fraisConfirmado: ex.fraisConfirmado || novoDado.fraisConfirmado,
-          // montant total — preservar se > 0
-          montantTotalRecu: ex.montantTotalRecu > 0 ? ex.montantTotalRecu : novoDado.montantTotalRecu,
-          // fonte e confiança — upgradar para confirmado se aplicável
-          fonte: (ex.salarioConfirmado || ex.fraisConfirmado) ? 'confirmado' : novoDado.fonte,
-          confiancaAprendizagem: (ex.salarioConfirmado || ex.fraisConfirmado) ? 1 : novoDado.confiancaAprendizagem,
-          // atipico — só atualizar se novo valor foi explicitamente definido
-          moisAtipico: novoDado.moisAtipico !== undefined ? novoDado.moisAtipico : ex.moisAtipico,
-        }
+        const merged: MoisData = fundirFicheExistente(ex, novoDado)
         novoHist[existenteIdx] = merged
         log.debug('fiche', 'guardarTudo merge', { periode: novoDado.periode })
       } else {
@@ -2579,6 +2639,21 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       if (itensFrais.some(i => i.confirmacao)) {
         novoHist.splice(0, novoHist.length, ...rf.historico)
         log.info('fiche', 'confirmação de frais gravada', { n: itensFrais.filter(i => i.confirmacao).length })
+      }
+    }
+    // Desfasamentos aceites EXPLICITAMENTE pelo motorista no modal (nunca por uma escolha isolada)
+    {
+      const lagsAceites = resps.map(r => r.lagConfirmar).filter((l: any) => l && (l.hlag != null || l.flag != null))
+      if (lagsAceites.length > 0) {
+        const apBase = await lerApAtual()
+        let novoAp = { ...apBase }
+        for (const l of lagsAceites as any[]) {
+          if (l.hlag != null) novoAp = { ...novoAp, hlag: l.hlag, hlagConfirmado: true }
+          if (l.flag != null) novoAp = { ...novoAp, flag: l.flag, flagConfirmado: true }
+        }
+        log.info('fiche', 'desfasamento aceite pelo motorista no modal', { hlag: (novoAp as any).hlag, flag: (novoAp as any).flag })
+        await persistirPadraoAprendido(novoAp as PadraoAprendido)
+        setPadraoAprendido(novoAp as PadraoAprendido)
       }
     }
     novoHist.sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.moisIndex - b.moisIndex)
@@ -3673,7 +3748,7 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       </Modal>
 
       {/* MODAL CANCELAR */}
-      <Modal visible={showModalCancelar} transparent animationType="fade">
+      <Modal visible={showModalCancelar} transparent animationType="fade" onRequestClose={() => setShowModalCancelar(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 40 }}>
           <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
@@ -3690,12 +3765,11 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
       </Modal>
 
       {/* MODAL PERGUNTAS */}
-      <Modal visible={showPerguntas} transparent animationType="slide">
+      <Modal visible={showPerguntas} transparent animationType="slide" onRequestClose={() => setShowModalCancelar(true)}>
         <ReAnimated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end', opacity: 1 }}>
           {/* teclado: 'padding' nas duas plataformas (com edge-to-edge o Android não redimensiona a janela; 'height' provocava saltos) */}
           <KeyboardAvoidingView behavior="padding" style={{ width: '100%', maxHeight: '100%' }}>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="none" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#f5a623' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, borderWidth: 1, borderColor: '#f5a623', flexShrink: 1 }}>
             {fichaActual && (() => {
               const dadosFicha = (fichaActual.dados || fichaActual) as any
               const mesLabel = MOIS_NOMS[fichaActual.moisIndex] || (fichaActual.periode || '').split(' ')[0]
@@ -3705,392 +3779,347 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
               const mesTravail = MOIS_NOMS[mesTravIdx] || ''
               const [, mesFraisIdx] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -(padraoAprendido.flag ?? padrao.flag))
               const mesFraisTravail = MOIS_NOMS[mesFraisIdx] || ''
+              const cm = calcularModal(fichaActual)
 
               return (
                 <>
-                  {fiches.length > 1 && (
-                    <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'right', marginBottom: 8 }}>
-                      {perguntaAtual + 1}/{fiches.length}
-                    </Text>
-                  )}
-
-
-                  <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20, lineHeight: 28 }}>
-                    Reçu en {mesLabel} {fichaActual.annee} — pour le travail de {mesTravail}
-                  </Text>
-
-                  {showParteUm ? (
-                    /* ── PARTE 1: Ce que tu as reçu ── */
-                    <>
-                      <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 16 }}>
-                        💳 Ce que tu as reçu sur ton compte
-                      </Text>
-
-                      {/* ── Data de recebimento ── */}
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
-                        📅 Quand as-tu reçu ce salaire ?
-                      </Text>
-                      <TouchableOpacity
-                        style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
-                        onPress={() => {
-                          DateTimePickerAndroid.open({
-                            value: new Date(),
-                            mode: 'date',
-                            onChange: (_, date) => {
-                              if (!date) return
-                              const d = String(date.getDate()).padStart(2, '0')
-                              const m = String(date.getMonth() + 1).padStart(2, '0')
-                              const y = date.getFullYear()
-                              setInputDataParteUm(`${d}/${m}/${y}`)
-                              setMesToTrabalhoParteUm(padraoAprendido.hlag ?? 2)
-                            },
-                          })
-                        }}
-                      >
-                        <Text style={{ color: inputDataParteUm ? c.text : c.textSub, fontSize: 16 }}>
-                          {inputDataParteUm || '📅 Choisir la date'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* ── Mês de trabalho (só quando hlag ainda não confirmado) ou Horas ── */}
-                      {padraoAprendido.hlagConfirmado ? (
-                        <>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
-                            ⏱ Heures travaillées ce mois (facultatif)
-                          </Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 20,
-                                     fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder,
-                                     textAlign: 'center', marginBottom: 16 }}
-                            value={inputTotalHeures}
-                            onChangeText={setInputTotalHeures}
-                            keyboardType="decimal-pad"
-                            placeholder={dadosFicha.totalHeures > 0 ? String(dadosFicha.totalHeures) : '—'}
-                            placeholderTextColor={c.textSub}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>
-                            Ce salaire correspond au travail de quel mois ?
-                          </Text>
-                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                            {[0, 1, 2].map(offset => {
-                              const [a, m] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -offset)
-                              return (
-                                <TouchableOpacity key={offset}
-                                  style={{ flex: 1, padding: 10, borderRadius: 12, alignItems: 'center',
-                                    backgroundColor: mesToTrabalhoParteUm === offset ? 'rgba(245,166,35,0.15)' : c.input,
-                                    borderWidth: mesToTrabalhoParteUm === offset ? 1.5 : 1,
-                                    borderColor: mesToTrabalhoParteUm === offset ? '#f5a623' : c.cardBorder }}
-                                  onPress={() => setMesToTrabalhoParteUm(offset)}
-                                >
-                                  <Text style={{ fontSize: 12, color: mesToTrabalhoParteUm === offset ? '#f5a623' : c.textSub }}>
-                                    {MOIS_NOMS[m]} {a}
-                                  </Text>
-                                  <Text style={{ fontSize: 10, color: c.textSub }}>
-                                    {offset === 0 ? 'même mois' : `${offset} mois avant`}
-                                  </Text>
-                                </TouchableOpacity>
-                              )
-                            })}
-                          </View>
-                        </>
-                      )}
-
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>💰 Salaire</Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                            value={inputParteUmSal}
-                            onChangeText={setInputParteUmSal}
-                            keyboardType="decimal-pad"
-                            placeholder={dadosFicha.netPaye > 0 ? String(dadosFicha.netPaye) : '0'}
-                            placeholderTextColor={c.textSub}
-                            blurOnSubmit={false}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>🍽️ Frais</Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                            value={inputParteUmFrais}
-                            onChangeText={setInputParteUmFrais}
-                            keyboardType="decimal-pad"
-                            placeholder={dadosFicha.remboursementFrais > 0 ? String(dadosFicha.remboursementFrais) : '0'}
-                            placeholderTextColor={c.textSub}
-                          />
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        style={{ alignItems: 'center', marginBottom: 16, paddingVertical: 8 }}
-                        onPress={() => {
-                          if (dadosFicha.netPaye > 0) setInputParteUmSal(String(dadosFicha.netPaye))
-                          if (dadosFicha.remboursementFrais > 0) setInputParteUmFrais(String(dadosFicha.remboursementFrais))
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: '#f5a623', textDecorationLine: 'underline' }}>
-                          Utiliser valeur fiche
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={{ backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 8 }}
-                        onPress={async () => {
-                          const ficheSal = dadosFicha.netPaye || 0
-                          const ficheFrais = dadosFicha.remboursementFrais || 0
-                          const salFinal = parseFloat(inputParteUmSal.replace(',', '.')) || ficheSal
-                          const fraisFinal = parseFloat(inputParteUmFrais.replace(',', '.')) || ficheFrais
-                          setFonteEscolhida('banco')
-                          setInputMontantSalQ(salFinal > 0 ? String(salFinal) : '')
-                          setInputMontantFraisQ(fraisFinal > 0 ? String(fraisFinal) : '')
-                          log.info('fiche', 'Parte1 Suivant', { temNet: salFinal > 0, temFrais: fraisFinal > 0, fonte: 'banco' })
-                          if (inputDataParteUm) {
-                            log.info('fiche', 'timing confirmado Parte1', { hlag: mesToTrabalhoParteUm, data: inputDataParteUm })
-                            const novoPadrao = { ...padraoAprendido, hlag: mesToTrabalhoParteUm, hlagConfirmado: true }
-                            await persistirPadraoAprendido(novoPadrao)
-                            setPadraoAprendido(novoPadrao)
-                          }
-                          setShowParteUm(false)
-                        }}
-                      >
-                        <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>Suivant →</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    /* ── PARTE 2: Confirmation ── */
-                    <>
-                      <View style={{ marginBottom: 14, padding: 14, backgroundColor: c.input, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
-                        <Text style={{ fontSize: 13, color: c.textSub, marginBottom: 4 }}>
-                          📄 Fiche (IA): {dadosFicha.netPaye > 0 ? dadosFicha.netPaye : '—'}€ sal · {dadosFicha.remboursementFrais > 0 ? dadosFicha.remboursementFrais : '—'}€ frais
-                        </Text>
-                        <Text style={{ fontSize: 13, color: c.textSub }}>
-                          💳 Ton compte: {inputParteUmSal || '—'}€ sal · {inputParteUmFrais || '—'}€ frais
-                        </Text>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'banco' ? 'rgba(41,128,185,0.12)' : c.input, borderWidth: fonteEscolhida === 'banco' ? 1.5 : 1, borderColor: fonteEscolhida === 'banco' ? '#2980b9' : c.cardBorder }}
-                          onPress={() => {
-                            log.debug('fiche', 'fonte escolhida', { fonte: 'banco' })
-                            setFonteEscolhida('banco')
-                            const s = parseFloat(inputParteUmSal.replace(',', '.')) || 0
-                            const f = parseFloat(inputParteUmFrais.replace(',', '.')) || 0
-                            if (s > 0) setInputMontantSalQ(String(s))
-                            if (f > 0) setInputMontantFraisQ(String(f))
-                          }}
-                        >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: fonteEscolhida === 'banco' ? '#2980b9' : c.textSub }}>💳 Mes valeurs (compte)</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: fonteEscolhida === 'fiche' ? 'rgba(245,166,35,0.12)' : c.input, borderWidth: fonteEscolhida === 'fiche' ? 1.5 : 1, borderColor: fonteEscolhida === 'fiche' ? '#f5a623' : c.cardBorder }}
-                          onPress={() => {
-                            log.debug('fiche', 'fonte escolhida', { fonte: 'fiche' })
-                            setFonteEscolhida('fiche')
-                            if (dadosFicha.netPaye > 0) setInputMontantSalQ(String(dadosFicha.netPaye))
-                            if (dadosFicha.remboursementFrais > 0) setInputMontantFraisQ(String(dadosFicha.remboursementFrais))
-                          }}
-                        >
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: fonteEscolhida === 'fiche' ? '#f5a623' : c.textSub }}>📄 Utiliser la fiche</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                            💰 Salaire reçu le {diaSal} {mesLabel} (heures de {mesTravail}) — net fiche, sans primes ni frais
-                          </Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                            value={inputMontantSalQ}
-                            onChangeText={setInputMontantSalQ}
-                            keyboardType="decimal-pad"
-                            placeholder="0"
-                            placeholderTextColor={c.textSub}
-                            blurOnSubmit={false}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 8 }}>
-                            🍽️ Frais reçus le {diaFrais} {mesLabel} (frais de {mesFraisTravail}) — total indemnités reçues
-                          </Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
-                            value={inputMontantFraisQ}
-                            onChangeText={setInputMontantFraisQ}
-                            keyboardType="decimal-pad"
-                            placeholder="0"
-                            placeholderTextColor={c.textSub}
-                          />
-                        </View>
-                      </View>
-
-                      {/* ── Frais : documentés (fiche) vs reçus (banque) — réponse explicite du chauffeur ── */}
-                      {((parseFloat(inputMontantFraisQ.replace(',', '.')) || 0) > 0 || (dadosFicha.remboursementFrais || 0) > 0) && (() => {
-                        const periodeFicheQ = fichaActual.periode || `${MOIS_NOMS[fichaActual.moisIndex]} ${fichaActual.annee}`
-                        const valeurFraisQ = parseFloat(inputMontantFraisQ.replace(',', '.')) || dadosFicha.remboursementFrais || 0
-                        const candidatsFrais = listarPagamentosCandidatos(historique, periodeFicheQ, valeurFraisQ)
-                        const bouton = (rotulo: string, ativo: boolean, onPress: () => void, cor = '#2980b9') => (
-                          <TouchableOpacity
-                            key={rotulo}
-                            style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: ativo ? cor + '22' : c.input, borderWidth: ativo ? 1.5 : 1, borderColor: ativo ? cor : c.cardBorder }}
-                            onPress={onPress}
-                          >
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: ativo ? cor : c.textSub }}>{rotulo}</Text>
-                          </TouchableOpacity>
-                        )
-                        return (
-                          <View style={{ marginBottom: 12, padding: 12, backgroundColor: c.input, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder }}>
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 8 }}>As-tu déjà reçu ces frais ?</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                              {bouton('Oui, déjà reçus', fraisResposta === 'recebido', () => { setFraisResposta(fraisResposta === 'recebido' ? null : 'recebido'); setFraisPagamentoEscolhido(null) })}
-                              {bouton('Pas encore reçus', fraisResposta === 'por_receber', () => setFraisResposta(fraisResposta === 'por_receber' ? null : 'por_receber'), '#f5a623')}
-                              {bouton('Je ne sais pas', fraisResposta === 'desconhecido', () => setFraisResposta(fraisResposta === 'desconhecido' ? null : 'desconhecido'), '#7f8c8d')}
-                            </View>
-                            {fraisResposta === 'recebido' && (
-                              <View style={{ marginTop: 12 }}>
-                                {(() => {
-                                  const fichaMA = { ano: fichaActual.annee, mes: fichaActual.moisIndex }
-                                  const [anoTr, mesTr] = shiftMois(fichaActual.annee, fichaActual.moisIndex, -(padraoAprendido.flag ?? padrao.flag))
-                                  const mm = resolverMesesModal({ fiche: fichaMA, trabalho: { ano: anoTr, mes: mesTr }, bancoOffset: fraisMesOffset, docOffset: fraisDocOffset, periodosExistentes: historique.map(h => h.periode) })
-                                  const seta = (txt: string, ativo: boolean, onPress: () => void) => (
-                                    <TouchableOpacity disabled={!ativo} onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                      style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, opacity: ativo ? 1 : 0.35 }}>
-                                      <Text style={{ fontSize: 20, fontWeight: '800', color: c.text }}>{txt}</Text>
-                                    </TouchableOpacity>
-                                  )
-                                  const passo = (rotulo: string, menosOk: boolean, maisOk: boolean, menos: () => void, mais: () => void) => (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                      {seta('‹', menosOk, menos)}
-                                      <View style={{ flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1.5, borderColor: '#2980b9', paddingHorizontal: 8 }}>
-                                        <Text style={{ fontSize: 15, fontWeight: '800', color: '#2980b9', textAlign: 'center' }}>{rotulo}</Text>
-                                      </View>
-                                      {seta('›', maisOk, mais)}
-                                    </View>
-                                  )
-                                  const titulo = (txt: string) => <Text style={{ fontSize: 12, fontWeight: '800', color: c.text, marginTop: 14, marginBottom: 6, letterSpacing: 0.3 }}>{txt}</Text>
-                                  const bOff = limitarOffsetBanco(fraisMesOffset)
-                                  const dOff = limitarOffsetDoc(fraisDocOffset)
-                                  return (
-                                    <>
-                                      {titulo('1 · TRAVAIL')}
-                                      <Text style={{ fontSize: 13, color: c.textSub }}>Frais de {rotuloMes(mm.trabalho ?? { ano: anoTr, mes: mesTr })}</Text>
-
-                                      {titulo('2 · PAIEMENT (banque)')}
-                                      <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6 }}>Mois où l'argent est arrivé sur ton compte</Text>
-                                      {passo(rotuloMes(mm.banco), bOff < BANCO_MAX_ANTES, bOff > -BANCO_MAX_DEPOIS, () => setFraisMesOffset(bOff + 1), () => setFraisMesOffset(bOff - 1))}
-                                      <Text style={{ fontSize: 12, color: c.textSub, marginTop: 6 }}>
-                                        Montant reçu : {valeurFraisQ > 0 ? `${valeurFraisQ}€` : '—'} (champ « Frais reçus » ci-dessus)
-                                      </Text>
-
-                                      {titulo('3 · DOCUMENT (fiche)')}
-                                      <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 6 }}>Fiche où ces frais apparaissent</Text>
-                                      {passo(rotuloMes(mm.documento), dOff > 0, dOff < DOC_MAX_DEPOIS, () => setFraisDocOffset(dOff - 1), () => setFraisDocOffset(dOff + 1))}
-                                      <Text style={{ fontSize: 12, color: mm.documentoEstado === 'prevista' ? '#f5a623' : c.textSub, marginTop: 6 }}>
-                                        {mm.documentoEstado === 'esta_fiche' ? 'C\'est la fiche en cours.'
-                                          : mm.documentoEstado === 'ja_importada' ? 'Fiche déjà importée : ouvre-la pour y lier ce paiement.'
-                                          : 'Fiche prévue — pas encore importée (non confirmé).'}
-                                      </Text>
-                                      <Text style={{ fontSize: 11, color: c.textSub, marginTop: 4 }}>La fiche documente le paiement ; ce n'est pas un second paiement.</Text>
-                                    </>
-                                  )
-                                })()}
-                                {candidatsFrais.length > 0 && (
-                                  <>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginTop: 10, marginBottom: 6 }}>Paiement déjà enregistré ?</Text>
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                      {bouton('Aucun', fraisPagamentoEscolhido === null, () => setFraisPagamentoEscolhido(null), '#7f8c8d')}
-                                      {candidatsFrais.map(cd => bouton(`${cd.periode} · ${cd.valor}€`, fraisPagamentoEscolhido === cd.periode, () => setFraisPagamentoEscolhido(cd.periode), '#27ae60'))}
-                                    </View>
-                                  </>
-                                )}
-                              </View>
-                            )}
-                          </View>
-                        )
-                      })()}
-                    </>
-                  )}
-
-                  {!showParteUm && (
-                    <>
-                      {/* Primes (pré-preenchidas pela IA, editáveis) */}
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>🤝 INTÉRESSEMENT</Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
-                            value={inputInteressementQ}
-                            onChangeText={setInputInteressementQ}
-                            keyboardType="decimal-pad"
-                            placeholder="0"
-                            placeholderTextColor={c.textSub}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>🛡 NON-ACCIDENT</Text>
-                          <TextInput
-                            style={{ backgroundColor: c.input, borderRadius: 12, padding: 14, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
-                            value={inputPrimeNonAccQ}
-                            onChangeText={setInputPrimeNonAccQ}
-                            keyboardType="decimal-pad"
-                            placeholder="0"
-                            placeholderTextColor={c.textSub}
-                          />
-                        </View>
-                      </View>
-                    </>
-                  )}
-
-                  {!showParteUm && (
-                    <>
-                  {/* ── Ce mois était-il normal ? ── */}
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginBottom: 8 }}>Ce mois était-il habituel ?</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
-                    <TouchableOpacity
-                      onPress={() => setInputMoisAtipico(false)}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: !inputMoisAtipico ? 'rgba(39,174,96,0.12)' : c.input, borderWidth: !inputMoisAtipico ? 1.5 : 1, borderColor: !inputMoisAtipico ? '#27ae60' : c.cardBorder }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: !inputMoisAtipico ? '#27ae60' : c.textSub }}>✅ Non, mois normal</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setInputMoisAtipico(true)}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: inputMoisAtipico ? 'rgba(231,76,60,0.12)' : c.input, borderWidth: inputMoisAtipico ? 1.5 : 1, borderColor: inputMoisAtipico ? '#e74c3c' : c.cardBorder }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: inputMoisAtipico ? '#e74c3c' : c.textSub }}>⚠️ Oui, prime exceptionnelle</Text>
-                    </TouchableOpacity>
+                  {/* ═════ Modal fiche — 1 écran, 3 sections indépendantes ═════ */}
+                  <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="none" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: c.text }}>Fiche de {mesLabel} {fichaActual.annee}</Text>
+                    {fiches.length > 1 && <Text style={{ fontSize: 12, color: c.textSub }}>{perguntaAtual + 1}/{fiches.length}</Text>}
                   </View>
-                  {!inputMoisAtipico && (
-                    <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
-                      Mois classique — sera utilisé pour calibrer les estimations.
-                    </Text>
-                  )}
-                  {inputMoisAtipico && (
-                    <Text style={{ fontSize: 11, color: '#e74c3c', textAlign: 'center', marginBottom: 12, lineHeight: 16 }}>
-                      Ce mois avait une prime exceptionnelle (intéressement, 13ème mois…) — ne sera pas utilisé pour calibrer le salaire habituel.
-                    </Text>
-                  )}
 
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {(() => {
+                    const corEstado = (e: EstadoMes) => e === 'confirmé' ? '#27ae60' : e === 'prévu' ? '#f5a623' : e === 'inconnu' ? '#7f8c8d' : '#3498db'
+                    const etiqEstado = (e: EstadoMes) => e === 'confirmé' ? 'Confirmé' : e === 'inféré' ? 'Hypothèse' : e === 'prévu' ? 'Prévu' : 'Pas encore connu'
+                    const euro = (v: number) => `${Math.round(v * 100) / 100}€`
+                    const abrir = (k: 'sal' | 'frais' | 'verif') => setSecAbertas(a => ({ ...a, [k]: !a[k] }))
+                    const badge = (e: EstadoMes) => (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: corEstado(e) + '22', borderWidth: 1, borderColor: corEstado(e) }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: corEstado(e) }}>{etiqEstado(e)}</Text>
+                      </View>
+                    )
+                    const secao = (k: 'sal' | 'frais' | 'verif', titulo: string, resumo: string, cor: string, corpo: React.ReactNode) => (
+                      <View style={{ marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: secAbertas[k] ? cor : c.cardBorder, backgroundColor: c.input, overflow: 'hidden' }}>
+                        <TouchableOpacity onPress={() => abrir(k)} activeOpacity={0.7} style={{ paddingVertical: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '800', color: c.text }}>{titulo}</Text>
+                            {!secAbertas[k] && <Text style={{ fontSize: 12, color: c.textSub, marginTop: 2 }} numberOfLines={2}>{resumo}</Text>}
+                          </View>
+                          <Text style={{ fontSize: 18, color: cor, fontWeight: '800' }}>{secAbertas[k] ? '▾' : '▸'}</Text>
+                        </TouchableOpacity>
+                        {secAbertas[k] && <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>{corpo}</View>}
+                      </View>
+                    )
+                    const bouton = (rotulo: string, ativo: boolean, onPress: () => void, cor = '#2980b9') => (
+                      <TouchableOpacity key={rotulo} style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: ativo ? cor + '22' : c.card, borderWidth: ativo ? 1.5 : 1, borderColor: ativo ? cor : c.cardBorder }} onPress={onPress}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: ativo ? cor : c.textSub }}>{rotulo}</Text>
+                      </TouchableOpacity>
+                    )
+                    const seta = (txt: string, ativo: boolean, onPress: () => void) => (
+                      <TouchableOpacity disabled={!ativo} onPress={onPress} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, opacity: ativo ? 1 : 0.35 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '800', color: c.text }}>{txt}</Text>
+                      </TouchableOpacity>
+                    )
+                    const passo = (m: MesComEstado, menosOk: boolean, maisOk: boolean, menos: () => void, mais: () => void, desativado = false) => (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, opacity: desativado ? 0.45 : 1 }}>
+                        {seta('‹', menosOk && !desativado, menos)}
+                        <View style={{ flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1.5, borderColor: corEstado(m.estado), paddingHorizontal: 8 }}>
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: corEstado(m.estado), textAlign: 'center' }}>{m.rotulo}</Text>
+                        </View>
+                        {seta('›', maisOk && !desativado, mais)}
+                      </View>
+                    )
+                    const bloco = (n: string, titulo: string, aide: string, m: MesComEstado, corpo: React.ReactNode, confirmar?: () => void) => (
+                      <View style={{ marginTop: 14 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{n} · {titulo}</Text>
+                          {badge(m.estado)}
+                        </View>
+                        <Text style={{ fontSize: 12, color: c.textSub, marginBottom: 8 }}>{aide}</Text>
+                        {corpo}
+                        {confirmar && m.estado === 'inféré' && (
+                          <TouchableOpacity onPress={confirmar} style={{ marginTop: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: '#27ae60', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#27ae60' }}>✓ Confirmer ce mois</Text>
+                          </TouchableOpacity>
+                        )}
+                        {!!m.nota && <Text style={{ fontSize: 12, color: c.textSub, marginTop: 6 }}>{m.nota}</Text>}
+                      </View>
+                    )
+                    const consentement = (av: typeof cm.avSal, aceite: boolean, setAceite: (v: boolean) => void) => {
+                      if (!av || !av.precisaConsentimento) return av ? <Text style={{ fontSize: 12, color: c.textSub, marginTop: 6 }}>{av.mensagem}</Text> : null
+                      return (
+                        <View style={{ marginTop: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: av.tipo === 'conflito' ? '#e67e22' : c.cardBorder, backgroundColor: c.card }}>
+                          <Text style={{ fontSize: 12, color: c.text, marginBottom: 8 }}>{av.mensagem}</Text>
+                          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                            {bouton('Seulement pour cette fiche', !aceite, () => setAceite(false), '#7f8c8d')}
+                            {bouton('Changer le décalage', aceite, () => setAceite(true), '#e67e22')}
+                          </View>
+                        </View>
+                      )
+                    }
+                    const valorLinha = (rot: string, extr: number, atual: number, tocado: boolean) => {
+                      const o = origemValor(extr, atual, tocado)
+                      const txtO = o === 'extrait' ? 'Extrait par l\'IA' : o === 'confirmé' ? 'Saisi / confirmé par toi' : o === 'estimé' ? 'Estimé' : 'Non renseigné'
+                      return <Text style={{ fontSize: 12, color: c.textSub, marginTop: 4 }}>{rot} · {txtO}</Text>
+                    }
+
+                    // ───────── 1. SALAIRE ─────────
+                    const salCorpo = (
+                      <>
+                        <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>Sur la fiche (IA) : {cm.salExtraido > 0 ? euro(cm.salExtraido) : '—'}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginTop: 10, marginBottom: 6 }}>Net reçu sur ton compte (sans frais)</Text>
+                        <TextInput
+                          style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, fontSize: 22, fontWeight: '800', color: '#27ae60', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                          value={inputMontantSalQ}
+                          onChangeText={(t) => { setInputMontantSalQ(t); setSalTocado(true) }}
+                          keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub}
+                        />
+                        {valorLinha('Montant', cm.salExtraido, cm.salRecebido, salTocado)}
+                        {cm.ver.valores.salEstado.estado === 'diferente' && (
+                          <Text style={{ fontSize: 12, color: '#e67e22', marginTop: 4 }}>
+                            Écart avec la fiche : {cm.ver.valores.salEstado.diferenca > 0 ? '+' : ''}{cm.ver.valores.salEstado.diferenca}€ — les deux valeurs sont gardées.
+                          </Text>
+                        )}
+                        {cm.salExtraido > 0 && cm.ver.valores.salEstado.estado === 'diferente' && (
+                          <TouchableOpacity onPress={() => { setInputMontantSalQ(String(cm.salExtraido)); setSalTocado(false) }} style={{ marginTop: 6, paddingVertical: 8 }}>
+                            <Text style={{ fontSize: 13, color: '#f5a623', textDecorationLine: 'underline' }}>Reprendre le montant de la fiche ({euro(cm.salExtraido)})</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {bloco('1', 'MOIS TRAVAILLÉ', 'Mois des heures que ce salaire paie', cm.sal.trabalho, (
+                          <>
+                            {passo(cm.sal.trabalho, cm.sal.lagUsado < LAG_MAX, cm.sal.lagUsado > 0,
+                              () => { setSalTrabalhoLag(Math.min(LAG_MAX, cm.sal.lagUsado + 1)); setSalTrabConf(true) },
+                              () => { setSalTrabalhoLag(Math.max(0, cm.sal.lagUsado - 1)); setSalTrabConf(true) })}
+                            {consentement(cm.avSal, salLagAceite, setSalLagAceite)}
+                          </>
+                        ), () => { setSalTrabalhoLag(cm.sal.lagUsado); setSalTrabConf(true) })}
+                        {bloco('2', 'MOIS DE PAIEMENT (banque)', 'Mois où l\'argent est arrivé sur ton compte', cm.sal.banco, (
+                          <>
+                            {passo(cm.sal.banco, salBancoOffset < BANCO_MAX_ANTES, salBancoOffset > -BANCO_MAX_DEPOIS,
+                              () => { setSalBancoOffset(limitarOffsetBanco(salBancoOffset + 1)); setSalBancoConf(true) },
+                              () => { setSalBancoOffset(limitarOffsetBanco(salBancoOffset - 1)); setSalBancoConf(true) })}
+                            <TouchableOpacity
+                              style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, marginTop: 8, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder }}
+                              onPress={() => {
+                                DateTimePickerAndroid.open({
+                                  value: new Date(), mode: 'date',
+                                  onChange: (_, date) => {
+                                    if (!date) return
+                                    const d = String(date.getDate()).padStart(2, '0'), m = String(date.getMonth() + 1).padStart(2, '0')
+                                    setInputDataParteUm(`${d}/${m}/${date.getFullYear()}`)
+                                    // o mês da data escolhida passa a ser o mês de paiement (escolha explícita; não altera nenhum décalage)
+                                    setSalBancoOffset(limitarOffsetBanco((fichaActual.annee * 12 + fichaActual.moisIndex) - (date.getFullYear() * 12 + date.getMonth())))
+                                    setSalBancoConf(true)
+                                  },
+                                })
+                              }}
+                            >
+                              <Text style={{ color: inputDataParteUm ? c.text : c.textSub, fontSize: 14 }}>{inputDataParteUm ? `📅 Reçu le ${inputDataParteUm}` : '📅 Date exacte de réception (facultatif)'}</Text>
+                            </TouchableOpacity>
+                          </>
+                        ), () => setSalBancoConf(true))}
+                        {bloco('3', 'MOIS DU DOCUMENT (fiche de paie)', 'Mois affiché sur la fiche — peut être différent du mois de paiement', cm.sal.documento, (
+                          <>
+                            {passo(cm.sal.documento, (salDocOffset ?? 0) > SAL_DOC_MIN, (salDocOffset ?? 0) < SAL_DOC_MAX,
+                              () => { setSalDocOffset(limitarDocSalario((salDocOffset ?? 0) - 1)); setSalDocConf(true) }, () => { setSalDocOffset(limitarDocSalario((salDocOffset ?? 0) + 1)); setSalDocConf(true) }, salDocOffset === null)}
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                              {bouton('Mois lu sur la fiche', salDocOffset === 0 && salDocConf, () => { setSalDocOffset(0); setSalDocConf(true) }, '#3498db')}
+                              {bouton('Pas encore connu / Document prévu', salDocOffset === null, () => { setSalDocOffset(salDocOffset === null ? 0 : null); setSalDocConf(false) }, '#7f8c8d')}
+                            </View>
+                          </>
+                        ), () => { setSalDocOffset(0); setSalDocConf(true) })}
+
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginTop: 16, marginBottom: 6 }}>Heures sur la fiche (facultatif)</Text>
+                        <TextInput
+                          style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: '800', color: c.text, borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                          value={inputTotalHeures} onChangeText={setInputTotalHeures} keyboardType="decimal-pad"
+                          placeholder={dadosFicha.totalHeures > 0 ? String(dadosFicha.totalHeures) : '—'} placeholderTextColor={c.textSub}
+                        />
+                        {((dadosFicha.joursConges || 0) > 0 || (dadosFicha.joursFeries || 0) > 0 || (dadosFicha.joursRC || 0) > 0) && (
+                          <View style={{ marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginBottom: 4 }}>Lu sur la fiche (IA) — rien à saisir</Text>
+                            {(dadosFicha.joursConges || 0) > 0 && <Text style={{ fontSize: 12, color: c.text }}>Congés payés : {dadosFicha.joursConges} j{(dadosFicha.montantConges || 0) > 0 ? ` · ${euro(dadosFicha.montantConges)}` : ''}</Text>}
+                            {(dadosFicha.joursFeries || 0) > 0 && <Text style={{ fontSize: 12, color: c.text }}>Jours fériés : {dadosFicha.joursFeries} j{(dadosFicha.montantFeries || 0) > 0 ? ` · ${euro(dadosFicha.montantFeries)}` : ''}</Text>}
+                            {(dadosFicha.joursRC || 0) > 0 && <Text style={{ fontSize: 12, color: c.text }}>Repos compensateur : {dadosFicha.joursRC} j{(dadosFicha.montantRC || 0) > 0 ? ` · ${euro(dadosFicha.montantRC)}` : ''}</Text>}
+                          </View>
+                        )}
+
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#9b59b6', marginBottom: 6 }}>Intéressement</Text>
+                            <TextInput style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, fontSize: 15, fontWeight: '700', color: '#9b59b6', borderWidth: inputInteressementQ ? 1.5 : 1, borderColor: inputInteressementQ ? '#9b59b6' : c.cardBorder, textAlign: 'center' }}
+                              value={inputInteressementQ} onChangeText={setInputInteressementQ} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#27ae60', marginBottom: 6 }}>Prime non-accident</Text>
+                            <TextInput style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, fontSize: 15, fontWeight: '700', color: '#27ae60', borderWidth: inputPrimeNonAccQ ? 1.5 : 1, borderColor: inputPrimeNonAccQ ? '#27ae60' : c.cardBorder, textAlign: 'center' }}
+                              value={inputPrimeNonAccQ} onChangeText={setInputPrimeNonAccQ} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub} />
+                          </View>
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginTop: 14, marginBottom: 6 }}>Ce mois était-il habituel ?</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          {bouton('Oui, mois normal', !inputMoisAtipico, () => setInputMoisAtipico(false), '#27ae60')}
+                          {bouton('Non, prime exceptionnelle', inputMoisAtipico, () => setInputMoisAtipico(true), '#e74c3c')}
+                        </View>
+                        {inputMoisAtipico && <Text style={{ fontSize: 12, color: '#e74c3c', marginTop: 6 }}>Ce mois ne sera pas utilisé pour calibrer ton salaire habituel.</Text>}
+                      </>
+                    )
+
+                    // ───────── 2. FRAIS ─────────
+                    const periodeFicheQ = fichaActual.periode || `${MOIS_NOMS[fichaActual.moisIndex]} ${fichaActual.annee}`
+                    const valeurFraisQ = cm.fraisRecebido || cm.fraisExtraido || 0
+                    const candidatsFrais = listarPagamentosCandidatos(historique, periodeFicheQ, valeurFraisQ)
+                    const fOffB = limitarOffsetBanco(fraisMesOffset)
+                    const fOffD = limitarOffsetDoc(fraisDocOffset)
+                    const fraisCorpo = (
+                      <>
+                        <Text style={{ fontSize: 13, color: c.textSub, marginTop: 2 }}>Sur la fiche (IA) : {cm.fraisExtraido > 0 ? euro(cm.fraisExtraido) : '—'}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginTop: 10, marginBottom: 6 }}>Frais reçus sur ton compte</Text>
+                        <TextInput
+                          style={{ backgroundColor: c.card, borderRadius: 12, padding: 12, fontSize: 22, fontWeight: '800', color: '#2980b9', borderWidth: 1, borderColor: c.cardBorder, textAlign: 'center' }}
+                          value={inputMontantFraisQ} onChangeText={setInputMontantFraisQ}
+                          keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textSub}
+                        />
+                        {cm.ver.valores.fraisEstado.estado === 'diferente' && (
+                          <Text style={{ fontSize: 12, color: '#e67e22', marginTop: 4 }}>
+                            Écart avec la fiche : {cm.ver.valores.fraisEstado.diferenca > 0 ? '+' : ''}{cm.ver.valores.fraisEstado.diferenca}€ — la fiche documente, le montant reçu est celui de ta banque.
+                          </Text>
+                        )}
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: c.text, marginTop: 14, marginBottom: 8 }}>As-tu déjà reçu ces frais ?</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          {bouton('Oui, déjà reçus', fraisResposta === 'recebido', () => { setFraisResposta(fraisResposta === 'recebido' ? null : 'recebido'); setFraisPagamentoEscolhido(null) })}
+                          {bouton('Pas encore reçus', fraisResposta === 'por_receber', () => setFraisResposta(fraisResposta === 'por_receber' ? null : 'por_receber'), '#f5a623')}
+                          {bouton('Je ne sais pas', fraisResposta === 'desconhecido', () => setFraisResposta(fraisResposta === 'desconhecido' ? null : 'desconhecido'), '#7f8c8d')}
+                        </View>
+                        {fraisResposta !== 'recebido' && (
+                          <Text style={{ fontSize: 12, color: c.textSub, marginTop: 10 }}>
+                            Mois travaillé (hypothèse) : {cm.fr.trabalho.rotulo}. Les mois de paiement et du document se précisent quand tu as reçu les frais.
+                          </Text>
+                        )}
+                        {fraisResposta === 'recebido' && (
+                          <>
+                            {bloco('1', 'MOIS TRAVAILLÉ', 'Mois des frais (jours travaillés)', cm.fr.trabalho, (
+                              <>
+                                {passo(cm.fr.trabalho, cm.fr.lagUsado < LAG_MAX, cm.fr.lagUsado > 0,
+                                  () => { setFraisTrabalhoLag(Math.min(LAG_MAX, cm.fr.lagUsado + 1)); setFraisTrabConf(true) },
+                                  () => { setFraisTrabalhoLag(Math.max(0, cm.fr.lagUsado - 1)); setFraisTrabConf(true) })}
+                                {consentement(cm.avFrais, fraisLagAceite, setFraisLagAceite)}
+                              </>
+                            ), () => { setFraisTrabalhoLag(cm.fr.lagUsado); setFraisTrabConf(true) })}
+                            {bloco('2', 'MOIS DE PAIEMENT (banque)', 'Mois où l\'argent est arrivé sur ton compte', cm.fr.banco, (
+                              <>
+                                {passo(cm.fr.banco, fOffB < BANCO_MAX_ANTES, fOffB > -BANCO_MAX_DEPOIS, () => { setFraisMesOffset(fOffB + 1); setFraisBancoConf(true) }, () => { setFraisMesOffset(fOffB - 1); setFraisBancoConf(true) })}
+                                <Text style={{ fontSize: 12, color: c.textSub, marginTop: 6 }}>Montant reçu : {cm.fraisRecebido > 0 ? euro(cm.fraisRecebido) : '—'}</Text>
+                              </>
+                            ), () => setFraisBancoConf(true))}
+                            {bloco('3', 'MOIS DU DOCUMENT (fiche de paie)', 'Fiche où ces frais apparaissent — ce n\'est pas un second paiement', cm.fr.documento, (
+                              <>
+                                {passo(cm.fr.documento.mes ? cm.fr.documento : { ...cm.fr.documento, rotulo: rotuloMes(deslocarMesFr({ ano: fichaActual.annee, mes: fichaActual.moisIndex }, fOffD)) },
+                                  fOffD > 0, fOffD < DOC_MAX_DEPOIS, () => { setFraisDocOffset(fOffD - 1); setFraisDocConf(true) }, () => { setFraisDocOffset(fOffD + 1); setFraisDocConf(true) }, fraisDocDesconhecido)}
+                                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                  {bouton('Mois lu sur la fiche', !fraisDocDesconhecido && fOffD === 0 && fraisDocConf, () => { setFraisDocDesconhecido(false); setFraisDocOffset(0); setFraisDocConf(true) }, '#3498db')}
+                                  {bouton('Pas encore connu / Document prévu', fraisDocDesconhecido, () => setFraisDocDesconhecido(!fraisDocDesconhecido), '#7f8c8d')}
+                                </View>
+                                {!fraisDocDesconhecido && (
+                                  <Text style={{ fontSize: 12, color: cm.fr.documentoEstado === 'prevista' ? '#f5a623' : c.textSub, marginTop: 6 }}>
+                                    {cm.fr.documentoEstado === 'esta_fiche' ? "C'est la fiche en cours."
+                                      : cm.fr.documentoEstado === 'ja_importada' ? 'Fiche déjà importée : ouvre-la pour y lier ce paiement.'
+                                      : 'Fiche prévue — pas encore importée (non confirmé).'}
+                                  </Text>
+                                )}
+                              </>
+                            ), () => { setFraisDocDesconhecido(false); setFraisDocOffset(0); setFraisDocConf(true) })}
+                            {candidatsFrais.length > 0 && (
+                              <>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: c.textSub, marginTop: 14, marginBottom: 6 }}>Paiement déjà enregistré ? (pour ne pas compter deux fois)</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                  {bouton('Aucun', fraisPagamentoEscolhido === null, () => setFraisPagamentoEscolhido(null), '#7f8c8d')}
+                                  {candidatsFrais.map(cd => bouton(`${cd.periode} · ${cd.valor}€`, fraisPagamentoEscolhido === cd.periode, () => setFraisPagamentoEscolhido(cd.periode), '#27ae60'))}
+                                </View>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )
+
+                    // ───────── 3. VÉRIFICATION ─────────
+                    const v = cm.ver
+                    const linhaMes = (rot: string, m: MesComEstado) => (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 13, color: c.textSub, flex: 1 }}>{rot}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: m.mes ? c.text : c.textSub, marginRight: 8 }}>{m.mes ? m.rotulo : ROTULO_INCONNU}</Text>
+                        {badge(m.estado)}
+                      </View>
+                    )
+                    const verifCorpo = (
+                      <>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#27ae60', marginTop: 4 }}>Salaire</Text>
+                        {linhaMes('Mois travaillé', v.salaire.trabalho)}
+                        {linhaMes('Mois de paiement (banque)', v.salaire.banco)}
+                        {linhaMes('Mois du document', v.salaire.documento)}
+                        <Text style={{ fontSize: 13, color: c.text, marginTop: 4 }}>
+                          Fiche (IA) : {v.valores.salExtraido > 0 ? euro(v.valores.salExtraido) : '—'} · Reçu : {v.valores.salRecebido > 0 ? euro(v.valores.salRecebido) : '—'}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#2980b9', marginTop: 14 }}>Frais</Text>
+                        {linhaMes('Mois travaillé', v.frais.trabalho)}
+                        {linhaMes('Mois de paiement (banque)', v.frais.banco)}
+                        {linhaMes('Mois du document', v.frais.documento)}
+                        <Text style={{ fontSize: 13, color: c.text, marginTop: 4 }}>
+                          Fiche (IA) : {v.valores.fraisExtraido > 0 ? euro(v.valores.fraisExtraido) : '—'} · Reçu : {fraisResposta === 'por_receber' || fraisResposta === 'desconhecido' ? 'pas encore' : v.valores.fraisRecebido > 0 ? euro(v.valores.fraisRecebido) : '—'}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: c.text, marginTop: 14 }}>Primes et type de mois</Text>
+                        <Text style={{ fontSize: 13, color: c.text, marginTop: 2 }}>Intéressement : {v.primes.interessement > 0 ? euro(v.primes.interessement) : '—'} · Non-accident : {v.primes.primeNonAcc > 0 ? euro(v.primes.primeNonAcc) : '—'}</Text>
+                        <Text style={{ fontSize: 13, color: c.text, marginTop: 2 }}>{v.tipoMes === 'normal' ? 'Mois normal' : 'Mois exceptionnel (prime) — pas utilisé pour calibrer'}</Text>
+                        {v.naoConfirmados.length > 0 && (
+                          <View style={{ marginTop: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(52,152,219,0.10)', borderWidth: 1, borderColor: '#3498db' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#3498db', marginBottom: 4 }}>Mois non confirmés (hypothèses)</Text>
+                            {v.naoConfirmados.map(a => <Text key={a} style={{ fontSize: 12, color: c.text, marginBottom: 3 }}>• {a}</Text>)}
+                            <Text style={{ fontSize: 11, color: c.textSub, marginTop: 2 }}>Tu peux enregistrer ainsi : ils resteront marqués comme hypothèses.</Text>
+                          </View>
+                        )}
+                        {v.avisos.length > 0 && (
+                          <View style={{ marginTop: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(230,126,34,0.10)', borderWidth: 1, borderColor: '#e67e22' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#e67e22', marginBottom: 4 }}>À vérifier</Text>
+                            {v.avisos.map(a => <Text key={a} style={{ fontSize: 12, color: c.text, marginBottom: 3 }}>• {a}</Text>)}
+                          </View>
+                        )}
+                        {v.erros.length > 0 && (
+                          <View style={{ marginTop: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(231,76,60,0.10)', borderWidth: 1, borderColor: '#e74c3c' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#e74c3c', marginBottom: 4 }}>Pour enregistrer</Text>
+                            {v.erros.map(a => <Text key={a} style={{ fontSize: 12, color: c.text, marginBottom: 3 }}>• {a}</Text>)}
+                          </View>
+                        )}
+                      </>
+                    )
+
+                    return (
+                      <>
+                        {secao('sal', '1. Salaire', `Travail ${cm.sal.trabalho.rotulo} · banque ${cm.sal.banco.rotulo} · fiche ${cm.sal.documento.rotulo}`, '#27ae60', salCorpo)}
+                        {secao('frais', '2. Frais', fraisResposta === 'recebido' ? `Travail ${cm.fr.trabalho.rotulo} · banque ${cm.fr.banco.rotulo} · fiche ${cm.fr.documento.rotulo}` : 'Dis si tu as déjà reçu les frais', '#2980b9', fraisCorpo)}
+                        {secao('verif', '3. Vérification', v.podeGuardar ? (v.naoConfirmados.length + v.avisos.length > 0 ? `${v.naoConfirmados.length} mois non confirmé(s) · ${v.avisos.length} point(s) à vérifier` : 'Tout est confirmé et cohérent') : v.erros[0], '#f5a623', verifCorpo)}
+                      </>
+                    )
+                  })()}
+                  </ScrollView>
+
+                  {/* Barre fixe (hors du défilement) : le clavier ne cache jamais « Enregistrer » */}
+                  <View style={{ flexDirection: 'row', gap: 10, paddingTop: 10, alignItems: 'center' }}>
+                    <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' }} onPress={() => setShowModalCancelar(true)}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>Annuler</Text>
+                    </TouchableOpacity>
                     {perguntaAtual > 0 && (
-                      <TouchableOpacity
-                        style={{ paddingHorizontal: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
-                        onPress={voltarPergunta}
-                      >
-                        <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center' }}>{'‹‹'}{'\n'}Fiche{'\n'}préc.</Text>
+                      <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' }} onPress={voltarPergunta}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: c.textSub }}>‹ Fiche préc.</Text>
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
-                      style={{ paddingHorizontal: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
-                      onPress={() => setShowParteUm(true)}
-                    >
-                      <Text style={{ fontSize: 11, color: c.textSub, textAlign: 'center' }}>{'‹'}{'\n'}Partie{'\n'}1</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 16, alignItems: 'center' }}
+                      disabled={!cm.ver.podeGuardar}
+                      style={{ flex: 1, backgroundColor: '#f5a623', borderRadius: 14, padding: 14, alignItems: 'center', opacity: cm.ver.podeGuardar ? 1 : 0.4 }}
                       onPress={responderPergunta}
                     >
                       <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>
@@ -4098,13 +4127,10 @@ Si une valeur n'existe pas sur le bulletin, mets 0. Ne fusionne jamais intéress
                       </Text>
                     </TouchableOpacity>
                   </View>
-                    </>
-                  )}
                 </>
               )
             })()}
           </View>
-          </ScrollView>
           </KeyboardAvoidingView>
         </ReAnimated.View>
       </Modal>

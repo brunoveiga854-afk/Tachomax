@@ -330,7 +330,7 @@ describe('9. isolamento (etapa 2D): só o backup/restauro usa o armazém; a extr
     }
     return out
   }
-  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas|rubricasStore|escritaComRollback|backupRubricas)(\.test)?\.ts$/
+  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas|rubricasStore|escritaComRollback|backupRubricas|importacaoRubricas|identidadeFicheiro)(\.test)?\.ts$/
   const ficheiros = [...listar('app'), ...listar('src')].filter(f => !NOVOS.test(f))
   it('nenhum ficheiro da app importa os módulos de extração/prompt/completude (continuam fora do fluxo)', () => {
     for (const f of ficheiros) {
@@ -376,5 +376,32 @@ describe('9. isolamento (etapa 2D): só o backup/restauro usa o armazém; a extr
     const v = ler('netlify/lib/validarPedido.js')
     expect(v.includes('MAX_TEXTO = 8000')).toBe(true)
     expect(v.includes('MAX_SYSTEM = 500')).toBe(true)
+  })
+})
+
+describe('10. identidade estável do ficheiro (Etapa 2E): opção hashDocumento', () => {
+  const resp = () => ({ tipo: 'api' as const, data: respostaAPI(textoResposta([montarFicheDetalhada(PERFIL_A)])) })
+  it('com hashDocumento, o documento fica com esse hash e um id derivado dele (não do conteúdo)', () => {
+    const a = prepararExtracaoRubricas(resp(), { agora: '2026-10-14T10:00:00.000Z', hashDocumento: 'fx1:10:abc:def' })
+    expect(a.documentos[0].hashDocumento).toBe('fx1:10:abc:def')
+    expect(a.documentos[0].origemId).toBe('hash_documento')
+  })
+  it('o hash do ficheiro PREVALECE sobre um «hash» que a IA invente na resposta', () => {
+    const t = { tipo: 'api' as const, data: respostaAPI(textoResposta([{ ...montarFicheDetalhada(PERFIL_A), hash: 'inventado' }])) }
+    const a = prepararExtracaoRubricas(t, { agora: '2026-10-14T10:00:00.000Z', hashDocumento: 'fx1:10:abc:def' })
+    expect(a.documentos[0].hashDocumento).toBe('fx1:10:abc:def')
+  })
+  it('sem hashDocumento o comportamento é o de sempre (id pelo conteúdo)', () => {
+    const a = prepararExtracaoRubricas(resp(), { agora: '2026-10-14T10:00:00.000Z' })
+    expect(a.documentos[0].origemId).toBe('conteudo'); expect(a.documentos[0].hashDocumento).toBeNull()
+    const b = prepararExtracaoRubricas(resp(), { agora: '2026-10-14T10:00:00.000Z', hashDocumento: '' })
+    expect(b.documentos[0].origemId).toBe('conteudo')
+  })
+  it('mesmo hash e mesmas linhas ⇒ mesmo id; hash diferente ⇒ id diferente', () => {
+    const o = { agora: '2026-10-14T10:00:00.000Z' }
+    const x = prepararExtracaoRubricas(resp(), { ...o, hashDocumento: 'h1' }).documentos[0]
+    const y = prepararExtracaoRubricas(resp(), { ...o, hashDocumento: 'h1' }).documentos[0]
+    const z = prepararExtracaoRubricas(resp(), { ...o, hashDocumento: 'h2' }).documentos[0]
+    expect(x.idDocumento).toBe(y.idDocumento); expect(x.idDocumento === z.idDocumento).toBe(false)
   })
 })

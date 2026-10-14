@@ -37,6 +37,8 @@ export type DecisaoExtracao = {
 export type ContextoDecisao = {
   /** true se a extração antiga já foi tentada (e falhou) para este ficheiro. */
   legadoJaTentado?: boolean
+  /** Identidade estável do FICHEIRO (calculada pela app sobre os bytes). Se vier, passa a ser o `hash` do documento (e a base do seu id) — prevalece sobre qualquer «hash» devolvido pela IA. */
+  hashDocumento?: string | null
 }
 
 export type ExtracaoPreparada = {
@@ -110,7 +112,8 @@ export function prepararExtracaoRubricas(tentativa: TentativaDetalhada, opcoes: 
   const camposLegados: Record<string, unknown>[] = []
 
   for (const rec of completude.documentos) {
-    const doc = normalizarRespostaExtracao(rec.resposta, { ...opcoes, versaoPrompt: opcoes.versaoPrompt ?? VERSAO_PROMPT_RUBRICAS })
+    const respostaDoc = typeof opcoes.hashDocumento === 'string' && opcoes.hashDocumento !== '' ? { ...rec.resposta, hash: opcoes.hashDocumento } : rec.resposta
+    const doc = normalizarRespostaExtracao(respostaDoc, { ...opcoes, versaoPrompt: opcoes.versaoPrompt ?? VERSAO_PROMPT_RUBRICAS })
     const c = clonar(rec.completude)
     if (rec.resposta.versionPrompt !== VERSAO_PROMPT_RUBRICAS)
       c.motivos.push({ codigo: 'versionPrompt_diferente', gravidade: 'info', mensagem: `versionPrompt «${String(rec.resposta.versionPrompt ?? '')}» ≠ «${VERSAO_PROMPT_RUBRICAS}».` })

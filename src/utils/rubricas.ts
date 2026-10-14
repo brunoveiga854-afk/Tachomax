@@ -39,7 +39,7 @@ function fnv(s: string, seed = 0x811c9dc5): string {
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0 }
   return h.toString(16).padStart(8, '0')
 }
-const hash16 = (s: string) => fnv(s) + fnv(s, 0x9e3779b1)
+export const hash16 = (s: string) => fnv(s) + fnv(s, 0x9e3779b1)
 
 const semAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
 const slug = (s: string) => semAcentos(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')

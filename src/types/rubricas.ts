@@ -138,6 +138,14 @@ export type CompletudeDocumento = {
   garantiaLeituraCompleta: false
 }
 
+/** Assinala que este documento coincide (por id ou hash) com um já guardado mas tem conteúdo DIFERENTE: o existente foi conservado. */
+export type ConflitoDocumento = {
+  comIdDocumento: string
+  motivo: 'conteudo_diferente' | 'identificadores_ambiguos'
+  detetadoEm: string
+  origem: 'importacao' | 'restauro'
+}
+
 export type DocumentoRubricas = {
   versaoEsquema: typeof VERSAO_ESQUEMA_RUBRICAS
   idDocumento: string              // estável (hash do documento, id fornecido ou impressão digital do conteúdo)
@@ -154,6 +162,8 @@ export type DocumentoRubricas = {
   problemas: ProblemaDados[]
   /** Preenchido pela Etapa 2C (extracaoRubricas.ts). Ausente em documentos da 2A. */
   completude?: CompletudeDocumento
+  /** Preenchido pela Etapa 2D (rubricasStore.ts) quando a versão é uma alternativa em conflito com um documento já guardado. */
+  conflito?: ConflitoDocumento
 }
 
 /**

@@ -320,7 +320,7 @@ describe('8. a aprendizagem salarial não é afetada', () => {
   })
 })
 
-describe('9. isolamento: nada na app usa estes módulos e o fluxo atual está intacto', () => {
+describe('9. isolamento (etapa 2D): só o backup/restauro usa o armazém; a extração continua fora do fluxo real', () => {
   const listar = (dir: string, out: string[] = []): string[] => {
     for (const nome of fs.readdirSync(path.join(RAIZ, dir))) {
       if (nome === 'node_modules' || nome.startsWith('.')) continue
@@ -330,18 +330,31 @@ describe('9. isolamento: nada na app usa estes módulos e o fluxo atual está in
     }
     return out
   }
-  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas)(\.test)?\.ts$/
+  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas|rubricasStore|escritaComRollback|backupRubricas)(\.test)?\.ts$/
   const ficheiros = [...listar('app'), ...listar('src')].filter(f => !NOVOS.test(f))
-  it('nenhum ficheiro da app importa os módulos de rubricas', () => {
+  it('nenhum ficheiro da app importa os módulos de extração/prompt/completude (continuam fora do fluxo)', () => {
     for (const f of ficheiros) {
       const src = ler(f)
       if (/(promptRubricas|completudeRubricas|extracaoRubricas|rubricasFixtures|utils\/rubricas|types\/rubricas|\.\/rubricas)['"]/.test(src)) throw new Error(`${f} importa módulos de rubricas`)
     }
     expect(ficheiros.length).toBeGreaterThan(20)
   })
-  it('nada grava rubricas: a chave monSalaire_rubricas_v1 não aparece em código da app', () => {
-    for (const f of ficheiros) if (ler(f).includes('monSalaire_rubricas_v1')) throw new Error(`${f} referencia monSalaire_rubricas_v1`)
+  it('só reglages.tsx importa rubricasStore e escritaComRollback; fiche.tsx e o resto da app não', () => {
+    const quem = ficheiros.filter(f => /(rubricasStore|escritaComRollback)['"]/.test(ler(f)))
+    expect(quem).toEqual(['app/(tabs)/reglages.tsx'])
+  })
+  it('só reglages.tsx referencia a chave monSalaire_rubricas_v1 diretamente ou via CHAVE_RUBRICAS; nenhum outro ficheiro a toca', () => {
+    for (const f of ficheiros) {
+      if (f === 'app/(tabs)/reglages.tsx') continue
+      const src = ler(f)
+      if (src.includes('monSalaire_rubricas_v1') || /CHAVE_RUBRICAS/.test(src)) throw new Error(`${f} referencia a chave das rubricas`)
+    }
     expect(true).toBe(true)
+  })
+  it('o motor, a aprendizagem e o histórico não conhecem o armazém de rubricas', () => {
+    for (const f of ['src/engine/aprendizagem.ts', 'src/utils/filaHistorico.ts']) {
+      expect(/rubricas|escritaComRollback/i.test(ler(f))).toBe(false)
+    }
   })
   it('fiche.tsx continua com o prompt legado, sem «lignes»/«nbLignes» e sem rub-2', () => {
     const fiche = ler('app/(tabs)/fiche.tsx')
@@ -350,8 +363,13 @@ describe('9. isolamento: nada na app usa estes módulos e o fluxo atual está in
     expect(fiche.includes('rub-2')).toBe(false)
     expect(fiche.includes('"lignes"')).toBe(false)
   })
-  it('backup/restauro por apagar: reglages.tsx não conhece ainda a chave de rubricas', () => {
-    expect(ler('app/(tabs)/reglages.tsx').includes('rubricas')).toBe(false)
+  it('reglages.tsx: rubricas entram no backup, ficam fora da importação direta e usam fila + rollback partilhados', () => {
+    const r = ler('app/(tabs)/reglages.tsx')
+    expect(r.includes('CHAVE_RUBRICAS')).toBe(true)
+    expect(/IMPORT_DIRETO_KEYS[^\n]*CHAVE_RUBRICAS/.test(r)).toBe(true)
+    expect(r.includes('prepararRestauroRubricas')).toBe(true)
+    expect(r.includes('escreverComRollback(AsyncStorage')).toBe(true)
+    expect(r.includes('comFilaHistorico(() => comFilaRubricas')).toBe(true)
   })
   it('o proxy e o validarPedido não mudaram de limites (continuam 4000 tokens / 8000 / 500)', () => {
     expect(ler('netlify/functions/anthropic-proxy.js').includes('body.max_tokens > 4000')).toBe(true)

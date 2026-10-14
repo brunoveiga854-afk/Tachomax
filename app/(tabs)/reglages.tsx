@@ -21,6 +21,8 @@ import { gravarKmCamiao } from '../../src/utils/kmPorCamiao'
 import { kmFimDoDia } from '../../src/utils/camioes'
 import { useAssistenteAtivo } from '../../src/assistente/useAssistenteAtivo'
 import { comFilaHistorico } from '../../src/utils/filaHistorico'
+import { CHAVE_RUBRICAS, comFilaRubricas, prepararRestauroRubricas, validarRubricasDoBackup, bytesUtf8, nivelTamanho, type ResultadoRestauroRubricas, type RegistoRubricas } from '../../src/utils/rubricasStore'
+import { escreverComRollback } from '../../src/utils/escritaComRollback'
 import { CHAVE_SUBSTITUIDOS, validarSubstituidosImportados, mesclarArquivoSubstituidos, type ResultadoMescla } from '../../src/utils/backupSubstituidos'
 
 // Chaves a exportar/importar (AsyncStorage)
@@ -28,12 +30,21 @@ import { CHAVE_SUBSTITUIDOS, validarSubstituidosImportados, mesclarArquivoSubsti
 // pelo motor (analisarPadraoV2) ao abrir o separador Fiche após import
 // historique_substituidos (serviços substituídos por decisão do motorista) é EXPORTADO; na importação NÃO se substitui:
 // mescla-se com o arquivo do telemóvel e nunca volta ao histórico principal (backups antigos sem a chave importam-se como antes).
+// monSalaire_rubricas_v1 (rubricas documentais das fiches) é EXPORTADO; na importação NÃO se substitui: funde-se por identidade documental
+// (documentos e classificações confirmadas existentes ficam; backup sem a chave não apaga nada) dentro do mesmo multiSet atómico com rollback.
 const BACKUP_KEYS = [
   'historique',
   'monSalaire_v2',
   CHAVE_SUBSTITUIDOS,
+  CHAVE_RUBRICAS,
 ]
-const IMPORT_DIRETO_KEYS = BACKUP_KEYS.filter(k => k !== CHAVE_SUBSTITUIDOS)
+const IMPORT_DIRETO_KEYS = BACKUP_KEYS.filter(k => k !== CHAVE_SUBSTITUIDOS && k !== CHAVE_RUBRICAS)
+// logs das rubricas: só contagens e códigos (o store filtra qualquer outro valor) — nunca libellés, montantes nem documentos
+const registoRubricas: RegistoRubricas = {
+  info: (m, d) => log.info('reglages', m, d),
+  warn: (m, d) => log.warn('reglages', m, d),
+  error: (m, d) => log.error('reglages', m, d),
+}
 
 // Carimbo com hora LOCAL do telemóvel (não UTC): AAAA-MM-DD_HHhMM — usado nos nomes dos backups
 function carimboLocal(d: Date = new Date()): string {
@@ -297,8 +308,10 @@ export default function ReglagesScreen() {
       }
       const nJours = Array.isArray(backup.data.historique) ? backup.data.historique.length : 0
       const nFiches = Array.isArray(backup.data.monSalaire_v2) ? backup.data.monSalaire_v2.length : 0
-      log.info('reglages', 'import lido', { nJours, nFiches })
-      setImportData({ backup, nJours, nFiches })
+      const vRub = validarRubricasDoBackup(backup.data[CHAVE_RUBRICAS])
+      const nRubricas = vRub.estado === 'ok' ? vRub.documentos.length : 0
+      log.info('reglages', 'import lido', { nJours, nFiches, nRubricas, rubricas: vRub.estado })
+      setImportData({ backup, nJours, nFiches, nRubricas })
       setShowModalImport(true)
     } catch (e) {
       log.error('reglages', 'importarDados falhou', e)
@@ -306,6 +319,13 @@ export default function ReglagesScreen() {
       setShowModalSucesso(true)
     }
     setLoadingImport(false)
+  }
+
+  const mensagemRubricas = (rr: ResultadoRestauroRubricas | null): string => {
+    if (!rr) return ''
+    if (rr.acao === 'gravar') return `\n${rr.resumo.adicionados + rr.resumo.conflitos} document(s) de rubriques ajouté(s)${rr.resumo.conflitos > 0 ? ` (dont ${rr.resumo.conflitos} en conflit, à vérifier)` : ''}. Rien n'a été écrasé.`
+    if (rr.acao === 'ignorar') return `\n⚠️ Rubriques non restaurées (${rr.motivo}). Tes rubriques actuelles n'ont pas été modifiées.`
+    return ''
   }
 
   const confirmarImport = async () => {
@@ -335,6 +355,7 @@ export default function ReglagesScreen() {
       log.info('reglages', 'confirmarImport: backup prévio criado', { nJours: importData.nJours, nFiches: importData.nFiches })
       // escrita atómica: tudo serializado ANTES de escrever; multiSet numa só operação; rollback dos valores anteriores se falhar
       let mesclaSubstituidos: ResultadoMescla | null = null
+      const estadoRub: { rr: ResultadoRestauroRubricas | null } = { rr: null }
       const pares: [string, string][] = []
       for (const key of IMPORT_DIRETO_KEYS) {
         if (backup.data[key] !== undefined) pares.push([key, JSON.stringify(backup.data[key])])
@@ -342,7 +363,8 @@ export default function ReglagesScreen() {
       // arquivo dos substituídos: MESCLA (nunca substitui nem toca no histórico principal); tudo dentro da fila do histórico
       const valSub = validarSubstituidosImportados(backup.data[CHAVE_SUBSTITUIDOS])
       if (valSub.estado === 'invalido') log.warn('reglages', 'import: historique_substituidos não é um array — ignorado (o resto segue)')
-      mesclaSubstituidos = await comFilaHistorico(async () => {
+      // fila do histórico + fila PRÓPRIA das rubricas (sempre nesta ordem; nenhuma operação das rubricas pede a do histórico)
+      mesclaSubstituidos = await comFilaHistorico(() => comFilaRubricas(async () => {
         let mescla: ResultadoMescla | null = null
         const todos: [string, string][] = [...pares]
         if (valSub.estado === 'ok' && valSub.lista.length > 0) {
@@ -357,23 +379,20 @@ export default function ReglagesScreen() {
             if (mescla.adicionados > 0) todos.push([CHAVE_SUBSTITUIDOS, JSON.stringify(mescla.lista)])
           }
         }
-        const anteriores = await AsyncStorage.multiGet(todos.map(p => p[0]))
-        try {
-          await AsyncStorage.multiSet(todos)
-        } catch (eEscrita) {
-          log.error('reglages', 'confirmarImport: multiSet falhou — a restaurar valores anteriores', { tipo: (eEscrita as any)?.name, nChaves: todos.length })
-          for (const [k, v] of anteriores) {
-            try { if (v === null) await AsyncStorage.removeItem(k); else await AsyncStorage.setItem(k, v) }
-            catch (eRb) { log.error('reglages', 'confirmarImport: rollback falhou', { chave: k, tipo: (eRb as any)?.name }) }
-          }
-          throw eEscrita
-        }
+        // rubricas: FUNDE-SE (nunca substitui). Erro de leitura ⇒ lança ⇒ o restauro falha ANTES de gravar qualquer coisa.
+        // Valor atual corrompido / secção do backup inválida ⇒ as rubricas ficam como estão (o resto do restauro segue, com aviso).
+        const rawRubricas = await AsyncStorage.getItem(CHAVE_RUBRICAS)
+        const rr = prepararRestauroRubricas(rawRubricas, backup.data[CHAVE_RUBRICAS], { registo: registoRubricas })
+        estadoRub.rr = rr
+        if (rr.acao === 'gravar') todos.push([CHAVE_RUBRICAS, rr.serializado])
+        // mesmo mecanismo de escrita atómica + rollback de sempre (agora também com a chave das rubricas)
+        await escreverComRollback(AsyncStorage, todos, { error: (m, d) => log.error('reglages', m, d) })
         return mescla
-      })
-      log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches })
+      }))
+      log.warn('reglages', 'import aplicado — dados sobrescritos', { nJours: importData.nJours, nFiches: importData.nFiches, rubricas: estadoRub.rr?.acao ?? 'nada' })
       await recarregarApp()
       showToast('✓ Modifications appliquées')
-      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.${mesclaSubstituidos && mesclaSubstituidos.adicionados > 0 ? `\n${mesclaSubstituidos.adicionados} service(s) remplacé(s) ajouté(s) aux archives (pas dans l'historique).` : ''}\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
+      setModalSucessoMsg(`✅ Import réussi!\n${importData.nJours} jours · ${importData.nFiches} fiches importés.${mesclaSubstituidos && mesclaSubstituidos.adicionados > 0 ? `\n${mesclaSubstituidos.adicionados} service(s) remplacé(s) ajouté(s) aux archives (pas dans l'historique).` : ''}${mensagemRubricas(estadoRub.rr)}\n\nOuvre l'onglet Fiche pour recalculer ton profil salarial.`)
       setTimeout(() => setShowModalSucesso(true), 300)
     } catch (e) {
       log.error('reglages', 'confirmarImport falhou', e)
@@ -570,6 +589,15 @@ export default function ReglagesScreen() {
         } catch {}
         lines.push('   ✅ ' + key + ': ' + detail)
       }
+    }
+
+    // rubricas documentais: só aparece quando a chave existe (tamanho vs limite seguro; nunca o conteúdo)
+    const rawRub = await AsyncStorage.getItem(CHAVE_RUBRICAS)
+    if (rawRub !== null) {
+      const bRub = bytesUtf8(rawRub)
+      const nvRub = nivelTamanho(bRub)
+      lines.push('   ' + (nvRub === 'ok' ? '✅' : '⚠️') + ' ' + CHAVE_RUBRICAS + ': ' + bRub + ' octets (' + nvRub + ')')
+      if (nvRub !== 'ok') warnings.push('Rubriques: stockage proche de la limite sûre')
     }
 
     // ── 3b. BACKUPS ──────────────────────
@@ -1322,6 +1350,7 @@ export default function ReglagesScreen() {
                 Ce backup contient:{'\n'}
                 <Text style={{ color: '#27ae60', fontWeight: '700' }}>✅ {importData?.nJours} jours d'historique{'\n'}</Text>
                 <Text style={{ color: '#2980b9', fontWeight: '700' }}>✅ {importData?.nFiches} fiches de paye</Text>
+                {importData?.nRubricas > 0 ? <Text style={{ color: '#8e44ad', fontWeight: '700' }}>{'\n'}✅ {importData.nRubricas} document(s) de rubriques (fusionnés, rien n'est écrasé)</Text> : null}
               </Text>
               <View style={{ backgroundColor: 'rgba(231,76,60,0.1)', borderRadius: 10, padding: 10, marginTop: 12, borderWidth: 1, borderColor: '#e74c3c' }}>
                 <Text style={{ fontSize: 14, color: '#e74c3c', textAlign: 'center', fontWeight: '600' }}>

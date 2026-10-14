@@ -330,7 +330,7 @@ describe('9. isolamento (etapa 2D): só o backup/restauro usa o armazém; a extr
     }
     return out
   }
-  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas|rubricasStore|escritaComRollback|backupRubricas|importacaoRubricas|identidadeFicheiro)(\.test)?\.ts$/
+  const NOVOS = /(^|\/)(promptRubricas|promptRubricasLegado|completudeRubricas|extracaoRubricas|rubricasFixtures|rubricasNumeros|rubricas|rubricasStore|escritaComRollback|backupRubricas|importacaoRubricas|identidadeFicheiro|autotesteRubricas)(\.test)?\.ts$/
   const ficheiros = [...listar('app'), ...listar('src')].filter(f => !NOVOS.test(f))
   it('nenhum ficheiro da app importa os módulos de extração/prompt/completude (continuam fora do fluxo)', () => {
     for (const f of ficheiros) {

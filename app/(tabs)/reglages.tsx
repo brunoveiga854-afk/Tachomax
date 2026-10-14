@@ -23,6 +23,7 @@ import { useAssistenteAtivo } from '../../src/assistente/useAssistenteAtivo'
 import { comFilaHistorico } from '../../src/utils/filaHistorico'
 import { CHAVE_RUBRICAS, comFilaRubricas, prepararRestauroRubricas, validarRubricasDoBackup, bytesUtf8, nivelTamanho, type ResultadoRestauroRubricas, type RegistoRubricas } from '../../src/utils/rubricasStore'
 import { escreverComRollback } from '../../src/utils/escritaComRollback'
+import { executarAutoteste, formatarRelatorio } from '../../src/utils/autotesteRubricas'
 import { CHAVE_SUBSTITUIDOS, validarSubstituidosImportados, mesclarArquivoSubstituidos, type ResultadoMescla } from '../../src/utils/backupSubstituidos'
 
 // Chaves a exportar/importar (AsyncStorage)
@@ -100,6 +101,21 @@ export default function ReglagesScreen() {
   const [showDiagModal, setShowDiagModal] = useState(false)
   const [diagData, setDiagData] = useState('')
   const [diagLoading, setDiagLoading] = useState(false)
+  const [autotesteLinhas, setAutotesteLinhas] = useState<string[]>([])
+  const [autotesteAExecutar, setAutotesteAExecutar] = useState(false)
+  const executarAutotesteRubricas = async () => {
+    if (autotesteAExecutar) return
+    setAutotesteAExecutar(true)
+    setAutotesteLinhas([])
+    try {
+      const rel = await executarAutoteste({ backend: AsyncStorage })
+      setAutotesteLinhas(rel.estado === 'ocupado' ? ['Test déjà en cours'] : formatarRelatorio(rel))
+    } catch {
+      setAutotesteLinhas(['❌ Le test n’a pas pu s’exécuter'])
+    } finally {
+      setAutotesteAExecutar(false)
+    }
+  }
   const [showSanteModal, setShowSanteModal] = useState(false)
   const [santeData, setSanteData] = useState('')
   const [showLogsModal, setShowLogsModal] = useState(false)
@@ -1425,6 +1441,12 @@ export default function ReglagesScreen() {
             <Text style={{ fontSize: 15, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 }}>🔬 Diagnostic calibration</Text>
             <ScrollView style={{ maxHeight: 480 }}>
               <Text style={{ fontSize: 11, fontFamily: 'Courier New', color: c.text, lineHeight: 17 }}>{diagData}</Text>
+              <TouchableOpacity style={{ marginTop: 14, padding: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, opacity: autotesteAExecutar ? 0.5 : 1 }} disabled={autotesteAExecutar} onPress={executarAutotesteRubricas}>
+                <Text style={{ fontSize: 11, color: c.text }}>{autotesteAExecutar ? '⏳ Test en cours…' : 'Tester le stockage des rubriques'}</Text>
+              </TouchableOpacity>
+              {autotesteLinhas.length > 0 && (
+                <Text style={{ fontSize: 11, fontFamily: 'Courier New', color: c.text, lineHeight: 17, marginTop: 8 }}>{autotesteLinhas.join('\n')}</Text>
+              )}
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(41,128,185,0.15)', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2980b9' }} onPress={async () => {
